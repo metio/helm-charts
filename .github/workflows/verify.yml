@@ -205,26 +205,30 @@ jobs:
           kubectl apply -f https://github.com/cert-manager/cert-manager/releases/latest/download/cert-manager.yaml
           kubectl -n cert-manager rollout status deploy/cert-manager-webhook --timeout=300s
           kubectl apply -f https://github.com/fluxcd/source-controller/releases/latest/download/source-controller.crds.yaml
-          # The joi chart renders JsonnetLibrary CRs; that CRD belongs to jaas,
-          # which isn't released yet. Provision it from the in-repo jaas chart
-          # (the same vendored CRD) so ct install of joi resolves the kind.
-          helm template release-x charts/jaas --show-only templates/crd-jsonnetlibraries.yaml | kubectl apply --server-side -f -
+          # The joi chart renders JsonnetLibrary CRs, whose CRD belongs to jaas.
+          # Provision it from the in-repo jaas chart UNLESS the jaas chart is
+          # itself being installed this run (changed and not excluded): when
+          # jaas installs it creates the Helm-owned CRD, and a pre-applied
+          # unowned copy would block helm from adopting it ("missing
+          # app.kubernetes.io/managed-by: Helm"). ct installs jaas before joi,
+          # so a both-changed run still has the CRD in place when joi needs it.
+          jaas_installed=false
+          if echo '${{ needs.changed.outputs.charts }}' | jq -e 'index("jaas")' >/dev/null \
+             && ! echo ",${{ needs.changed.outputs.excluded }}," | grep -q ',jaas,'; then
+            jaas_installed=true
+          fi
+          if [ "$jaas_installed" = false ]; then
+            helm template release-x charts/jaas --show-only templates/crd-jsonnetlibraries.yaml | kubectl apply --server-side -f -
+          fi
       - name: ct install (changed charts)
         run: |
           # Skip charts whose appVersion is the 0.0.0 placeholder (image not
           # released yet); the changed job computed the exclude list.
           excluded="${{ needs.changed.outputs.excluded }}"
-          # --take-ownership: the prereq step pre-applies the jaas CRD (via
-          # kubectl, unowned) so the joi chart can render JsonnetLibrary CRs.
-          # Now that the jaas chart itself is installable, its templates carry
-          # that same CRD; --take-ownership lets helm adopt the pre-applied
-          # object instead of failing on missing ownership metadata. It also
-          # covers the resource-policy:keep CRD surviving a prior install's
-          # uninstall within the same ct run.
           if [ -n "$excluded" ]; then
-            ct install --config ct.yaml --helm-extra-args "--take-ownership" --excluded-charts "$excluded"
+            ct install --config ct.yaml --excluded-charts "$excluded"
           else
-            ct install --config ct.yaml --helm-extra-args "--take-ownership"
+            ct install --config ct.yaml
           fi
 
   yaml:
