@@ -29,6 +29,12 @@ root="$(cd "$(dirname "$0")/.." && pwd)"
 templates="$root/charts/$chart/templates"
 ref="$version"   # metio release tags are the bare calendar version (no 'v')
 
+# Authenticate the GitHub API call when a token is available (bump.yml and the
+# verify gate both export GH_TOKEN). Unauthenticated requests share a 60/hour
+# per-IP budget that a busy runner can exhaust, surfacing as a spurious 404/403.
+auth=()
+[ -n "${GH_TOKEN:-}" ] && auth=(-H "Authorization: Bearer $GH_TOKEN")
+
 header() {
   # Go-template SPDX + rationale header prepended to every vendored CRD. The
   # raw controller-gen body (which begins with '---') follows verbatim.
@@ -48,7 +54,7 @@ EOF
 }
 
 # List the CRD files in the source repo at this tag via the contents API.
-files="$(curl -fsSL \
+files="$(curl -fsSL "${auth[@]}" \
   "https://api.github.com/repos/$repo/contents/$crd_dir?ref=$ref" \
   | jq -r '.[] | select(.name | endswith(".yaml")) | .name')"
 

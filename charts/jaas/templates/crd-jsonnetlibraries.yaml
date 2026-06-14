@@ -2,7 +2,12 @@
 SPDX-FileCopyrightText: The helm-charts Authors
 SPDX-License-Identifier: 0BSD
 
-see crd-jsonnetsnippets.yaml for the resource-policy rationale.
+CRDs live under templates/ (not crds/) so `helm upgrade` applies schema
+changes automatically. The `helm.sh/resource-policy: keep` annotation keeps
+`helm uninstall` from wiping the CRD (and every bound custom resource) — an
+operator who genuinely wants them gone deletes the CRD by hand. Vendored from
+the source repo by hack/vendor-crds.sh and pinned to the chart's appVersion;
+the verify.yml CRD-sync gate fails on drift.
 */ -}}
 ---
 apiVersion: apiextensions.k8s.io/v1

@@ -214,10 +214,17 @@ jobs:
           # Skip charts whose appVersion is the 0.0.0 placeholder (image not
           # released yet); the changed job computed the exclude list.
           excluded="${{ needs.changed.outputs.excluded }}"
+          # --take-ownership: the prereq step pre-applies the jaas CRD (via
+          # kubectl, unowned) so the joi chart can render JsonnetLibrary CRs.
+          # Now that the jaas chart itself is installable, its templates carry
+          # that same CRD; --take-ownership lets helm adopt the pre-applied
+          # object instead of failing on missing ownership metadata. It also
+          # covers the resource-policy:keep CRD surviving a prior install's
+          # uninstall within the same ct run.
           if [ -n "$excluded" ]; then
-            ct install --config ct.yaml --excluded-charts "$excluded"
+            ct install --config ct.yaml --helm-extra-args "--take-ownership" --excluded-charts "$excluded"
           else
-            ct install --config ct.yaml
+            ct install --config ct.yaml --helm-extra-args "--take-ownership"
           fi
 
   yaml:

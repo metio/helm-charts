@@ -28,6 +28,11 @@ jobs:
             image="$(grep -oP '#\s*renovate:\s*image=\K\S+' "$cf" || true)"
             [ -n "$image" ] || continue
             appVersion="$(grep -oP '^appVersion:\s*"?\K[^"]+' "$cf")"
+            # Sibling charts may still be on the 0.0.0 placeholder (no released
+            # image yet); there is no such tag to vendor from, so skip them —
+            # otherwise the one bumped chart's run dies on a sibling's 404.
+            # Mirrors the same skip in verify.yml's CRD-sync gate.
+            [ "$appVersion" = "0.0.0" ] && continue
             hack/vendor-crds.sh "$image" "$appVersion"
           done
       - name: Commit any CRD changes back to the branch

@@ -6,9 +6,12 @@ templates:
 tests:
   - it: renders the image as registry/repository:appVersion
     asserts:
-      - equal:
+      # Match the shape, not the literal tag: the tag defaults to
+      # .Chart.AppVersion, which Renovate bumps to the released calendar
+      # version, so pinning an exact value breaks on every release bump.
+      - matchRegex:
           path: spec.template.spec.containers[0].image
-          value: ghcr.io/metio/stageset-controller:0.0.0
+          pattern: ^ghcr\.io/metio/stageset-controller:[0-9.]+$
   - it: omits spec.replicas so the HPA (or default) owns the count
     asserts:
       - notExists:
