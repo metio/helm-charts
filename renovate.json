@@ -6,10 +6,11 @@
   },
   "packageRules": [
     {
-      "description": "Group each controller image bump with its CRD re-vendor. semver versioning so the metio calendar tags (YYYY.M.D = three integers) order correctly; the default docker versioning does not.",
+      "description": "Group each controller image bump with its CRD re-vendor. semver versioning so the metio calendar tags (YYYY.M.D = three integers) order correctly; the default docker versioning does not. maxMajorIncrement: 0 disables Renovate's default 500-major cap — under semver the calendar tag's year reads as the major (e.g. 2026), so the first bump from the 0.0.0 bootstrap is a +2026 major jump that the cap would otherwise silently skip.",
       "matchDatasources": ["docker"],
       "matchPackageNames": ["ghcr.io/metio/jaas", "ghcr.io/metio/stageset-controller"],
       "versioning": "semver",
+      "maxMajorIncrement": 0,
       "pinDigests": false,
       "commitMessageTopic": "{{depName}} image (chart appVersion)",
       "groupName": "{{depName}} appVersion"
