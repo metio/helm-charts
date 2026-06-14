@@ -385,6 +385,17 @@ jobs:
           kubectl describe bucket dashboards || true
           kubectl describe jsonnetsnippet chain-demo || true
           kubectl describe externalartifact chain-demo || true
+          # Reachability probe: the operator fetches the Bucket's artifact URL.
+          # Curling it from a throwaway pod isolates an operator fetch bug (this
+          # succeeds, operator fails) from a network/source-controller issue
+          # (this also hangs). -v shows whether it connects then stalls on headers.
+          url=$(kubectl -n default get bucket dashboards -o jsonpath='{.status.artifact.url}' 2>/dev/null || true)
+          echo "bucket artifact url: ${url:-<none>}"
+          if [ -n "$url" ]; then
+            kubectl -n default run chain-curl --image=docker.io/curlimages/curl:latest \
+              --restart=Never --rm -i --command -- \
+              curl -sS -v --max-time 25 -o /dev/null "$url" || true
+          fi
 
   scale-smoke:
     name: scale-smoke (N=50 snippets converge)

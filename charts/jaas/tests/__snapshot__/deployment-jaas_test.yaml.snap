@@ -45,7 +45,7 @@ matches its volumes snapshot:
   1: |
     - image:
         pullPolicy: IfNotPresent
-        reference: ghcr.io/metio/joi-grafana-grafonnet:v11.4.0
+        reference: ghcr.io/metio/joi-grafana-grafonnet:latest
       name: library-grafonnet
     - image:
         pullPolicy: IfNotPresent

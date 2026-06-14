@@ -187,7 +187,10 @@ libraries:
     enabled: true
     registry: ghcr.io
     repository: metio/joi-grafana-grafonnet
-    version: v11.4.0
+    # The JOI images are calendar-tagged (plus a moving `latest`), not tagged by
+    # the upstream grafonnet version — there is no `v11.4.0` tag. Match the other
+    # libraries and track `latest`; pin to a dated tag (e.g. 2026.6.14) to freeze.
+    version: latest
   docsonnet:
     enabled: true
     registry: ghcr.io

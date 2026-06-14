@@ -1,11 +1,14 @@
 # SPDX-FileCopyrightText: The helm-charts Authors
 # SPDX-License-Identifier: 0BSD
-# RWX-PVC rollback store.
+# PVC rollback store. Uses ReadWriteOnce: kind's local-path provisioner rejects
+# ReadWriteMany ("NodePath only supports ReadWriteOnce"), and a single-replica ct
+# install doesn't need RWX. RWX is only required to share the store across HA
+# replicas — that needs an RWX-capable provisioner (NFS/CSI), out of scope here.
 rollbackStore:
   backend: pvc
   pvc:
     accessModes:
-      - ReadWriteMany
+      - ReadWriteOnce
     size: 2Gi
 
 # CI installs the chart once per values file; the CRDs are provisioned
