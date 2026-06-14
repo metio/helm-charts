@@ -71,7 +71,7 @@ jobs:
       - name: Cluster prereqs (cert-manager + Flux + issuer)
         run: |
           jaas-src/hack/smoke/setup-cert-manager.sh
-          jaas-src/hack/smoke/setup-flux.sh v2.6.0
+          jaas-src/hack/smoke/setup-flux.sh v2.7.0
           jaas-src/hack/smoke/setup-selfsigned-issuer.sh
       - name: Install the dev chart with the released image
         run: |
@@ -121,7 +121,7 @@ jobs:
           node_image: kindest/node:v1.33.1
           wait: 180s
       - name: Cluster prereqs (Flux)
-        run: jaas-src/hack/smoke/setup-flux.sh v2.6.0
+        run: jaas-src/hack/smoke/setup-flux.sh v2.7.0
       - name: Install the dev chart (self-signed cert mode) with the released image
         run: |
           kubectl create namespace jaas-system
@@ -165,7 +165,7 @@ jobs:
           node_image: kindest/node:v1.33.1
           wait: 180s
       - name: Cluster prereqs (Flux)
-        run: jaas-src/hack/smoke/setup-flux.sh v2.6.0
+        run: jaas-src/hack/smoke/setup-flux.sh v2.7.0
       - name: Install the dev chart (no webhook) with the released image
         run: |
           kubectl create namespace jaas-system
@@ -207,7 +207,7 @@ jobs:
           wait: 180s
       - name: Cluster prereqs (Flux + MinIO bucket)
         run: |
-          jaas-src/hack/smoke/setup-flux.sh v2.6.0
+          jaas-src/hack/smoke/setup-flux.sh v2.7.0
           jaas-src/hack/smoke/setup-minio.sh
       - name: Install the dev chart (no webhook) with the released image
         run: |
@@ -251,7 +251,7 @@ jobs:
           node_image: kindest/node:v1.33.1
           wait: 180s
       - name: Cluster prereqs (Flux)
-        run: jaas-src/hack/smoke/setup-flux.sh v2.6.0
+        run: jaas-src/hack/smoke/setup-flux.sh v2.7.0
       - name: Install the dev chart (no webhook) with the released image
         run: |
           kubectl create namespace jaas-system

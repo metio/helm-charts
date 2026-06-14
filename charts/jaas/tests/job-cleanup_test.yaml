@@ -100,7 +100,7 @@ tests:
           path: spec.template.spec.serviceAccountName
           value: RELEASE-NAME-cleanup
 
-  - it: Job command bulk-deletes JsonnetSnippets and waits for finalizers
+  - it: runs kubectl delete with --wait via args (distroless image, no shell)
     set:
       operator:
         enabled: true
@@ -108,14 +108,22 @@ tests:
       path: kind
       value: Job
     asserts:
-      - matchRegex:
-          path: spec.template.spec.containers[0].command[2]
-          pattern: "kubectl delete jsonnetsnippets.jaas.metio.wtf --all -A"
-      - matchRegex:
-          path: spec.template.spec.containers[0].command[2]
-          pattern: "--wait=true"
+      # registry.k8s.io/kubectl is distroless (no /bin/sh): kubectl is the
+      # entrypoint and the cleanup args are passed directly, so there is no
+      # command override to exec a shell.
+      - notExists:
+          path: spec.template.spec.containers[0].command
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: jsonnetsnippets.jaas.metio.wtf
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --wait=true
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --ignore-not-found
 
-  - it: Job command has a fallback that strips finalizers on timeout
+  - it: gives kubectl a writable cache dir for the read-only rootfs
     set:
       operator:
         enabled: true
@@ -123,12 +131,19 @@ tests:
       path: kind
       value: Job
     asserts:
-      - matchRegex:
-          path: spec.template.spec.containers[0].command[2]
-          pattern: "finalizers"
-      - matchRegex:
-          path: spec.template.spec.containers[0].command[2]
-          pattern: "patch"
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --cache-dir=/tmp/kubecache
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: cache
+            mountPath: /tmp
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: cache
+            emptyDir: {}
 
   - it: Job applies activeDeadlineSeconds + backoffLimit safety caps
     set:
@@ -176,9 +191,9 @@ tests:
       path: kind
       value: Job
     asserts:
-      - matchRegex:
-          path: spec.template.spec.containers[0].command[2]
-          pattern: "--timeout=5m"
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --timeout=5m
 
   - it: pod-level securityContext is PSS-restricted compliant
     set:

@@ -136,30 +136,36 @@ spec:
       imagePullSecrets:
           {{- toYaml . | nindent 8 }}
       {{- end }}
+      volumes:
+        # Writable cache for kubectl's discovery client. The container's root
+        # filesystem is read-only, so without this kubectl cannot write
+        # ~/.kube/cache and the run errors instead of cleaning up.
+        - name: cache
+          emptyDir: {}
       containers:
         - name: cleanup
           image: "{{ .Values.operator.cleanupOnDelete.image.registry }}/{{ .Values.operator.cleanupOnDelete.image.repository }}:{{ .Values.operator.cleanupOnDelete.image.tag }}"
           imagePullPolicy: {{ .Values.operator.cleanupOnDelete.image.pullPolicy }}
-          command:
-            - /bin/sh
-            - -c
-            - |
-              set -eu
-              echo "Listing JsonnetSnippets..."
-              kubectl get jsonnetsnippets.jaas.metio.wtf -A -o name || true
-              echo "Deleting all JsonnetSnippets (operator finalizer drops the tarballs)..."
-              if ! kubectl delete jsonnetsnippets.jaas.metio.wtf --all -A \
-                   --wait=true --timeout={{ .Values.operator.cleanupOnDelete.kubectlTimeout }}; then
-                echo "WARNING: bulk delete timed out — operator may be unreachable."
-                echo "Stripping finalizers so Helm can proceed with uninstall."
-                kubectl get jsonnetsnippets.jaas.metio.wtf -A -o name | while read -r snip; do
-                  ns=$(kubectl get $snip -o jsonpath='{.metadata.namespace}' || true)
-                  kubectl patch $snip -n "$ns" --type=merge \
-                    -p '{"metadata":{"finalizers":[]}}' || true
-                done
-                kubectl delete jsonnetsnippets.jaas.metio.wtf --all -A --ignore-not-found
-              fi
-              echo "Cleanup complete."
+          # registry.k8s.io/kubectl is distroless: its entrypoint is
+          # /bin/kubectl and there is no /bin/sh, so the Job passes kubectl
+          # args directly rather than wrapping a shell script. --wait lets the
+          # operator's finalizer drop each ExternalArtifact + tarball before
+          # Helm removes the operator; --ignore-not-found makes the no-snippet
+          # case (and any re-run) a clean no-op. If the operator is already
+          # unreachable the delete times out and the Job fails — recover by
+          # stripping finalizers as documented in the chart NOTES.
+          args:
+            - delete
+            - jsonnetsnippets.jaas.metio.wtf
+            - --all
+            - --all-namespaces
+            - --wait=true
+            - --timeout={{ .Values.operator.cleanupOnDelete.kubectlTimeout }}
+            - --ignore-not-found
+            - --cache-dir=/tmp/kubecache
+          volumeMounts:
+            - name: cache
+              mountPath: /tmp
           securityContext:
             runAsNonRoot: true
             runAsGroup: 65532
