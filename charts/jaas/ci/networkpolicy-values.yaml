@@ -6,3 +6,9 @@ operator:
   defaultServiceAccount: default
 networkPolicy:
   enabled: true
+
+# CI installs the chart once per values file; the CRDs are provisioned
+# out-of-band (see verify.yml) so a kept cluster-scoped CRD owned by one
+# release does not block re-adoption by the next.
+crds:
+  create: false

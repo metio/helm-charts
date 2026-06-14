@@ -102,6 +102,21 @@
       "title": "arguments",
       "type": "object"
     },
+    "crds": {
+      "description": "CRD lifecycle. The chart ships the controller's CRDs under templates/ so a\n`helm upgrade` applies schema changes automatically. Set create=false to\nmanage them out-of-band — e.g. pre-installed cluster-wide, or in CI where the\nsame chart is installed once per values file and a kept cluster-scoped CRD\nowned by the first release can't be re-adopted by the next.",
+      "properties": {
+        "create": {
+          "default": true,
+          "title": "create",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "create"
+      ],
+      "title": "crds",
+      "type": "object"
+    },
     "deployment": {
       "description": "Fine tune the Deployment resource",
       "properties": {
@@ -1716,6 +1731,7 @@
     }
   },
   "required": [
+    "crds",
     "ports",
     "image",
     "imagePullSecrets",

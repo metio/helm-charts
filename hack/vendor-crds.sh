@@ -48,7 +48,10 @@ changes automatically. The `helm.sh/resource-policy: keep` annotation keeps
 `helm uninstall` from wiping the CRD (and every bound custom resource) — an
 operator who genuinely wants them gone deletes the CRD by hand. Vendored from
 the source repo by hack/vendor-crds.sh and pinned to the chart's appVersion;
-the verify.yml CRD-sync gate fails on drift.
+the verify.yml CRD-sync gate fails on drift. Gated on .Values.crds.create
+(default true) so the CRDs can be managed out-of-band — e.g. CI's chart-testing
+installs the same chart once per ci values file, and a cluster-scoped
+keep-policy CRD owned by the first release can't be re-adopted by the next.
 */ -}}
 EOF
 }
@@ -69,6 +72,11 @@ for file in $files; do
   # matching its two-space-under-annotations indentation.
   body="$(printf '%s\n' "$raw" \
     | sed '/controller-gen.kubebuilder.io\/version:/a\    helm.sh/resource-policy: keep')"
-  { header; printf '%s\n' "$body"; } > "$out"
+  {
+    header
+    printf '%s\n' '{{- if .Values.crds.create }}'
+    printf '%s\n' "$body"
+    printf '%s\n' '{{- end }}'
+  } > "$out"
   echo "vendored $repo/$crd_dir/$file -> charts/$chart/templates/crd-$plural.yaml"
 done

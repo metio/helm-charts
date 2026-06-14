@@ -205,21 +205,17 @@ jobs:
           kubectl apply -f https://github.com/cert-manager/cert-manager/releases/latest/download/cert-manager.yaml
           kubectl -n cert-manager rollout status deploy/cert-manager-webhook --timeout=300s
           kubectl apply -f https://github.com/fluxcd/source-controller/releases/latest/download/source-controller.crds.yaml
-          # The joi chart renders JsonnetLibrary CRs, whose CRD belongs to jaas.
-          # Provision it from the in-repo jaas chart UNLESS the jaas chart is
-          # itself being installed this run (changed and not excluded): when
-          # jaas installs it creates the Helm-owned CRD, and a pre-applied
-          # unowned copy would block helm from adopting it ("missing
-          # app.kubernetes.io/managed-by: Helm"). ct installs jaas before joi,
-          # so a both-changed run still has the CRD in place when joi needs it.
-          jaas_installed=false
-          if echo '${{ needs.changed.outputs.charts }}' | jq -e 'index("jaas")' >/dev/null \
-             && ! echo ",${{ needs.changed.outputs.excluded }}," | grep -q ',jaas,'; then
-            jaas_installed=true
-          fi
-          if [ "$jaas_installed" = false ]; then
-            helm template release-x charts/jaas --show-only templates/crd-jsonnetlibraries.yaml | kubectl apply --server-side -f -
-          fi
+          # Charts install with crds.create=false in CI (their ci values), because
+          # ct installs each chart once per ci values file and a kept, cluster-
+          # scoped CRD owned by the first release can't be re-adopted by the next.
+          # So provision every chart's CRDs once here. They're cluster-scoped and
+          # idempotent, and the joi chart also needs jaas's JsonnetLibrary CRD
+          # present, so applying all of them unconditionally is correct + harmless.
+          for crd in charts/*/templates/crd-*.yaml; do
+            chart="$(dirname "$(dirname "$crd")")"
+            helm template release-x "$chart" --set crds.create=true --show-only "templates/$(basename "$crd")" \
+              | kubectl apply --server-side -f -
+          done
       - name: ct install (changed charts)
         run: |
           # Skip charts whose appVersion is the 0.0.0 placeholder (image not

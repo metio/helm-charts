@@ -1,6 +1,14 @@
 # SPDX-FileCopyrightText: The helm-charts Authors
 # SPDX-License-Identifier: 0BSD
 
+# CRD lifecycle. The chart ships the controller's CRDs under templates/ so a
+# `helm upgrade` applies schema changes automatically. Set create=false to
+# manage them out-of-band — e.g. pre-installed cluster-wide, or in CI where the
+# same chart is installed once per values file and a kept cluster-scoped CRD
+# owned by the first release can't be re-adopted by the next.
+crds:
+  create: true
+
 ports:
   # Used by the /jsonnet endpoint
   http: 8080
