@@ -10,6 +10,7 @@
       "matchDatasources": ["docker"],
       "matchPackageNames": ["ghcr.io/metio/jaas", "ghcr.io/metio/stageset-controller"],
       "versioning": "semver",
+      "pinDigests": false,
       "commitMessageTopic": "{{depName}} image (chart appVersion)",
       "groupName": "{{depName}} appVersion"
     }
