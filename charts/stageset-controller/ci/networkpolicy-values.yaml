@@ -1,13 +1,16 @@
 # SPDX-FileCopyrightText: The helm-charts Authors
 # SPDX-License-Identifier: 0BSD
-# Opt-in NetworkPolicy + ServiceMonitor + namespace PSS labels.
+# Opt-in NetworkPolicy + ServiceMonitor.
+# namespace.create is deliberately NOT exercised here: chart-testing pre-creates
+# the release namespace, and the chart would render a Namespace of the same name
+# (without Helm ownership metadata on the pre-created one), so a live install
+# fails with "exists and cannot be imported". The namespace template's rendering
+# (including PSS labels) is covered by helm-unittest instead.
 networkPolicy:
   enabled: true
 metrics:
   serviceMonitor:
     enabled: true
-namespace:
-  create: true
 
 # CI installs the chart once per values file; the CRDs are provisioned
 # out-of-band (see verify.yml) so a kept cluster-scoped CRD owned by one

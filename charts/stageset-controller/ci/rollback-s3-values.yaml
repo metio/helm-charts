@@ -1,13 +1,20 @@
 # SPDX-FileCopyrightText: The helm-charts Authors
 # SPDX-License-Identifier: 0BSD
-# S3 rollback store with credentials from an existing Secret.
+# S3 rollback store, anonymous auth. The S3 client (minio-go) connects lazily,
+# so the pod boots without a reachable bucket — enough to smoke the backend=s3
+# config path. existingSecret is deliberately NOT set: chart-testing installs
+# into a fresh random namespace, so a referenced Secret can't be pre-created
+# there, and the deployment's `envFrom` against a missing Secret would wedge the
+# pod in CreateContainerConfigError. The existingSecret env wiring is covered by
+# helm-unittest instead.
 rollbackStore:
   backend: s3
   s3:
     endpoint: minio.minio.svc:9000
     bucket: stageset-rollback
     useSSL: false
-    existingSecret: stageset-rollback-s3
+    anonymous: true
+    existingSecret: ""
 
 # CI installs the chart once per values file; the CRDs are provisioned
 # out-of-band (see verify.yml) so a kept cluster-scoped CRD owned by one

@@ -107,10 +107,17 @@ jobs:
       - name: Install the dev chart with the released image
         run: |
           helm dependency build charts/jaas
+          # kind has no ImageVolume feature gate enabled, so the chart's default
+          # JOI library image-volumes (volumes[].image) can't mount and wedge the
+          # pod in ContainerCreating. Disable them: these operator scenarios use
+          # inline files / a Bucket source, not grafonnet/docsonnet/xtd.
           helm upgrade --install jaas charts/jaas \
             --namespace jaas-system \
             --set operator.enabled=true \
             --set operator.defaultServiceAccount=default \
+            --set libraries.grafonnet.enabled=false \
+            --set libraries.docsonnet.enabled=false \
+            --set libraries.xtd.enabled=false \
             --set operator.webhook.enabled=true \
             --set operator.webhook.certManager.issuerRef.kind=Issuer \
             --set operator.webhook.certManager.issuerRef.name=jaas-selfsigned \
@@ -182,10 +189,17 @@ jobs:
         run: |
           kubectl create namespace jaas-system
           helm dependency build charts/jaas
+          # kind has no ImageVolume feature gate enabled, so the chart's default
+          # JOI library image-volumes (volumes[].image) can't mount and wedge the
+          # pod in ContainerCreating. Disable them: these operator scenarios use
+          # inline files / a Bucket source, not grafonnet/docsonnet/xtd.
           helm upgrade --install jaas charts/jaas \
             --namespace jaas-system \
             --set operator.enabled=true \
             --set operator.defaultServiceAccount=default \
+            --set libraries.grafonnet.enabled=false \
+            --set libraries.docsonnet.enabled=false \
+            --set libraries.xtd.enabled=false \
             --set operator.webhook.enabled=true \
             --set operator.webhook.certMode=self-signed \
             --set operator.webhook.selfSignedValidity=24h \
@@ -245,10 +259,17 @@ jobs:
         run: |
           kubectl create namespace jaas-system
           helm dependency build charts/jaas
+          # kind has no ImageVolume feature gate enabled, so the chart's default
+          # JOI library image-volumes (volumes[].image) can't mount and wedge the
+          # pod in ContainerCreating. Disable them: these operator scenarios use
+          # inline files / a Bucket source, not grafonnet/docsonnet/xtd.
           helm upgrade --install jaas charts/jaas \
             --namespace jaas-system \
             --set operator.enabled=true \
             --set operator.defaultServiceAccount=default \
+            --set libraries.grafonnet.enabled=false \
+            --set libraries.docsonnet.enabled=false \
+            --set libraries.xtd.enabled=false \
             --wait --timeout 5m
       - name: Grant tenant publish RBAC (test fixture)
         # See the basic job — released scripts can lag HEAD's in-script grant.
@@ -307,10 +328,17 @@ jobs:
         run: |
           kubectl create namespace jaas-system
           helm dependency build charts/jaas
+          # kind has no ImageVolume feature gate enabled, so the chart's default
+          # JOI library image-volumes (volumes[].image) can't mount and wedge the
+          # pod in ContainerCreating. Disable them: these operator scenarios use
+          # inline files / a Bucket source, not grafonnet/docsonnet/xtd.
           helm upgrade --install jaas charts/jaas \
             --namespace jaas-system \
             --set operator.enabled=true \
             --set operator.defaultServiceAccount=default \
+            --set libraries.grafonnet.enabled=false \
+            --set libraries.docsonnet.enabled=false \
+            --set libraries.xtd.enabled=false \
             --wait --timeout 5m
       - name: Grant tenant publish RBAC (test fixture)
         # See the basic job — released scripts can lag HEAD's in-script grant.
@@ -374,10 +402,17 @@ jobs:
         run: |
           kubectl create namespace jaas-system
           helm dependency build charts/jaas
+          # kind has no ImageVolume feature gate enabled, so the chart's default
+          # JOI library image-volumes (volumes[].image) can't mount and wedge the
+          # pod in ContainerCreating. Disable them: these operator scenarios use
+          # inline files / a Bucket source, not grafonnet/docsonnet/xtd.
           helm upgrade --install jaas charts/jaas \
             --namespace jaas-system \
             --set operator.enabled=true \
             --set operator.defaultServiceAccount=default \
+            --set libraries.grafonnet.enabled=false \
+            --set libraries.docsonnet.enabled=false \
+            --set libraries.xtd.enabled=false \
             --wait --timeout 5m
       - name: Grant tenant publish RBAC (test fixture)
         # See the basic job — released scripts can lag HEAD's in-script grant.

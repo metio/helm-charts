@@ -197,13 +197,19 @@ jobs:
         with:
           node_image: kindest/node:${{ matrix.k8s }}
       - name: Install cluster prerequisites
-        # cert-manager (webhook cert-manager mode) and the Flux
-        # source-controller CRDs (ExternalArtifact, the artifact type
-        # both controllers integrate with) must exist before a chart
+        # cert-manager (webhook cert-manager mode), the Flux source-controller
+        # CRDs (ExternalArtifact, the artifact type both controllers integrate
+        # with), and the Prometheus-Operator CRDs (ServiceMonitor / PrometheusRule,
+        # rendered by the metrics-enabled ci values) must all exist before a chart
         # installs cleanly.
         run: |
           kubectl apply -f https://github.com/cert-manager/cert-manager/releases/latest/download/cert-manager.yaml
           kubectl -n cert-manager rollout status deploy/cert-manager-webhook --timeout=300s
+          # ServiceMonitor / PrometheusRule live in monitoring.coreos.com; charts
+          # render them when metrics scraping is enabled (stageset's
+          # networkpolicy-values, any jaas values that opt in), so the kinds must
+          # resolve at install time even though no Prometheus Operator runs here.
+          kubectl apply -f https://github.com/prometheus-operator/prometheus-operator/releases/latest/download/stripped-down-crds.yaml --server-side
           # The stageset-controller cert-manager-values.yaml drives the webhook in
           # cert-manager mode against a ClusterIssuer named stageset-selfsigned. A
           # cluster-scoped (not namespaced) issuer is required because ct installs
