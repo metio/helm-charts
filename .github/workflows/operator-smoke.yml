@@ -3,10 +3,12 @@
 
 name: jaas operator smoke
 on:
+  # Runs on every PR (no paths filter) so the `all-green` aggregate always
+  # reports a status and can be a required check. The expensive kind jobs are
+  # gated internally on `discover.outputs.relevant` (did this PR touch the jaas
+  # chart or this workflow?), so cost stays the same as the old paths filter.
   pull_request:
-    paths:
-      - charts/jaas/**
-      - .github/workflows/operator-smoke.yml
+    branches: [main]
   workflow_dispatch:
 
 # Angle 2 of the two-angle e2e strategy: the DEV jaas chart (this PR's
@@ -37,8 +39,27 @@ jobs:
       k8s_latest: ${{ steps.versions.outputs.k8s_latest }}
       flux_latest: ${{ steps.versions.outputs.flux_latest }}
       k8s_imagevolume: ${{ steps.versions.outputs.k8s_imagevolume }}
+      relevant: ${{ steps.scope.outputs.relevant }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          fetch-depth: 0
+      - id: scope
+        name: Did this PR touch the jaas chart or this workflow?
+        run: |
+          # Replaces the old `paths:` trigger: the heavy kind jobs run only when
+          # something they exercise changed. workflow_dispatch always counts.
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "relevant=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          base="${{ github.event.pull_request.base.sha }}"
+          if git diff --name-only "$base" HEAD \
+               | grep -qE '^charts/jaas/|^\.github/workflows/operator-smoke\.yml$'; then
+            echo "relevant=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "relevant=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No jaas-chart / operator-smoke changes in this PR — kind jobs skip (gate stays green)."
+          fi
       - id: find
         name: Read charts/jaas appVersion
         run: |
@@ -92,7 +113,7 @@ jobs:
   basic:
     name: basic + cert-manager webhook
     needs: discover
-    if: needs.discover.outputs.image_version != ''
+    if: needs.discover.outputs.image_version != '' && needs.discover.outputs.relevant == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout helm-charts (dev chart)
@@ -176,7 +197,7 @@ jobs:
   selfsigned:
     name: self-signed webhook (cert-manager-free)
     needs: discover
-    if: needs.discover.outputs.image_version != ''
+    if: needs.discover.outputs.image_version != '' && needs.discover.outputs.relevant == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout helm-charts (dev chart)
@@ -246,7 +267,7 @@ jobs:
   new-fields:
     name: spec.suspend + spec.history + Events
     needs: discover
-    if: needs.discover.outputs.image_version != ''
+    if: needs.discover.outputs.image_version != '' && needs.discover.outputs.relevant == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout helm-charts (dev chart)
@@ -313,7 +334,7 @@ jobs:
   source-chain:
     name: sourceRef chain (Bucket → Snippet)
     needs: discover
-    if: needs.discover.outputs.image_version != ''
+    if: needs.discover.outputs.image_version != '' && needs.discover.outputs.relevant == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout helm-charts (dev chart)
@@ -410,7 +431,7 @@ jobs:
   scale-smoke:
     name: scale-smoke (N=50 snippets converge)
     needs: discover
-    if: needs.discover.outputs.image_version != ''
+    if: needs.discover.outputs.image_version != '' && needs.discover.outputs.relevant == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout helm-charts (dev chart)
@@ -480,7 +501,7 @@ jobs:
     # The other jobs disable the JOI library image-volumes to stay portable —
     # this one is the dedicated coverage that they mount and the operator reads
     # them, run against exactly the versions that support the feature.
-    if: needs.discover.outputs.image_version != '' && needs.discover.outputs.k8s_imagevolume != '[]'
+    if: needs.discover.outputs.image_version != '' && needs.discover.outputs.k8s_imagevolume != '[]' && needs.discover.outputs.relevant == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -543,3 +564,33 @@ jobs:
           kubectl -n jaas-system get pods -o wide || true
           kubectl -n jaas-system describe pod -l app.kubernetes.io/name=jaas || true
           kubectl -n jaas-system logs deploy/jaas --tail=200 || true
+
+  # Single stably-named aggregate — the only check to mark "required". It always
+  # runs (if: always()) so it reports on every PR, including ones where the kind
+  # jobs skip (not jaas-relevant, or no release yet) — those count as passed.
+  all-green:
+    name: Operator smoke — all checks passed
+    needs:
+      - discover
+      - basic
+      - selfsigned
+      - new-fields
+      - source-chain
+      - scale-smoke
+      - image-volumes
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail unless every dependency succeeded or was skipped
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          echo "$NEEDS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          bad=$(echo "$NEEDS" | jq -r '
+            to_entries[]
+            | select(.value.result != "success" and .value.result != "skipped")
+            | "\(.key)=\(.value.result)"')
+          if [ -n "$bad" ]; then
+            echo "::error::Required jobs did not pass:"; echo "$bad"; exit 1
+          fi
+          echo "All required jobs passed (or were intentionally skipped)."

@@ -290,3 +290,44 @@ jobs:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
       - name: Spell check (typos)
         uses: crate-ci/typos@37bb98842b0d8c4ffebdb75301a13db0267cef89 # v1
+
+  # Single, stably-named aggregate of every job above. Matrix jobs (install,
+  # static, crd-sync) report one rolled-up result here — success only if every
+  # leg passed — so this is the one and only check to mark "required" in branch
+  # protection. It replaces having to enumerate matrix legs whose names change
+  # with the discovered k8s versions / chart set.
+  all-green:
+    name: Verify — all checks passed
+    needs:
+      - changed
+      - static
+      - crd-sync
+      - k8s-matrix
+      - install
+      - yaml
+      - github-actions
+      - markdown
+      - typos
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail unless every dependency succeeded or was skipped
+        env:
+          # toJSON(needs) is {<job>: {result: success|failure|cancelled|skipped, ...}}.
+          # Passing it through env avoids interpolating untrusted text into the script.
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          echo "$NEEDS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          # Skipped is allowed (jobs gate themselves on changed-chart / release
+          # conditions); any real failure still propagates because the failing
+          # job is a direct dependency here. Fail on failure or cancelled.
+          bad=$(echo "$NEEDS" | jq -r '
+            to_entries[]
+            | select(.value.result != "success" and .value.result != "skipped")
+            | "\(.key)=\(.value.result)"')
+          if [ -n "$bad" ]; then
+            echo "::error::Required jobs did not pass:"
+            echo "$bad"
+            exit 1
+          fi
+          echo "All required jobs passed (or were intentionally skipped)."
