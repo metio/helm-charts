@@ -1,6 +1,9 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["github>metio/renovate-config"],
+  "helm-values": {
+    "enabled": false
+  },
   "packageRules": [
     {
       "description": "Group each controller image bump with its CRD re-vendor. semver versioning so the metio calendar tags (YYYY.M.D = three integers) order correctly; the default docker versioning does not.",

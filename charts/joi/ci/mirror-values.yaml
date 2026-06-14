@@ -1,6 +1,9 @@
 # SPDX-FileCopyrightText: The helm-charts Authors
 # SPDX-License-Identifier: 0BSD
 # Air-gapped: pull all JOI artifacts from an internal mirror with auth.
+# No `namespace:` override here — `ct install` places the CRs in the (auto-
+# created) release namespace. A custom target namespace must already exist, so
+# setting one would fail the install; namespace rendering is covered by the
+# helm-unittest suite instead.
 registryMirror: registry.internal:5000
 imagePullSecret: mirror-creds
-namespace: platform

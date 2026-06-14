@@ -136,6 +136,14 @@ chart with zero manual work.
   **repo-specific** managers live locally: the controller-image packageRule and
   the appVersion customManager. Don't re-add generic presets here — put org-wide
   policy in the org repo.
+- **The `helm-values` manager is disabled** (`"helm-values": {"enabled": false}`).
+  Chart-values images are managed *by design* — controllers via the appVersion
+  customManager, joi via mutable tags refreshed by `sync-joi.yml`. The org
+  preset's `docker:pinDigests` would otherwise append `@sha256:…` digests to
+  values-file image refs, which **breaks the joi `OCIRepository`**: the template
+  builds `spec.url: oci://{{ .image }}` and the digest belongs in `spec.ref`, not
+  the url. The `joi_test.yaml` exact-match on `spec.url` is the guard — keep it
+  exact (a regex would hide that breakage).
 - **`# renovate: image=…` annotations are fully qualified** (`ghcr.io/metio/jaas`,
   `ghcr.io/metio/stageset-controller`). The same image string keys both the
   Renovate `matchPackageNames` rule and the `hack/vendor-crds.sh` case — they

@@ -40,9 +40,17 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "charts=${{ github.event.inputs.chart }}" >> "$GITHUB_OUTPUT"
           else
-            # chart dirs touched by this push, excluding the never-published common library chart
-            changed="$(git diff --name-only '${{ github.event.before }}' '${{ github.sha }}' -- 'charts/*/' \
-              | awk -F/ '{print $2}' | sort -u | grep -v '^common$' || true)"
+            before='${{ github.event.before }}'
+            # On the first push to the branch `before` is the all-zeros SHA (and
+            # the commit isn't present), so the diff would fail and silently
+            # release nothing. Fall back to treating every chart as changed.
+            if [ -z "$before" ] || ! git rev-parse -q --verify "${before}^{commit}" >/dev/null 2>&1; then
+              changed="$(ls -d charts/*/ 2>/dev/null | awk -F/ '{print $2}' | grep -v '^common$' || true)"
+            else
+              # chart dirs touched by this push, excluding the never-published common library chart
+              changed="$(git diff --name-only "$before" '${{ github.sha }}' -- 'charts/*/' \
+                | awk -F/ '{print $2}' | sort -u | grep -v '^common$' || true)"
+            fi
             echo "charts=$(echo "$changed" | tr '\n' ' ')" >> "$GITHUB_OUTPUT"
           fi
 
@@ -57,6 +65,14 @@ jobs:
             chart="charts/$name"
             [ -f "$chart/Chart.yaml" ] || { echo "no such chart: $name"; continue; }
             appVersion="$(grep -oP '^appVersion:\s*"?\K[^"]+' "$chart/Chart.yaml")"
+
+            # The committed 0.0.0 placeholder means the controller image isn't
+            # released yet, so the chart would deploy a non-existent image.
+            # Don't publish it until Renovate bumps appVersion to a real release.
+            if [ "$appVersion" = "0.0.0" ]; then
+              echo "::notice::$name appVersion is the 0.0.0 placeholder — skipping release until its image is published."
+              continue
+            fi
 
             echo "::group::release $name $version (appVersion $appVersion)"
             helm dependency build "$chart"
