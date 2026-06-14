@@ -36,6 +36,7 @@ jobs:
       image_version: ${{ steps.find.outputs.version }}
       k8s_latest: ${{ steps.versions.outputs.k8s_latest }}
       flux_latest: ${{ steps.versions.outputs.flux_latest }}
+      k8s_imagevolume: ${{ steps.versions.outputs.k8s_imagevolume }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
       - id: find
@@ -58,11 +59,19 @@ jobs:
           # Newest kindest/node minor, latest patch. A new k8s release is tested
           # automatically; if kind can't run a brand-new minor yet, that surfaces
           # as a failure — the signal to bump kind, not silent staleness.
-          k8s=$(curl -fsSL "https://hub.docker.com/v2/repositories/kindest/node/tags?page_size=100" \
+          k8s_all=$(curl -fsSL "https://hub.docker.com/v2/repositories/kindest/node/tags?page_size=100" \
             | jq -r '.results[].name' | grep -E '^v1\.[0-9]+\.[0-9]+$' \
             | awk -F. '{print $1"."$2" "$0}' | sort -k1,1V -k2,2V \
-            | awk '{l[$1]=$2} END{for(m in l)print l[m]}' | sort -V | tail -1)
+            | awk '{l[$1]=$2} END{for(m in l)print l[m]}' | sort -V)
+          k8s=$(printf '%s\n' "$k8s_all" | tail -1)
           [ -n "$k8s" ] || k8s=v1.33.1
+          # Subset that reliably supports image volumes on kind: k8s >= 1.33,
+          # where ImageVolume is beta and the node images ship containerd 2.x with
+          # image-volume CRI support. The gate is known there, so enabling it can't
+          # error; newer minors are picked up automatically. Empty => the
+          # image-volumes job skips (its if: guards on != '[]').
+          k8s_iv=$(printf '%s\n' "$k8s_all" | awk -F. '$2>=33' | jq -R . | jq -cs . 2>/dev/null || echo '[]')
+          [ -n "$k8s_iv" ] || k8s_iv='[]'
           # Newest Flux at or above the ExternalArtifact floor (v2.7.0 /
           # source-controller v1.7.0); below that the publish path has no CRD. The
           # major>2 clause keeps a future v3.x in range without a manual edit.
@@ -76,8 +85,9 @@ jobs:
           {
             echo "k8s_latest=$k8s"
             echo "flux_latest=$flux"
+            echo "k8s_imagevolume=$k8s_iv"
           } >> "$GITHUB_OUTPUT"
-          echo "k8s_latest=$k8s  flux_latest=$flux"
+          echo "k8s_latest=$k8s  flux_latest=$flux  k8s_imagevolume=$k8s_iv"
 
   basic:
     name: basic + cert-manager webhook
@@ -441,3 +451,74 @@ jobs:
           kubectl -n jaas-system get all || true
           kubectl -n jaas-system logs deploy/jaas --tail=500 || true
           kubectl get jsonnetsnippet -n default -o wide || true
+
+  image-volumes:
+    name: image-volume libraries (k8s ${{ matrix.k8s_version }})
+    needs: discover
+    # Only the k8s minors where ImageVolume works on kind (>= 1.33; see discover).
+    # The other jobs disable the JOI library image-volumes to stay portable —
+    # this one is the dedicated coverage that they mount and the operator reads
+    # them, run against exactly the versions that support the feature.
+    if: needs.discover.outputs.image_version != '' && needs.discover.outputs.k8s_imagevolume != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        k8s_version: ${{ fromJSON(needs.discover.outputs.k8s_imagevolume) }}
+    steps:
+      - name: Checkout helm-charts (dev chart)
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - name: Write kind config enabling the ImageVolume feature gate
+        # kind does not enable ImageVolume by default; turn it on for apiserver
+        # (so the volumes[].image field survives admission) and kubelet (so it
+        # mounts). The node image carries the matching containerd.
+        run: |
+          cat > /tmp/kind-imagevolume.yaml <<EOF
+          kind: Cluster
+          apiVersion: kind.x-k8s.io/v1alpha4
+          featureGates:
+            ImageVolume: true
+          nodes:
+            - role: control-plane
+              image: kindest/node:${{ matrix.k8s_version }}
+          EOF
+          cat /tmp/kind-imagevolume.yaml
+      - name: Create kind cluster
+        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1
+        with:
+          cluster_name: jaas-chart-imagevolume
+          config: /tmp/kind-imagevolume.yaml
+          wait: 180s
+      - name: Install the dev chart with library image-volumes ENABLED
+        run: |
+          kubectl create namespace jaas-system
+          helm dependency build charts/jaas
+          # No --set libraries.*.enabled=false here: the whole point is to mount
+          # the JOI library image-volumes. A failed mount wedges the pod, so
+          # --wait timing out IS the negative signal.
+          helm upgrade --install jaas charts/jaas \
+            --namespace jaas-system \
+            --set operator.enabled=true \
+            --set operator.defaultServiceAccount=default \
+            --set libraries.grafonnet.enabled=true \
+            --set libraries.docsonnet.enabled=true \
+            --set libraries.xtd.enabled=true \
+            --wait --timeout 5m
+      - name: Assert the library image-volumes actually mounted
+        run: |
+          kubectl -n jaas-system rollout status deploy/jaas --timeout=120s
+          pod=$(kubectl -n jaas-system get pod -l app.kubernetes.io/name=jaas -o name | head -1)
+          echo "pod: $pod"
+          kubectl -n jaas-system get "$pod" \
+            -o jsonpath='{range .spec.volumes[*]}{.name}{" image="}{.image.reference}{"\n"}{end}'
+          # The apiserver prunes volumes[].image when the gate is off, so a
+          # non-zero count proves the feature is effective and the pod mounted it.
+          n=$(kubectl -n jaas-system get "$pod" -o jsonpath='{.spec.volumes[*].image.reference}' | wc -w)
+          [ "$n" -ge 1 ] || { echo "ERROR: no image-volume sources on the running pod — ImageVolume not effective"; exit 1; }
+          echo "image-volume library sources mounted: $n"
+      - name: Diagnostics on failure
+        if: failure()
+        run: |
+          kubectl -n jaas-system get pods -o wide || true
+          kubectl -n jaas-system describe pod -l app.kubernetes.io/name=jaas || true
+          kubectl -n jaas-system logs deploy/jaas --tail=200 || true
