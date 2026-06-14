@@ -21,7 +21,7 @@ never builds one. The two are versioned and released independently.
 
 ## Repository layout
 
-```
+```text
 charts/
   common/                     # library chart (type: library) — shared template helpers
     Chart.yaml

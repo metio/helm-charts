@@ -41,8 +41,11 @@ ilo bash -c 'helm template release-x charts/jaas | kubeconform -strict -ignore-m
 ilo bash -c 'helm template release-x charts/jaas'                       # render a chart with defaults
 ```
 
-The dev shell bundles `helm` + `helm-unittest`, `ct` (chart-testing), `kube-score`,
-`kubeconform`, `cosign`, `git-cliff`, `helm-schema`, `yamllint`, and `yamale`.
+The dev shell bundles **helm v4** + `helm-unittest` (>= 1.1.0, installed with
+`--verify=false` since helm v4 verifies plugin provenance and the plugin ships
+none), `ct` (chart-testing), `kube-score`, `kubeconform`, `cosign`, `git-cliff`,
+`helm-schema`, `yamllint`, and `yamale`. CI (`azure/setup-helm`) is pinned to the
+same helm v4 so snapshots render identically in both.
 golangci-lint is irrelevant here (there is no Go), but the project-wide ban
 still applies if any tooling ever tempts it.
 

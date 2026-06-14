@@ -14,6 +14,8 @@ jobs:
     outputs:
       charts: ${{ steps.list.outputs.charts }}
       any: ${{ steps.list.outputs.any }}
+      installable_any: ${{ steps.list.outputs.installable_any }}
+      excluded: ${{ steps.list.outputs.excluded }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -26,11 +28,30 @@ jobs:
           if [ -z "$changed" ]; then
             echo "any=false" >> "$GITHUB_OUTPUT"
             echo "charts=[]" >> "$GITHUB_OUTPUT"
+            echo "installable_any=false" >> "$GITHUB_OUTPUT"
+            echo "excluded=" >> "$GITHUB_OUTPUT"
           else
             echo "any=true" >> "$GITHUB_OUTPUT"
             # chart dir paths -> JSON array of chart names
             names="$(echo "$changed" | xargs -n1 basename | jq -R . | jq -cs .)"
             echo "charts=$names" >> "$GITHUB_OUTPUT"
+            # A chart whose committed appVersion is the 0.0.0 placeholder has no
+            # released image to deploy, so `ct install` can't pull it. Exclude
+            # those (and skip the whole install job if nothing else is left)
+            # until the source repo cuts its first release.
+            excluded=""; installable_any=false
+            for dir in $changed; do
+              name="$(basename "$dir")"
+              av="$(grep -oP '^appVersion:\s*"?\K[^"]+' "$dir/Chart.yaml" || echo "")"
+              if [ "$av" = "0.0.0" ]; then
+                echo "::notice::$name appVersion is the 0.0.0 placeholder (image not released) — excluding from ct install."
+                excluded="${excluded:+$excluded,}$name"
+              else
+                installable_any=true
+              fi
+            done
+            echo "installable_any=$installable_any" >> "$GITHUB_OUTPUT"
+            echo "excluded=$excluded" >> "$GITHUB_OUTPUT"
           fi
 
   static:
@@ -42,7 +63,7 @@ jobs:
           fetch-depth: 0
       - uses: azure/setup-helm@v4
         with:
-          version: v3.21.0
+          version: v4.1.4
       - uses: helm/chart-testing-action@v2
       - id: ct_lint
         name: ct lint (changed charts)
@@ -50,7 +71,9 @@ jobs:
       - id: unittest
         name: helm-unittest
         run: |
-          helm plugin install https://github.com/helm-unittest/helm-unittest --version v1.0.3
+          # helm v4 verifies plugin provenance on install; the helm-unittest
+          # plugin ships none, so pass --verify=false (>= 1.1.0 installs on v4).
+          helm plugin install https://github.com/helm-unittest/helm-unittest --version v1.1.1 --verify=false
           for c in charts/*/; do
             [ -d "${c}tests" ] || continue
             echo "::group::unittest ${c}"
@@ -116,6 +139,14 @@ jobs:
             image="$(grep -oP '#\s*renovate:\s*image=\K\S+' "$cf" || true)"
             [ -n "$image" ] || continue
             appVersion="$(grep -oP '^appVersion:\s*"?\K[^"]+' "$cf")"
+            # 0.0.0 is the committed placeholder until the source repo cuts its
+            # first release; there is no such tag to vendor CRDs from yet, so
+            # skip. The gate activates once Renovate bumps appVersion to a real
+            # release.
+            if [ "$appVersion" = "0.0.0" ]; then
+              echo "::notice::$(dirname "$cf") appVersion is the 0.0.0 placeholder — no released $image to vendor CRDs from yet; skipping."
+              continue
+            fi
             hack/vendor-crds.sh "$image" "$appVersion"
           done
           if ! git diff --exit-code -- 'charts/*/templates/crd-*.yaml'; then
@@ -126,7 +157,7 @@ jobs:
   k8s-matrix:
     name: Compute Kubernetes matrix
     needs: changed
-    if: needs.changed.outputs.any == 'true'
+    if: needs.changed.outputs.installable_any == 'true'
     runs-on: ubuntu-latest
     outputs:
       versions: ${{ steps.compute.outputs.versions }}
@@ -151,7 +182,7 @@ jobs:
   install:
     name: ct install (k8s ${{ matrix.k8s }})
     needs: [changed, k8s-matrix]
-    if: needs.changed.outputs.any == 'true'
+    if: needs.changed.outputs.installable_any == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -174,8 +205,20 @@ jobs:
           kubectl apply -f https://github.com/cert-manager/cert-manager/releases/latest/download/cert-manager.yaml
           kubectl -n cert-manager rollout status deploy/cert-manager-webhook --timeout=300s
           kubectl apply -f https://github.com/fluxcd/source-controller/releases/latest/download/source-controller.crds.yaml
+          # The joi chart renders JsonnetLibrary CRs; that CRD belongs to jaas,
+          # which isn't released yet. Provision it from the in-repo jaas chart
+          # (the same vendored CRD) so ct install of joi resolves the kind.
+          helm template release-x charts/jaas --show-only templates/crd-jsonnetlibraries.yaml | kubectl apply --server-side -f -
       - name: ct install (changed charts)
-        run: ct install --config ct.yaml
+        run: |
+          # Skip charts whose appVersion is the 0.0.0 placeholder (image not
+          # released yet); the changed job computed the exclude list.
+          excluded="${{ needs.changed.outputs.excluded }}"
+          if [ -n "$excluded" ]; then
+            ct install --config ct.yaml --excluded-charts "$excluded"
+          else
+            ct install --config ct.yaml
+          fi
 
   yaml:
     runs-on: ubuntu-latest

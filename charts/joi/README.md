@@ -51,4 +51,3 @@ libraries:
     tag: latest
     path: ""   # whole vendor tree; import via the full github.com/... path
 ```
-

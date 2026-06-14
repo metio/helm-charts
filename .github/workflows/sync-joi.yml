@@ -22,7 +22,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: azure/setup-helm@v4
         with:
-          version: v3.21.0
+          version: v4.1.4
       - name: Regenerate charts/joi from the JOI manifest
         run: |
           if ! curl -fsSL https://raw.githubusercontent.com/metio/jsonnet-oci-images/main/libraries.json -o /tmp/libraries.json; then
