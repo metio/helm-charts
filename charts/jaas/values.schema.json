@@ -282,7 +282,8 @@
               "type": "string"
             },
             "version": {
-              "default": "v11.4.0",
+              "default": "latest",
+              "description": "The JOI images are calendar-tagged (plus a moving `latest`), not tagged by\nthe upstream grafonnet version — there is no `v11.4.0` tag. Match the other\nlibraries and track `latest`; pin to a dated tag (e.g. 2026.6.14) to freeze.",
               "title": "version",
               "type": "string"
             }
