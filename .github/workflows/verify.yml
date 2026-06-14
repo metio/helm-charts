@@ -17,10 +17,10 @@ jobs:
       installable_any: ${{ steps.list.outputs.installable_any }}
       excluded: ${{ steps.list.outputs.excluded }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           fetch-depth: 0
-      - uses: helm/chart-testing-action@v2
+      - uses: helm/chart-testing-action@6ec842c01de15ebb84c8627d2744a0c2f2755c9f # v2
       - id: list
         name: List changed charts
         run: |
@@ -58,13 +58,13 @@ jobs:
     name: Static gates
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           fetch-depth: 0
       - uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2 # v5
         with:
-          version: v4.1.4
-      - uses: helm/chart-testing-action@v2
+          version: v4.2.0
+      - uses: helm/chart-testing-action@6ec842c01de15ebb84c8627d2744a0c2f2755c9f # v2
       - id: ct_lint
         name: ct lint (changed charts)
         run: ct lint --config ct.yaml
@@ -128,7 +128,7 @@ jobs:
     name: CRD sync gate
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
       - id: resync
         name: Re-vendor CRDs at each chart's committed appVersion and diff
         env:
@@ -189,11 +189,11 @@ jobs:
       matrix:
         k8s: ${{ fromJSON(needs.k8s-matrix.outputs.versions) }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           fetch-depth: 0
-      - uses: helm/chart-testing-action@v2
-      - uses: helm/kind-action@v1
+      - uses: helm/chart-testing-action@6ec842c01de15ebb84c8627d2744a0c2f2755c9f # v2
+      - uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1
         with:
           node_image: kindest/node:${{ matrix.k8s }}
       - name: Install cluster prerequisites
@@ -223,19 +223,19 @@ jobs:
   yaml:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
       - name: Lint YAML (yamllint)
         run: pipx install yamllint && yamllint .
   github-actions:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
       - name: Lint workflows (actionlint)
-        uses: reviewdog/action-actionlint@v1
+        uses: reviewdog/action-actionlint@6fb7acc99f4a1008869fa8a0f09cfca740837d9d # v1
   markdown:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
       - name: Lint Markdown (markdownlint)
         uses: DavidAnson/markdownlint-cli2-action@ded1f9488f68a970bc66ea5619e13e9b52e601cd # v23
         with:
@@ -243,6 +243,6 @@ jobs:
   typos:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
       - name: Spell check (typos)
-        uses: crate-ci/typos@v1
+        uses: crate-ci/typos@37bb98842b0d8c4ffebdb75301a13db0267cef89 # v1
