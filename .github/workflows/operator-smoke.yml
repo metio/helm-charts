@@ -30,10 +30,12 @@ permissions:
 
 jobs:
   discover:
-    name: Discover released jaas image (chart appVersion)
+    name: Discover released jaas image + test versions
     runs-on: ubuntu-latest
     outputs:
       image_version: ${{ steps.find.outputs.version }}
+      k8s_latest: ${{ steps.versions.outputs.k8s_latest }}
+      flux_latest: ${{ steps.versions.outputs.flux_latest }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
       - id: find
@@ -47,6 +49,35 @@ jobs:
             echo "released jaas image (appVersion): $v"
           fi
           echo "version=$v" >> "$GITHUB_OUTPUT"
+      - id: versions
+        name: Discover newest Kubernetes + Flux versions to test against
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -uo pipefail
+          # Newest kindest/node minor, latest patch. A new k8s release is tested
+          # automatically; if kind can't run a brand-new minor yet, that surfaces
+          # as a failure — the signal to bump kind, not silent staleness.
+          k8s=$(curl -fsSL "https://hub.docker.com/v2/repositories/kindest/node/tags?page_size=100" \
+            | jq -r '.results[].name' | grep -E '^v1\.[0-9]+\.[0-9]+$' \
+            | awk -F. '{print $1"."$2" "$0}' | sort -k1,1V -k2,2V \
+            | awk '{l[$1]=$2} END{for(m in l)print l[m]}' | sort -V | tail -1)
+          [ -n "$k8s" ] || k8s=v1.33.1
+          # Newest Flux at or above the ExternalArtifact floor (v2.7.0 /
+          # source-controller v1.7.0); below that the publish path has no CRD. The
+          # major>2 clause keeps a future v3.x in range without a manual edit.
+          flux=$(gh release list --repo fluxcd/flux2 --limit 60 --json tagName,isPrerelease \
+                   --jq '.[] | select(.isPrerelease==false) | .tagName' \
+            | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' \
+            | awk -F. '{m=$1;sub(/^v/,"",m); if(m>2||(m==2&&$2>=7))print}' \
+            | awk -F. '{print $1"."$2" "$0}' | sort -k1,1V -k2,2V \
+            | awk '{l[$1]=$2} END{for(m in l)print l[m]}' | sort -V | tail -1)
+          [ -n "$flux" ] || flux=v2.7.0
+          {
+            echo "k8s_latest=$k8s"
+            echo "flux_latest=$flux"
+          } >> "$GITHUB_OUTPUT"
+          echo "k8s_latest=$k8s  flux_latest=$flux"
 
   basic:
     name: basic + cert-manager webhook
@@ -66,12 +97,12 @@ jobs:
         uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1
         with:
           cluster_name: jaas-chart-smoke
-          node_image: kindest/node:v1.33.1
+          node_image: kindest/node:${{ needs.discover.outputs.k8s_latest }}
           wait: 180s
       - name: Cluster prereqs (cert-manager + Flux + issuer)
         run: |
           jaas-src/hack/smoke/setup-cert-manager.sh
-          jaas-src/hack/smoke/setup-flux.sh v2.7.0
+          jaas-src/hack/smoke/setup-flux.sh ${{ needs.discover.outputs.flux_latest }}
           jaas-src/hack/smoke/setup-selfsigned-issuer.sh
       - name: Install the dev chart with the released image
         run: |
@@ -118,10 +149,10 @@ jobs:
         uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1
         with:
           cluster_name: jaas-chart-ss
-          node_image: kindest/node:v1.33.1
+          node_image: kindest/node:${{ needs.discover.outputs.k8s_latest }}
           wait: 180s
       - name: Cluster prereqs (Flux)
-        run: jaas-src/hack/smoke/setup-flux.sh v2.7.0
+        run: jaas-src/hack/smoke/setup-flux.sh ${{ needs.discover.outputs.flux_latest }}
       - name: Install the dev chart (self-signed cert mode) with the released image
         run: |
           kubectl create namespace jaas-system
@@ -162,10 +193,10 @@ jobs:
         uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1
         with:
           cluster_name: jaas-chart-fields
-          node_image: kindest/node:v1.33.1
+          node_image: kindest/node:${{ needs.discover.outputs.k8s_latest }}
           wait: 180s
       - name: Cluster prereqs (Flux)
-        run: jaas-src/hack/smoke/setup-flux.sh v2.7.0
+        run: jaas-src/hack/smoke/setup-flux.sh ${{ needs.discover.outputs.flux_latest }}
       - name: Install the dev chart (no webhook) with the released image
         run: |
           kubectl create namespace jaas-system
@@ -203,11 +234,11 @@ jobs:
         uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1
         with:
           cluster_name: jaas-chart-chain
-          node_image: kindest/node:v1.33.1
+          node_image: kindest/node:${{ needs.discover.outputs.k8s_latest }}
           wait: 180s
       - name: Cluster prereqs (Flux + MinIO bucket)
         run: |
-          jaas-src/hack/smoke/setup-flux.sh v2.7.0
+          jaas-src/hack/smoke/setup-flux.sh ${{ needs.discover.outputs.flux_latest }}
           jaas-src/hack/smoke/setup-minio.sh
       - name: Install the dev chart (no webhook) with the released image
         run: |
@@ -248,10 +279,10 @@ jobs:
         uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1
         with:
           cluster_name: jaas-chart-scale
-          node_image: kindest/node:v1.33.1
+          node_image: kindest/node:${{ needs.discover.outputs.k8s_latest }}
           wait: 180s
       - name: Cluster prereqs (Flux)
-        run: jaas-src/hack/smoke/setup-flux.sh v2.7.0
+        run: jaas-src/hack/smoke/setup-flux.sh ${{ needs.discover.outputs.flux_latest }}
       - name: Install the dev chart (no webhook) with the released image
         run: |
           kubectl create namespace jaas-system

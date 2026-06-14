@@ -204,6 +204,20 @@ jobs:
         run: |
           kubectl apply -f https://github.com/cert-manager/cert-manager/releases/latest/download/cert-manager.yaml
           kubectl -n cert-manager rollout status deploy/cert-manager-webhook --timeout=300s
+          # The stageset-controller cert-manager-values.yaml drives the webhook in
+          # cert-manager mode against a ClusterIssuer named stageset-selfsigned. A
+          # cluster-scoped (not namespaced) issuer is required because ct installs
+          # into a fresh random namespace each run, so a namespaced Issuer couldn't
+          # be pre-created there. A self-signed ClusterIssuer is enough to sign the
+          # webhook serving cert.
+          kubectl apply -f - <<'EOF'
+          apiVersion: cert-manager.io/v1
+          kind: ClusterIssuer
+          metadata:
+            name: stageset-selfsigned
+          spec:
+            selfSigned: {}
+          EOF
           kubectl apply -f https://github.com/fluxcd/source-controller/releases/latest/download/source-controller.crds.yaml
           # Charts install with crds.create=false in CI (their ci values), because
           # ct installs each chart once per ci values file and a kept, cluster-
@@ -215,6 +229,13 @@ jobs:
             chart="$(dirname "$(dirname "$crd")")"
             helm template release-x "$chart" --set crds.create=true --show-only "templates/$(basename "$crd")" \
               | kubectl apply --server-side -f -
+          done
+          # The watch-namespaces ci values set operator.watchNamespaces=[team-a,
+          # team-b], so the chart renders a RoleBinding into each of those
+          # namespaces — they must exist before ct installs that values file
+          # (ct only creates the release's own namespace).
+          for ns in team-a team-b; do
+            kubectl create namespace "$ns" --dry-run=client -o yaml | kubectl apply -f -
           done
       - name: ct install (changed charts)
         run: |
