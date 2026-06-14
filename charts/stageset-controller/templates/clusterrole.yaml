@@ -26,6 +26,16 @@ rules:
   - apiGroups: [source.toolkit.fluxcd.io]
     resources: [externalartifacts]
     verbs: [get, list, watch]
+  # Producer kinds whose failures the controller surfaces via dynamic watches
+  # (Flux artifact sources + the JaaS snippet producer). A custom producer kind
+  # still resolves via the EA back-pointer; add its RBAC here for fast-failure
+  # watching.
+  - apiGroups: [source.toolkit.fluxcd.io]
+    resources: [gitrepositories, ocirepositories, buckets]
+    verbs: [get, list, watch]
+  - apiGroups: [jaas.metio.wtf]
+    resources: [jsonnetsnippets]
+    verbs: [get, list, watch]
   - apiGroups: [stages.metio.wtf]
     resources: [stageinventories]
     verbs: [create, delete, get, list, patch, update, watch]
