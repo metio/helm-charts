@@ -33,35 +33,35 @@ interval: 60m
 libraries:
   actions-runner-controller-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-actions-runner-controller-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-actions-runner-controller-libsonnet@sha256:676de16445e096219b959eeca1c74c3cd16e5f30660eaee152548af4a87ca02c
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   aiven-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-aiven-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-aiven-libsonnet@sha256:13ec77f27d8c0050ce53e0e29d76b269aa738df3da1a70035fb88ab204191e7e
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   amazon-vpc-resource-controller-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-amazon-vpc-resource-controller-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-amazon-vpc-resource-controller-libsonnet@sha256:fabf3bce009374ca1efcc2c4dd8deea84c7f437f4d7c410df5ed3749ed5f6ec1
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   argo-cd-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-argo-cd-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-argo-cd-libsonnet@sha256:351410dc6072490b2a80d857924b6ed903068c904ad15ce78bcfba94805717d1
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   argo-rollouts-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-argo-rollouts-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-argo-rollouts-libsonnet@sha256:97f34537148a7df7ebefeb45b8930afa87dd78c6dccffa87b6b9fcd2e7b4ea35
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
@@ -75,112 +75,112 @@ libraries:
     closure: []
   argocd-operator-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-argocd-operator-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-argocd-operator-libsonnet@sha256:c1d278564f73a1260b619b89fefedd7225a5bcb74cc601d996798e0c9a2b3411
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   aws-load-balancer-controller-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-aws-load-balancer-controller-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-aws-load-balancer-controller-libsonnet@sha256:3dfed8f7bc126e1b2ae214563ffa75c455c3b431956c661a58a4b55d628d51e3
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   aws-rds-controller-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-aws-rds-controller-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-aws-rds-controller-libsonnet@sha256:21dffbb5af6e4e0488e23a8547d30dc9d9b9e63a60620b64161045f7ae7052c6
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   azure-load-balancer-controller-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-azure-load-balancer-controller-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-azure-load-balancer-controller-libsonnet@sha256:7abced7291a4ccd98b08cf30cddf1fc0c36c78a441ed68444c2178edd5c0dfc6
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   banzai-logging-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-banzai-logging-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-banzai-logging-libsonnet@sha256:efe409b6945694f8e5e4416a4583ffdaeec3b3f4b4d0886ebd782211564311e9
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   banzaicloud-bank-vaults-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-banzaicloud-bank-vaults-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-banzaicloud-bank-vaults-libsonnet@sha256:2eb25dea386c186fa329e14f889ab65fe42461acf860b4da2b3c816dc80a6dac
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   calico-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-calico-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-calico-libsonnet@sha256:5642c9b8a8e87f745e62ab78fb6d24091727cfccaa3f073d5e4fb57e1af11a6e
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   cert-manager-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-cert-manager-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-cert-manager-libsonnet@sha256:858867222d021fe200da639be240eb673d84e88d58a684178899ea08a613e82f
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   cilium-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-cilium-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-cilium-libsonnet@sha256:71b40e9a7f2c71293f8f7d6df22a88a16c335a1b9aaa83b946440ad339206ce7
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   clickhouse-operator-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-clickhouse-operator-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-clickhouse-operator-libsonnet@sha256:5715a3921262faa4cdd20b1c7db49b62c2cea17be597f1da0a5ea919408e65fe
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   cloudnative-pg-barman-cloud-plugin-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-cloudnative-pg-barman-cloud-plugin-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-cloudnative-pg-barman-cloud-plugin-libsonnet@sha256:16113d7dc5fb552d9119fbd1d44002bdfde15f9bb84c4e16511ef1bf2eab6a77
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   cloudnative-pg-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-cloudnative-pg-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-cloudnative-pg-libsonnet@sha256:420368e3b80a289fa98f7c33c7f3632b05db4c9fb22a3080fc870af23b1c1782
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   cluster-api-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-cluster-api-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-cluster-api-libsonnet@sha256:f4953399408d0b8a35d296cdbc6767d7df88e3613ba98985b32164c40ae2d87e
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   cluster-api-operator-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-cluster-api-operator-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-cluster-api-operator-libsonnet@sha256:faac3a833ed515caef9335e1b99746f432cb762d9ee84d17afdb12b42c200b0d
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   cluster-api-provider-aws-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-cluster-api-provider-aws-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-cluster-api-provider-aws-libsonnet@sha256:3582f7f54d4f4ffa2b0d531aa8f1916edb2e8fc6f131975ea47ac6d3b082f74d
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   cluster-api-provider-tinkerbell-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-cluster-api-provider-tinkerbell-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-cluster-api-provider-tinkerbell-libsonnet@sha256:0bcd494c690dd416e64f42d536a160b18d5c2b93efa1c07bce6db62497cc0e5c
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
@@ -194,28 +194,28 @@ libraries:
     closure: []
   composable-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-composable-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-composable-libsonnet@sha256:47d69b8aef41c344e8f0a7926aa6cfb44d51c2b527ae347cbebba22076368ac3
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   consul-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-consul-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-consul-libsonnet@sha256:6d0298884a44e5ae702050c3b0e8a44e9a563670b37dbddd7b67b46da0c66465
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   contour-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-contour-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-contour-libsonnet@sha256:ca4fdfdba3271c59a53d5dd94a03b7d7893a71c82898af775b90a6df53b6f53e
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   crossplane-core-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-crossplane-core-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-crossplane-core-libsonnet@sha256:4c5c54058ed8342e6bfab42286b6affe125f26409bd0204305789be59a736329
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
@@ -250,7 +250,7 @@ libraries:
     closure: []
   crossplane-provider-upjet-azuread-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-crossplane-provider-upjet-azuread-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-crossplane-provider-upjet-azuread-libsonnet@sha256:4c55f95b3b73ecec6483b387c809be75ff862a1588d2438891df199d22ce4b89
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
@@ -264,161 +264,161 @@ libraries:
     closure: []
   crossplane-provider-upjet-github-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-crossplane-provider-upjet-github-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-crossplane-provider-upjet-github-libsonnet@sha256:3b49a36c90ef3170db5e552803e21bf68d0dddd0646dc36400372bc7fa66bbf7
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   dapr-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-dapr-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-dapr-libsonnet@sha256:f823a744175efbc897d9c280ea507392feab6ef18ba5948b8325f1260480e59e
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   datadog-operator-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-datadog-operator-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-datadog-operator-libsonnet@sha256:145798513c32880fd5677d2d21347ba12f6089c1c609d0df8109663e94dec6bf
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   docsonnet:
     enabled: true
-    image: ghcr.io/metio/joi-jsonnet-libs-docsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-docsonnet@sha256:191b793764df6a8ccdb4c2ac5cdb2ca1489d0c2cd357e09545e78a449c61d41d
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   eck-operator-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-eck-operator-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-eck-operator-libsonnet@sha256:415c22e43ac01105675d4d216f3be110eda500be97bfd64996c21a5771748c01
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   edp-keycloak-operator-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-edp-keycloak-operator-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-edp-keycloak-operator-libsonnet@sha256:a652abc47a3c6a7b30c4a1b925733d5f5d29dc7fb79ddafeb855a5d92d0ae801
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   emissary-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-emissary-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-emissary-libsonnet@sha256:24b21c8e3903679fc78a92b3653aa403929db71e0687e08519e2671fffee1404
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   envoy-gateway-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-envoy-gateway-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-envoy-gateway-libsonnet@sha256:d97407da960948f635ab8149435cc121df179d36dfee946472f130c40b4e0e72
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   etcd-operator-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-etcd-operator-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-etcd-operator-libsonnet@sha256:80881c95da2c82e621b8529e3d88ab99742ed7ad336521c4ad305ebbc2f031ac
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   external-dns-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-external-dns-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-external-dns-libsonnet@sha256:8d7d79452106d486b6cbd87abe7de972abb5266d13bad20ddbbeddff4366c374
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   external-secrets-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-external-secrets-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-external-secrets-libsonnet@sha256:290aa94b827151eba2f0dc34095c1c47c9441e03731a21c389f1ea969b5b85d9
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   flagger-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-flagger-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-flagger-libsonnet@sha256:7457beb87dc9c652a51f2ee11677ce753fe0441f31c2c3ac0de290572d875349
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   fluxcd-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-fluxcd-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-fluxcd-libsonnet@sha256:8bc9eb3a2aea81f0b9fe12cf2128b4239793fca03c0de23590c2da60bae8c79d
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   gatekeeper-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-gatekeeper-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-gatekeeper-libsonnet@sha256:46e47b1b12412b285c748383b9fe6d8955dd715c3b42999fa77664e3bd104c7f
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   gateway-api-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-gateway-api-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-gateway-api-libsonnet@sha256:d5de919bd0a40d4051d4dfdb4c86c245cbdd38308350af0bee85c3167be9ce86
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   google-cloud-sql-proxy-operator-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-google-cloud-sql-proxy-operator-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-google-cloud-sql-proxy-operator-libsonnet@sha256:1d7e18bf7fd746ef7619f99c9a8b67ec6006931b7ac9b633e58c15e9a72feaf9
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   grafana-agent-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-grafana-agent-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-grafana-agent-libsonnet@sha256:7909fe578a6215e0e825c1a1ead6c79b840120bb814325fa860891d01a3e60c9
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   grafana-alloy-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-grafana-alloy-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-grafana-alloy-libsonnet@sha256:4330938fa0195e18e9a3abaf7db48c12a0efa0eec56505a07d74e05a7b998032
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   grafana-operator-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-grafana-operator-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-grafana-operator-libsonnet@sha256:922b455453b5f972ea4daf0fdef519e9256e5743db539c543458b9d830f900f1
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   grafonnet:
     enabled: true
-    image: ghcr.io/metio/joi-grafana-grafonnet
+    image: ghcr.io/metio/joi-grafana-grafonnet@sha256:988b234522ebbb086687eb4e827ed1114a156736da4f31f84051a612aa9fdc68
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   harbor-operator-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-harbor-operator-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-harbor-operator-libsonnet@sha256:aaaaaea0f9fe0ebf5e1deb46a73cdb6e2faf57634e5476ee4c64e81c5faf7fa9
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   hcp-terraform-operator-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-hcp-terraform-operator-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-hcp-terraform-operator-libsonnet@sha256:edb4d5cea332c36d96d9e327036e04069f72377a4f2b7ca9cdb4b96f533d1588
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   istio-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-istio-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-istio-libsonnet@sha256:2111e9ed76b0976e61daed762f9bb7dbf8760f2bbffaa5bb28f0952f64c5dec3
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
@@ -432,147 +432,147 @@ libraries:
     closure: []
   kargo-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-kargo-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-kargo-libsonnet@sha256:8eaf1a51d69ad25b6d8711a490a41b8329d0fbb0f89b0b833448bc8c320a1ce6
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   karpenter-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-karpenter-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-karpenter-libsonnet@sha256:c58e13d26ee38a9cb566caa2e2eddbe26c9b10897393521ef8b4bc2105c0487d
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   keda-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-keda-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-keda-libsonnet@sha256:6a6d29c623930cd64b2b5fc5104fef2ef99f60c1276d4f2029c113d3a44b1731
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   knative-eventing-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-knative-eventing-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-knative-eventing-libsonnet@sha256:803dafe7537d97765312c6670793aed35f94b5bd222f9dd45d9c9994ee3b2d0c
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   knative-serving-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-knative-serving-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-knative-serving-libsonnet@sha256:7bd1a7b80c18715179209c1671811d5920b12b99e3b67d3bb26e2dfc5ba0d3a8
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   kro-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-kro-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-kro-libsonnet@sha256:8968791e818bb8791ca7116c381a5256e0b8219f601f1d873e2f7f2697d34189
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   kube-prometheus-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-kube-prometheus-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-kube-prometheus-libsonnet@sha256:109f73ea007fc56dfa4aa2230d0ac13ecb5c6ba38ef4770dc217153b71f2b71b
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   kubernetes-nmstate-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-kubernetes-nmstate-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-kubernetes-nmstate-libsonnet@sha256:5bc0fb59c26c5fa979730488350e40a6ea7b78fc50250e1b71570d9d2fcf1eb7
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   kubernetes-secret-generator-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-kubernetes-secret-generator-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-kubernetes-secret-generator-libsonnet@sha256:a906dd0442941faf372740e3caf0d13100dd667e320351ea2c4787d448fe0f1c
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   kubevela-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-kubevela-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-kubevela-libsonnet@sha256:68cf253fd847368e6b168ba7f2e64261d09b56326fa3aaa2c941a1ff0e143321
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   kueue-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-kueue-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-kueue-libsonnet@sha256:ff3452216930c2c065598a223771b6ef6368e92faf2ecc767f0b1143468c5004
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   kyverno-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-kyverno-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-kyverno-libsonnet@sha256:e1681993866894faa0e475e20e565d2e56071006eb18bbc2842079236a2353b8
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   litmus-chaos-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-litmus-chaos-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-litmus-chaos-libsonnet@sha256:359ab29869eefcfa751c1df851d579936178de3a481184108bba81ac30396ead
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   mariadb-operator-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-mariadb-operator-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-mariadb-operator-libsonnet@sha256:c69ba0d218e9b8e09cd9e1be0cfe8437376c6fd86758df4a9b54ea8c42e2c64d
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   metacontroller-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-metacontroller-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-metacontroller-libsonnet@sha256:e66fbf99dda9b537426431e364c9bd7193e56001566b30d1d7b02f2497a9cfc1
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   metallb-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-metallb-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-metallb-libsonnet@sha256:4269172fb2df200662c85471e056af49c76373db105cc28d7f58cead31baf0c7
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   milvus-operator-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-milvus-operator-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-milvus-operator-libsonnet@sha256:de252ca0e70996a88da01c2c0105db4f45c095ad1aaa336f6ead6706ad8c2555
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   minio-operator-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-minio-operator-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-minio-operator-libsonnet@sha256:34409fb974d3519fec0711b89d6b51b6c1e91da73a98cf6969fc7cd50854152e
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   mysql-operator-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-mysql-operator-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-mysql-operator-libsonnet@sha256:6f8c5128ee8680377e0cdfbf1a4efe6f6628cc6665abcf8684b0e343d0c35b97
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   nats-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-nats-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-nats-libsonnet@sha256:29b4998cd166718d08e4bc57cf45d12e103fccc5220ec8007d7747f9a77216a5
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   node-feature-discovery-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-node-feature-discovery-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-node-feature-discovery-libsonnet@sha256:1a879f0d09281bec484c80aadb36513716d84240c532175054ebf29010cf0cec
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
@@ -586,154 +586,154 @@ libraries:
     closure: []
   prometheus-operator-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-prometheus-operator-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-prometheus-operator-libsonnet@sha256:0cc0ca08ea91380b364623c0d46ea549de88592faf81d98c2db4e8d6a31de4d5
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   pyrra-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-pyrra-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-pyrra-libsonnet@sha256:795e69d469220e535d290b94b7bd106acb6b5b41dc236d28564752ef63ca541c
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   rabbitmq-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-rabbitmq-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-rabbitmq-libsonnet@sha256:8a3b2c2ce9eef399808243d55a459536e3a9b74a2345e33d77b1c52a3b3d7bda
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   rabbitmq-messaging-topology-operator-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-rabbitmq-messaging-topology-operator-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-rabbitmq-messaging-topology-operator-libsonnet@sha256:191a439940f3c75d820ee684eee0337386efe6416f4f5b307413a9eedd0bc6d4
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   secrets-store-csi-driver-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-secrets-store-csi-driver-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-secrets-store-csi-driver-libsonnet@sha256:d0a0c02f4c46dce66b306d0b781167f7cfc8cfae430cb82271977da49b60765a
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   securecodebox-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-securecodebox-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-securecodebox-libsonnet@sha256:93944c9296500a2b82f837e6f352ed7fe6fbd7819df0495f24eddc8a5b0c514d
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   spicedb-operator-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-spicedb-operator-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-spicedb-operator-libsonnet@sha256:4a8a91b86920590f0a932de7ed87418f3a5d92d271d851a3b5ee0cdba84b281b
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   strimzi-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-strimzi-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-strimzi-libsonnet@sha256:a3a54de44e48edd531dddad139b86640da32c1990fb465d2b21ca91d2854df48
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   tailscale-operator-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-tailscale-operator-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-tailscale-operator-libsonnet@sha256:55d5ae2d27c02b548623ca086d5a472d7031d04670870d04580ee892248b2b37
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   tektoncd-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-tektoncd-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-tektoncd-libsonnet@sha256:eec625ccd340b802c0898899017ea45e89fc35f3d8c6732f270010cbdcb7635a
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   teleport-operator-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-teleport-operator-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-teleport-operator-libsonnet@sha256:2b6a4f2e1c3a2d8edaa528183a5fb0a4c10b523a986c076872f31256a940e772
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   testonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-testonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-testonnet@sha256:f726a17ac98cfa3189f822fb9d2fe24123371284ed2fba52089c8389347c316e
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   tinkerbell-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-tinkerbell-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-tinkerbell-libsonnet@sha256:382048fad61b39aea3c4b06a76fd38be110eb3eef253d9fb762ec029949e004d
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   traefik-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-traefik-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-traefik-libsonnet@sha256:d2a021dfb40eed48946d5d0db5be360ef458e714cf2d1168de8bf66472557dfe
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   triggermesh-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-triggermesh-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-triggermesh-libsonnet@sha256:470e41da0ca6240d8639534666b51a17180321975ff3eaa0c967dd88d40cb6ba
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   trust-manager-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-trust-manager-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-trust-manager-libsonnet@sha256:6cb48284c829c4d4eb92ebdedf4df45b00d2ac1c3d699e42aee8f64433836062
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   upbound-provider-opentofu-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-upbound-provider-opentofu-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-upbound-provider-opentofu-libsonnet@sha256:0fb9409e7bd669e8460dac21960db07ffe99b5632008fd9378c240295232a09e
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   vault-secrets-operator-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-vault-secrets-operator-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-vault-secrets-operator-libsonnet@sha256:77828fb46fb7e4d9206d30342ea2945dbe69621f883843ae918dff19011f1cbf
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   vertical-pod-autoscaler-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-vertical-pod-autoscaler-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-vertical-pod-autoscaler-libsonnet@sha256:932d50e35d4aa5719d161309d354f808a12a877768102e904fcf168afe21b3e0
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   victoria-metrics-operator-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-victoria-metrics-operator-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-victoria-metrics-operator-libsonnet@sha256:b908a718417c2bc82a4e7f8c54724c5bf4143bc6b21728f5ff0e5959c96553ee
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   xtd:
     enabled: true
-    image: ghcr.io/metio/joi-jsonnet-libs-xtd
+    image: ghcr.io/metio/joi-jsonnet-libs-xtd@sha256:1edc3a715260c977e05f384a08fe0ca31b82e5c83ca50711f2d7800cf47a5b4b
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
   zalando-postgres-operator-libsonnet:
     enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-zalando-postgres-operator-libsonnet
+    image: ghcr.io/metio/joi-jsonnet-libs-zalando-postgres-operator-libsonnet@sha256:13cb225d9c4b976a1838f93c68442d7e5ca36194e7e4e6dcffc03dfdeeba5fd6
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
