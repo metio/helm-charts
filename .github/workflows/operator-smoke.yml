@@ -385,16 +385,26 @@ jobs:
           kubectl describe bucket dashboards || true
           kubectl describe jsonnetsnippet chain-demo || true
           kubectl describe externalartifact chain-demo || true
-          # Reachability probe: the operator fetches the Bucket's artifact URL.
-          # Curling it from a throwaway pod isolates an operator fetch bug (this
-          # succeeds, operator fails) from a network/source-controller issue
-          # (this also hangs). -v shows whether it connects then stalls on headers.
+          # source-controller reachability surface.
+          kubectl -n flux-system get svc source-controller -o wide || true
+          kubectl -n flux-system get endpoints source-controller -o wide || true
+          # The operator fetches the Bucket's artifact URL, which source-controller
+          # advertises with a trailing FQDN-root dot (…svc.cluster.local.). Curl it
+          # from a throwaway pod BOTH as-advertised and with the dot stripped: if
+          # the dotted form hangs while the plain form works, the trailing dot is
+          # the culprit (operator bug); if both hang, it's network/source-controller;
+          # if both work, the operator fetch logic is at fault some other way.
           url=$(kubectl -n default get bucket dashboards -o jsonpath='{.status.artifact.url}' 2>/dev/null || true)
-          echo "bucket artifact url: ${url:-<none>}"
+          echo "bucket artifact url (as advertised): ${url:-<none>}"
           if [ -n "$url" ]; then
+            url_nodot=$(printf '%s' "$url" | sed 's#\.svc\.cluster\.local\.#.svc.cluster.local#')
             kubectl -n default run chain-curl --image=docker.io/curlimages/curl:latest \
-              --restart=Never --rm -i --command -- \
-              curl -sS -v --max-time 25 -o /dev/null "$url" || true
+              --restart=Never --rm -i --command -- sh -c "
+                echo '--- WITH trailing dot (as operator dials) ---'
+                curl -sS -v --max-time 20 -o /dev/null '$url' 2>&1 | tail -25
+                echo '--- WITHOUT trailing dot ---'
+                curl -sS -v --max-time 20 -o /dev/null '$url_nodot' 2>&1 | tail -25
+              " || true
           fi
 
   scale-smoke:

@@ -55,8 +55,16 @@ jobs:
           fi
 
   static:
-    name: Static gates
+    # One independent job per changed chart, so a stale artifact in one chart
+    # (e.g. a drifted values.schema.json) never blocks an unrelated chart's PR.
+    name: Static gates (${{ matrix.chart }})
+    needs: changed
+    if: needs.changed.outputs.any == 'true'
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        chart: ${{ fromJSON(needs.changed.outputs.charts) }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
@@ -66,30 +74,26 @@ jobs:
           version: v4.2.0
       - uses: helm/chart-testing-action@6ec842c01de15ebb84c8627d2744a0c2f2755c9f # v2
       - id: ct_lint
-        name: ct lint (changed charts)
-        run: ct lint --config ct.yaml
+        name: ct lint
+        run: ct lint --config ct.yaml --charts "charts/${{ matrix.chart }}"
       - id: unittest
         name: helm-unittest
         run: |
           # helm v4 verifies plugin provenance on install; the helm-unittest
           # plugin ships none, so pass --verify=false (>= 1.1.0 installs on v4).
           helm plugin install https://github.com/helm-unittest/helm-unittest --version v1.1.1 --verify=false
-          for c in charts/*/; do
-            [ -d "${c}tests" ] || continue
-            echo "::group::unittest ${c}"
+          c="charts/${{ matrix.chart }}/"
+          if [ -d "${c}tests" ]; then
             helm unittest "$c"
-            echo "::endgroup::"
-          done
+          fi
       - id: schema_drift
         name: helm-schema drift gate
         run: |
           curl -fsSL https://github.com/dadav/helm-schema/releases/download/0.23.4/helm-schema_0.23.4_Linux_x86_64.tar.gz | tar -xz -C /usr/local/bin helm-schema
-          for c in charts/*/; do
-            [ -f "${c}values.yaml" ] || continue
-            helm-schema -c "$c" -k additionalProperties
-          done
-          if ! git diff --exit-code -- 'charts/*/values.schema.json'; then
-            echo "::error::A values.schema.json is stale. Run 'ilo bash -c \"helm-schema -c charts/<name> -k additionalProperties\"' and commit."
+          c="charts/${{ matrix.chart }}/"
+          [ -f "${c}values.yaml" ] && helm-schema -c "$c" -k additionalProperties
+          if ! git diff --exit-code -- "${c}values.schema.json"; then
+            echo "::error::charts/${{ matrix.chart }}/values.schema.json is stale. Run 'ilo bash -c \"helm-schema -c charts/${{ matrix.chart }} -k additionalProperties\"' and commit."
             exit 1
           fi
       - id: kube_score
@@ -97,60 +101,66 @@ jobs:
         run: |
           curl -fsSL https://github.com/zegl/kube-score/releases/download/v1.20.0/kube-score_1.20.0_linux_amd64.tar.gz | tar -xz -C /usr/local/bin kube-score
           set -e
-          for c in charts/*/; do
-            name="$(basename "$c")"
-            render() {
-              echo "::group::kube-score $name ${1:-default}"
-              helm template release-x "$c" ${2:-} | kube-score score - --exit-one-on-warning=false
-              echo "::endgroup::"
-            }
-            render default ""
-            for vf in "$c"ci/*-values.yaml; do
-              [ -e "$vf" ] || continue
-              render "$(basename "$vf")" "-f $vf"
-            done
+          c="charts/${{ matrix.chart }}/"
+          name="${{ matrix.chart }}"
+          render() {
+            echo "::group::kube-score $name ${1:-default}"
+            helm template release-x "$c" ${2:-} | kube-score score - --exit-one-on-warning=false
+            echo "::endgroup::"
+          }
+          render default ""
+          for vf in "$c"ci/*-values.yaml; do
+            [ -e "$vf" ] || continue
+            render "$(basename "$vf")" "-f $vf"
           done
       - id: kubeconform
         name: kubeconform (rendered manifests, incl. CRDs)
         run: |
           curl -fsSL https://github.com/yannh/kubeconform/releases/download/v0.7.0/kubeconform-linux-amd64.tar.gz | tar -xz -C /usr/local/bin kubeconform
-          set -e
-          for c in charts/*/; do
-            echo "::group::kubeconform $(basename "$c")"
-            helm template release-x "$c" \
-              | kubeconform -strict -summary -ignore-missing-schemas \
-                  -schema-location default \
-                  -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
-            echo "::endgroup::"
-          done
+          c="charts/${{ matrix.chart }}/"
+          echo "::group::kubeconform ${{ matrix.chart }}"
+          helm template release-x "$c" \
+            | kubeconform -strict -summary -ignore-missing-schemas \
+                -schema-location default \
+                -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
+          echo "::endgroup::"
 
   crd-sync:
-    name: CRD sync gate
+    # Per-chart, like the static gates: one chart's CRD drift must not block
+    # another chart's PR.
+    name: CRD sync gate (${{ matrix.chart }})
+    needs: changed
+    if: needs.changed.outputs.any == 'true'
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        chart: ${{ fromJSON(needs.changed.outputs.charts) }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
       - id: resync
-        name: Re-vendor CRDs at each chart's committed appVersion and diff
+        name: Re-vendor CRDs at the chart's committed appVersion and diff
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -e
-          for cf in charts/*/Chart.yaml; do
-            image="$(grep -oP '#\s*renovate:\s*image=\K\S+' "$cf" || true)"
-            [ -n "$image" ] || continue
-            appVersion="$(grep -oP '^appVersion:\s*"?\K[^"]+' "$cf")"
-            # 0.0.0 is the committed placeholder until the source repo cuts its
-            # first release; there is no such tag to vendor CRDs from yet, so
-            # skip. The gate activates once Renovate bumps appVersion to a real
-            # release.
-            if [ "$appVersion" = "0.0.0" ]; then
-              echo "::notice::$(dirname "$cf") appVersion is the 0.0.0 placeholder — no released $image to vendor CRDs from yet; skipping."
-              continue
-            fi
-            hack/vendor-crds.sh "$image" "$appVersion"
-          done
-          if ! git diff --exit-code -- 'charts/*/templates/crd-*.yaml'; then
-            echo "::error::A chart's vendored CRDs drifted from its appVersion source. Run hack/vendor-crds.sh <image> <appVersion> and commit."
+          cf="charts/${{ matrix.chart }}/Chart.yaml"
+          image="$(grep -oP '#\s*renovate:\s*image=\K\S+' "$cf" || true)"
+          if [ -z "$image" ]; then
+            echo "::notice::${{ matrix.chart }} has no renovate image marker — no vendored CRDs to check."
+            exit 0
+          fi
+          appVersion="$(grep -oP '^appVersion:\s*"?\K[^"]+' "$cf")"
+          # 0.0.0 is the committed placeholder until the source repo cuts its
+          # first release; there is no such tag to vendor CRDs from yet, so skip.
+          # The gate activates once Renovate bumps appVersion to a real release.
+          if [ "$appVersion" = "0.0.0" ]; then
+            echo "::notice::${{ matrix.chart }} appVersion is the 0.0.0 placeholder — no released $image to vendor CRDs from yet; skipping."
+            exit 0
+          fi
+          hack/vendor-crds.sh "$image" "$appVersion"
+          if ! git diff --exit-code -- "charts/${{ matrix.chart }}/templates/crd-*.yaml"; then
+            echo "::error::${{ matrix.chart }}'s vendored CRDs drifted from its appVersion source. Run hack/vendor-crds.sh $image $appVersion and commit."
             exit 1
           fi
 
