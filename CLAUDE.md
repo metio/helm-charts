@@ -19,7 +19,7 @@ Charts:
 | Chart | Deploys | Source repo |
 |---|---|---|
 | `charts/jaas` | JaaS (Jsonnet-as-a-Service) operator + HTTP evaluator | [metio/jaas](https://github.com/metio/jaas) |
-| `charts/stageset-controller` | ordered, gated multi-stage Flux deployments | [metio/flux-stageset-controller](https://github.com/metio/flux-stageset-controller) |
+| `charts/stageset-controller` | ordered, gated multi-stage Flux deployments | [metio/stageset-controller](https://github.com/metio/stageset-controller) |
 | `charts/joi` | [JOI](https://github.com/metio/jsonnet-oci-images) images as Flux `OCIRepository` + JaaS `JsonnetLibrary` pairs | [metio/jsonnet-oci-images](https://github.com/metio/jsonnet-oci-images) |
 
 Charts publish to **`oci://ghcr.io/metio/helm-charts/<name>`**. (GHCR package

@@ -5,7 +5,7 @@ SPDX-License-Identifier: 0BSD
 
 # stageset-controller
 
-Deploys the [stageset-controller](https://github.com/metio/flux-stageset-controller)
+Deploys the [stageset-controller](https://github.com/metio/stageset-controller)
 — a Flux-compatible controller for **ordered, gated, multi-stage deployments**.
 
 ```sh
@@ -42,5 +42,5 @@ switch to `cert-manager` by setting `webhook.certMode=cert-manager` and
 `webhook.certManager.issuerRef.name`.
 
 All keys are validated against `values.schema.json` at install time. See the
-[controller docs](https://github.com/metio/flux-stageset-controller) for the
+[controller docs](https://github.com/metio/stageset-controller) for the
 full behaviour behind each flag.

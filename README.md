@@ -18,7 +18,7 @@ CRD provenance, CI, and release flow.
 | Chart | Deploys | OCI artifact |
 |---|---|---|
 | [`jaas`](charts/jaas) | [JaaS](https://github.com/metio/jaas) — Jsonnet-as-a-Service | `oci://ghcr.io/metio/helm-charts/jaas` |
-| [`stageset-controller`](charts/stageset-controller) | [stageset-controller](https://github.com/metio/flux-stageset-controller) — ordered, gated Flux deployments | `oci://ghcr.io/metio/helm-charts/stageset-controller` |
+| [`stageset-controller`](charts/stageset-controller) | [stageset-controller](https://github.com/metio/stageset-controller) — ordered, gated Flux deployments | `oci://ghcr.io/metio/helm-charts/stageset-controller` |
 | [`joi`](charts/joi) | [jsonnet-oci-images](https://github.com/metio/jsonnet-oci-images) as Flux `OCIRepository` + JaaS `JsonnetLibrary` pairs | `oci://ghcr.io/metio/helm-charts/joi` |
 
 Install a chart straight from its OCI location:

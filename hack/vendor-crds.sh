@@ -20,7 +20,7 @@ case "$image" in
   ghcr.io/metio/jaas)
     chart="jaas"; repo="metio/jaas"; crd_dir="config/crd/bases" ;;
   ghcr.io/metio/stageset-controller)
-    chart="stageset-controller"; repo="metio/flux-stageset-controller"; crd_dir="config/crd" ;;
+    chart="stageset-controller"; repo="metio/stageset-controller"; crd_dir="config/crd" ;;
   *)
     echo "vendor-crds: unknown image '$image'" >&2; exit 1 ;;
 esac
