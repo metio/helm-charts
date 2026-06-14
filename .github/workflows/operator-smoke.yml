@@ -471,6 +471,23 @@ jobs:
                 curl -sS -v --max-time 20 -o /dev/null '$url_nodot' 2>&1 | tail -25
               " || true
           fi
+          # The ClusterIP curl above times out (SYN dropped) despite a healthy
+          # endpoint. Split kube-proxy (service VIP) from pod-to-pod CNI: curl the
+          # endpoint pod IP directly. If THIS works, kube-proxy isn't programming
+          # the VIP; if it also times out, pod-to-pod routing to that pod is broken.
+          ep=$(kubectl -n flux-system get endpoints source-controller \
+                 -o jsonpath='{.subsets[0].addresses[0].ip}:{.subsets[0].ports[0].port}' 2>/dev/null || true)
+          echo "source-controller endpoint (pod IP:port): ${ep:-<none>}"
+          if [ -n "$ep" ] && [ "$ep" != ":" ]; then
+            kubectl -n default run chain-curl-direct --image=docker.io/curlimages/curl:latest \
+              --restart=Never --rm -i --command -- \
+              curl -sS -v --max-time 15 -o /dev/null "http://$ep/" 2>&1 | tail -15 || true
+          fi
+          # kube-proxy mode + recent logs — nftables vs iptables on a brand-new
+          # k8s minor is a prime suspect for VIP programming gaps.
+          kubectl -n kube-system get ds kube-proxy -o jsonpath='{.spec.template.spec.containers[0].args}' 2>/dev/null; echo
+          kubectl -n kube-system logs ds/kube-proxy --tail=40 2>/dev/null || true
+          kubectl -n flux-system get pod -l app=source-controller -o wide || true
 
   scale-smoke:
     name: scale-smoke (N=50 snippets converge)
