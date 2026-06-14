@@ -115,6 +115,31 @@ jobs:
             --set operator.webhook.certManager.issuerRef.kind=Issuer \
             --set operator.webhook.certManager.issuerRef.name=jaas-selfsigned \
             --wait --timeout 5m
+      - name: Grant tenant publish RBAC (test fixture)
+        # operator-smoke pins the smoke scripts to the released jaas tag, whose
+        # in-script RBAC setup can lag HEAD. Provision the tenant SA's publish +
+        # source-read RBAC here so this angle stays robust to released-script
+        # version skew; idempotent with any grant the script also applies.
+        run: |
+          kubectl apply -f - <<'EOF'
+          apiVersion: rbac.authorization.k8s.io/v1
+          kind: Role
+          metadata: { namespace: default, name: jaas-tenant-publish }
+          rules:
+            - apiGroups: ["source.toolkit.fluxcd.io"]
+              resources: ["externalartifacts", "externalartifacts/status"]
+              verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+            - apiGroups: ["source.toolkit.fluxcd.io"]
+              resources: ["buckets", "gitrepositories", "ocirepositories"]
+              verbs: ["get", "list", "watch"]
+          ---
+          apiVersion: rbac.authorization.k8s.io/v1
+          kind: RoleBinding
+          metadata: { namespace: default, name: jaas-tenant-publish }
+          subjects:
+            - { kind: ServiceAccount, name: default, namespace: default }
+          roleRef: { apiGroup: rbac.authorization.k8s.io, kind: Role, name: jaas-tenant-publish }
+          EOF
       - name: Operator scenario — basic
         run: jaas-src/hack/smoke/scenario-basic.sh
       - name: Uninstall hygiene — pre-delete hook drops finalizers
@@ -165,6 +190,25 @@ jobs:
             --set operator.webhook.certMode=self-signed \
             --set operator.webhook.selfSignedValidity=24h \
             --wait --timeout 5m
+      - name: Grant tenant publish RBAC (test fixture)
+        # See the basic job — released scripts can lag HEAD's in-script grant.
+        run: |
+          kubectl apply -f - <<'EOF'
+          apiVersion: rbac.authorization.k8s.io/v1
+          kind: Role
+          metadata: { namespace: default, name: jaas-tenant-publish }
+          rules:
+            - apiGroups: ["source.toolkit.fluxcd.io"]
+              resources: ["externalartifacts", "externalartifacts/status"]
+              verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+          ---
+          apiVersion: rbac.authorization.k8s.io/v1
+          kind: RoleBinding
+          metadata: { namespace: default, name: jaas-tenant-publish }
+          subjects:
+            - { kind: ServiceAccount, name: default, namespace: default }
+          roleRef: { apiGroup: rbac.authorization.k8s.io, kind: Role, name: jaas-tenant-publish }
+          EOF
       - name: Operator scenario — self-signed webhook
         run: jaas-src/hack/smoke/scenario-selfsigned-webhook.sh
       - name: Diagnostics on failure
@@ -206,6 +250,25 @@ jobs:
             --set operator.enabled=true \
             --set operator.defaultServiceAccount=default \
             --wait --timeout 5m
+      - name: Grant tenant publish RBAC (test fixture)
+        # See the basic job — released scripts can lag HEAD's in-script grant.
+        run: |
+          kubectl apply -f - <<'EOF'
+          apiVersion: rbac.authorization.k8s.io/v1
+          kind: Role
+          metadata: { namespace: default, name: jaas-tenant-publish }
+          rules:
+            - apiGroups: ["source.toolkit.fluxcd.io"]
+              resources: ["externalartifacts", "externalartifacts/status"]
+              verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+          ---
+          apiVersion: rbac.authorization.k8s.io/v1
+          kind: RoleBinding
+          metadata: { namespace: default, name: jaas-tenant-publish }
+          subjects:
+            - { kind: ServiceAccount, name: default, namespace: default }
+          roleRef: { apiGroup: rbac.authorization.k8s.io, kind: Role, name: jaas-tenant-publish }
+          EOF
       - name: Operator scenario — new CR fields
         run: jaas-src/hack/smoke/scenario-fields.sh
       - name: Diagnostics on failure
@@ -249,6 +312,30 @@ jobs:
             --set operator.enabled=true \
             --set operator.defaultServiceAccount=default \
             --wait --timeout 5m
+      - name: Grant tenant publish RBAC (test fixture)
+        # See the basic job — released scripts can lag HEAD's in-script grant.
+        # The chain scenario also reads a Bucket sourceRef, so include the Flux
+        # source-read verbs here too.
+        run: |
+          kubectl apply -f - <<'EOF'
+          apiVersion: rbac.authorization.k8s.io/v1
+          kind: Role
+          metadata: { namespace: default, name: jaas-tenant-publish }
+          rules:
+            - apiGroups: ["source.toolkit.fluxcd.io"]
+              resources: ["externalartifacts", "externalartifacts/status"]
+              verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+            - apiGroups: ["source.toolkit.fluxcd.io"]
+              resources: ["buckets", "gitrepositories", "ocirepositories"]
+              verbs: ["get", "list", "watch"]
+          ---
+          apiVersion: rbac.authorization.k8s.io/v1
+          kind: RoleBinding
+          metadata: { namespace: default, name: jaas-tenant-publish }
+          subjects:
+            - { kind: ServiceAccount, name: default, namespace: default }
+          roleRef: { apiGroup: rbac.authorization.k8s.io, kind: Role, name: jaas-tenant-publish }
+          EOF
       - name: Operator scenario — sourceRef chain
         run: jaas-src/hack/smoke/scenario-chain.sh
       - name: Diagnostics on failure
@@ -292,6 +379,25 @@ jobs:
             --set operator.enabled=true \
             --set operator.defaultServiceAccount=default \
             --wait --timeout 5m
+      - name: Grant tenant publish RBAC (test fixture)
+        # See the basic job — released scripts can lag HEAD's in-script grant.
+        run: |
+          kubectl apply -f - <<'EOF'
+          apiVersion: rbac.authorization.k8s.io/v1
+          kind: Role
+          metadata: { namespace: default, name: jaas-tenant-publish }
+          rules:
+            - apiGroups: ["source.toolkit.fluxcd.io"]
+              resources: ["externalartifacts", "externalartifacts/status"]
+              verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+          ---
+          apiVersion: rbac.authorization.k8s.io/v1
+          kind: RoleBinding
+          metadata: { namespace: default, name: jaas-tenant-publish }
+          subjects:
+            - { kind: ServiceAccount, name: default, namespace: default }
+          roleRef: { apiGroup: rbac.authorization.k8s.io, kind: Role, name: jaas-tenant-publish }
+          EOF
       - name: Operator scenario — scale (N=50 converge)
         run: jaas-src/hack/smoke/scenario-scale.sh
       - name: Diagnostics on failure
