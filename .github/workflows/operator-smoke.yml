@@ -178,6 +178,30 @@ jobs:
             - { kind: ServiceAccount, name: default, namespace: default }
           roleRef: { apiGroup: rbac.authorization.k8s.io, kind: Role, name: jaas-tenant-publish }
           EOF
+      - name: Wait for the admission webhook to accept calls
+        # /ready (port 8081) is independent of the controller-runtime webhook
+        # server (port 9443), so `helm --wait` can see the pod Ready before
+        # admission is serving — the apiserver then gets "connection refused".
+        # A server-side dry-run apply exercises the validating webhook without
+        # persisting; retry until it answers, so the scenario's apply won't race
+        # webhook startup (the released scripts predate the in-script apply-retry).
+        run: |
+          cat > /tmp/webhook-warmup.yaml <<'EOF'
+          apiVersion: jaas.metio.wtf/v1
+          kind: JsonnetSnippet
+          metadata: { name: webhook-warmup, namespace: default }
+          spec:
+            serviceAccountName: default
+            entryFile: main.jsonnet
+            files: { main.jsonnet: "{ ok: true }" }
+          EOF
+          for i in $(seq 1 40); do
+            if kubectl apply --dry-run=server -f /tmp/webhook-warmup.yaml >/dev/null 2>&1; then
+              echo "admission webhook is serving (after $i attempts)"; exit 0
+            fi
+            sleep 3
+          done
+          echo "::warning::admission webhook never became reachable in time"
       - name: Operator scenario — basic
         run: jaas-src/hack/smoke/scenario-basic.sh
       - name: Uninstall hygiene — pre-delete hook drops finalizers
@@ -254,6 +278,26 @@ jobs:
             - { kind: ServiceAccount, name: default, namespace: default }
           roleRef: { apiGroup: rbac.authorization.k8s.io, kind: Role, name: jaas-tenant-publish }
           EOF
+      - name: Wait for the admission webhook to accept calls
+        # See the basic job: /ready is independent of the :9443 webhook server,
+        # so wait for admission to actually answer before the scenario applies.
+        run: |
+          cat > /tmp/webhook-warmup.yaml <<'EOF'
+          apiVersion: jaas.metio.wtf/v1
+          kind: JsonnetSnippet
+          metadata: { name: webhook-warmup, namespace: default }
+          spec:
+            serviceAccountName: default
+            entryFile: main.jsonnet
+            files: { main.jsonnet: "{ ok: true }" }
+          EOF
+          for i in $(seq 1 40); do
+            if kubectl apply --dry-run=server -f /tmp/webhook-warmup.yaml >/dev/null 2>&1; then
+              echo "admission webhook is serving (after $i attempts)"; exit 0
+            fi
+            sleep 3
+          done
+          echo "::warning::admission webhook never became reachable in time"
       - name: Operator scenario — self-signed webhook
         run: jaas-src/hack/smoke/scenario-selfsigned-webhook.sh
       - name: Diagnostics on failure
