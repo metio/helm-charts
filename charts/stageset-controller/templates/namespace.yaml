@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+{{- if .Values.namespace.create }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ include "stageset.namespace" . }}
+  labels:
+    {{- include "stageset.labels" . | nindent 4 }}
+    pod-security.kubernetes.io/enforce: {{ .Values.namespace.pssLevel }}
+    pod-security.kubernetes.io/audit: {{ .Values.namespace.pssLevel }}
+    pod-security.kubernetes.io/warn: {{ .Values.namespace.pssLevel }}
+{{- end }}

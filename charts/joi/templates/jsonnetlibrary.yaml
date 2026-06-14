@@ -1,0 +1,29 @@
+{{- /*
+SPDX-FileCopyrightText: The helm-charts Authors
+SPDX-License-Identifier: 0BSD
+
+One JaaS JsonnetLibrary per enabled JOI image, sourcing the matching
+OCIRepository. The object name is the import alias snippets use
+(`import "<name>/main.libsonnet"`); spec.sourceRef.path narrows extraction to
+the library's subdirectory within the artifact.
+*/ -}}
+{{- range $name := splitList " " (include "joi.effectiveNames" .) }}
+{{- if $name }}
+{{- $lib := index $.Values.libraries $name }}
+---
+apiVersion: jaas.metio.wtf/v1
+kind: JsonnetLibrary
+metadata:
+  name: {{ $name }}
+  namespace: {{ include "joi.namespace" $ }}
+  labels:
+    {{- include "joi.labels" $ | nindent 4 }}
+spec:
+  sourceRef:
+    kind: OCIRepository
+    name: {{ $name }}
+    {{- with $lib.path }}
+    path: {{ . }}
+    {{- end }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,4 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+[files]
+extend-exclude = ["LICENSES/", "charts/*/tests/__snapshot__/"]

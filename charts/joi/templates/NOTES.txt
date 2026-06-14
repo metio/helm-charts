@@ -1,0 +1,29 @@
+{{- /*
+SPDX-FileCopyrightText: The helm-charts Authors
+SPDX-License-Identifier: 0BSD
+*/ -}}
+JOI libraries installed in namespace {{ include "joi.namespace" . }}:
+
+{{ range $name, $lib := .Values.libraries }}{{ if $lib.enabled }}  - {{ $name }}  (oci://{{ $lib.image }}:{{ $lib.tag }})
+{{ end }}{{ end }}
+Each renders a Flux OCIRepository + a JaaS JsonnetLibrary of the same name. A
+JsonnetSnippet references it in spec.libraries and imports it with the exact
+jb vendor path used during local development:
+
+  apiVersion: jaas.metio.wtf/v1
+  kind: JsonnetSnippet
+  metadata:
+    name: example
+    namespace: {{ include "joi.namespace" . }}
+  spec:
+    serviceAccountName: my-renderer
+    files:
+      main.jsonnet: |
+        local g = import 'github.com/grafana/grafonnet/gen/grafonnet-latest/main.libsonnet';
+        g.dashboard.new('demo')
+    libraries:
+      - kind: JsonnetLibrary
+        name: grafonnet
+
+Requires Flux source-controller (OCIRepository CRD) and JaaS in operator mode
+(JsonnetLibrary CRD + reconciler) in the cluster.

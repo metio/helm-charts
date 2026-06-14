@@ -1,0 +1,40 @@
+{{- /*
+SPDX-FileCopyrightText: The helm-charts Authors
+SPDX-License-Identifier: 0BSD
+*/ -}}
+{{- if .Values.namespace.create -}}
+# Opt-in Namespace render. Default-off so existing installs that pre-
+# create the namespace via kubectl / Argo aren't surprised by Helm
+# claiming ownership of an existing object. When enabled, the chart
+# stamps the Pod Security Standards labels so the cluster's admission
+# controller enforces the policy on every workload landing here —
+# including future sidecars / debug pods.
+#
+# `image:` volumes (OCI artifact volumes used for snippet + library
+# mounts) are PSS-restricted compliant from Kubernetes 1.33 onward;
+# clusters on 1.32 or older need to drop the enforce level to
+# `baseline` or pre-bake snippets into the image.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/part-of: {{ .Chart.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    pod-security.kubernetes.io/enforce: {{ .Values.namespace.podSecurity.enforce }}
+    pod-security.kubernetes.io/enforce-version: {{ .Values.namespace.podSecurity.enforceVersion | quote }}
+    pod-security.kubernetes.io/audit: {{ .Values.namespace.podSecurity.audit }}
+    pod-security.kubernetes.io/audit-version: {{ .Values.namespace.podSecurity.auditVersion | quote }}
+    pod-security.kubernetes.io/warn: {{ .Values.namespace.podSecurity.warn }}
+    pod-security.kubernetes.io/warn-version: {{ .Values.namespace.podSecurity.warnVersion | quote }}
+    {{- with .Values.namespace.additionalLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .Values.namespace.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}

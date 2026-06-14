@@ -1,0 +1,350 @@
+{{- /*
+SPDX-FileCopyrightText: The helm-charts Authors
+SPDX-License-Identifier: 0BSD
+*/ -}}
+{{- if and .Values.operator.enabled .Values.operator.metrics.enabled .Values.operator.metrics.prometheusRule.enabled -}}
+{{- $rbKey := .Values.operator.metrics.prometheusRule.runbookAnnotationKey -}}
+{{- $rbBase := .Values.operator.metrics.prometheusRule.runbookBaseURL -}}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: jaas-operator
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/component: alerts
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+    app.kubernetes.io/part-of: {{ .Chart.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    {{- with .Values.operator.metrics.prometheusRule.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .Values.operator.metrics.prometheusRule.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  groups:
+    - name: jaas-operator-health
+      interval: {{ .Values.operator.metrics.prometheusRule.interval }}
+      rules:
+
+        - alert: JaaSSnippetReconcileErrorsHigh
+          # exclude reasons in operator/reconciler.go's
+          # happyReasonsNoRunbook (Synced, Suspended, Pending). Suspended
+          # is operator-intentional (kubectl patch spec.suspend=true);
+          # Pending is the transient initial state before the first
+          # reconcile lands. Both surface as status="False" but represent
+          # healthy operator behaviour — paging on them runs the on-call
+          # to runbooks that read "this is normal". Synced is always
+          # status="True" but listed for symmetry with the runtime gate.
+          expr: |
+            sum by (namespace, name, reason) (
+              rate(jaas_snippet_reconcile_total{status="False",reason!~"Synced|Suspended|Pending"}[5m])
+            ) > {{ .Values.operator.metrics.prometheusRule.thresholds.reconcileErrorRate }}
+          for: {{ .Values.operator.metrics.prometheusRule.thresholds.reconcileErrorDuration }}
+          labels:
+            severity: warning
+            {{- with .Values.operator.metrics.prometheusRule.extraAlertLabels }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          annotations:
+            summary: 'JsonnetSnippet {{ "{{" }} $labels.namespace {{ "}}" }}/{{ "{{" }} $labels.name {{ "}}" }} failing'
+            description: |
+              Snippet has been flipping to Ready=False (reason: {{ "{{" }} $labels.reason {{ "}}" }})
+              for the alert window. Each Reason has a dedicated runbook page;
+              the URL is templated on $labels.reason and lands in the
+              {{ $rbKey }} annotation alongside this description.
+            {{ $rbKey }}: {{ printf "%s{{ $labels.reason | toLower }}.md" $rbBase | quote }}
+
+        - alert: JaaSSnippetArtifactGrowing
+          expr: |
+            histogram_quantile(0.99,
+              sum by (namespace, name, le) (
+                rate(jaas_snippet_rendered_bytes_bucket[15m])
+              )
+            ) > {{ .Values.operator.metrics.prometheusRule.thresholds.artifactSizeBytes | int64 }}
+          for: {{ .Values.operator.metrics.prometheusRule.thresholds.artifactSizeDuration }}
+          labels:
+            severity: warning
+            {{- with .Values.operator.metrics.prometheusRule.extraAlertLabels }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          annotations:
+            summary: 'JsonnetSnippet {{ "{{" }} $labels.namespace {{ "}}" }}/{{ "{{" }} $labels.name {{ "}}" }} artifact growing'
+            description: |
+              p99 rendered artifact size exceeded the configured threshold
+              over the last 15 minutes. Tune -max-artifact-bytes or project
+              the snippet's output.
+            {{ $rbKey }}: {{ printf "%sartifacttoolarge.md" $rbBase | quote }}
+
+    - name: jaas-operator-availability
+      interval: {{ .Values.operator.metrics.prometheusRule.interval }}
+      rules:
+
+        - alert: JaaSControllerWorkqueueDepthHigh
+          expr: |
+            workqueue_depth{controller="jsonnetsnippet"} > {{ .Values.operator.metrics.prometheusRule.thresholds.workqueueDepth }}
+          for: {{ .Values.operator.metrics.prometheusRule.thresholds.workqueueDuration }}
+          labels:
+            severity: warning
+            {{- with .Values.operator.metrics.prometheusRule.extraAlertLabels }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          annotations:
+            summary: 'JaaS controller workqueue saturated'
+            description: |
+              The operator can't drain its reconcile queue. Likely causes:
+              apiserver slowness, a slow Publisher backend (S3 throttling),
+              or per-snippet rate-limiter exhaustion.
+            {{ $rbKey }}: {{ printf "%sworkqueue-saturation.md" $rbBase | quote }}
+
+        - alert: JaaSReconcileLatencyHigh
+          expr: |
+            histogram_quantile(0.99,
+              sum by (le, controller) (
+                rate(controller_runtime_reconcile_time_seconds_bucket{controller="jsonnetsnippet"}[10m])
+              )
+            ) > {{ .Values.operator.metrics.prometheusRule.thresholds.reconcileLatencySeconds }}
+          for: {{ .Values.operator.metrics.prometheusRule.thresholds.reconcileLatencyDuration }}
+          labels:
+            severity: warning
+            {{- with .Values.operator.metrics.prometheusRule.extraAlertLabels }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          annotations:
+            summary: 'JaaS reconcile p99 latency high'
+            description: |
+              Reconcile p99 latency for the JsonnetSnippet controller has
+              exceeded the configured threshold. Inspect operator logs and
+              the OTLP traces if enabled.
+            {{ $rbKey }}: {{ printf "%sreconcile-latency.md" $rbBase | quote }}
+
+        - alert: JaaSOperatorPodDown
+          expr: |
+            kube_pod_status_ready{namespace="{{ .Release.Namespace }}",condition="true",pod=~"jaas.*"} == 0
+          for: {{ .Values.operator.metrics.prometheusRule.thresholds.podDownDuration }}
+          labels:
+            severity: critical
+            {{- with .Values.operator.metrics.prometheusRule.extraAlertLabels }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          annotations:
+            summary: 'JaaS operator pod not ready'
+            description: |
+              At least one jaas pod in {{ .Release.Namespace }} has been
+              NotReady for the alert window. New snippets will not be
+              reconciled until a replica recovers.
+            {{ $rbKey }}: {{ printf "%soperator-pod-down.md" $rbBase | quote }}
+
+        - alert: JaaSStorageSweepFailures
+          expr: |
+            increase(jaas_storage_sweep_failures_total[1h]) > {{ .Values.operator.metrics.prometheusRule.thresholds.sweepFailuresPerHour }}
+          for: {{ .Values.operator.metrics.prometheusRule.thresholds.sweepFailuresDuration }}
+          labels:
+            severity: warning
+            {{- with .Values.operator.metrics.prometheusRule.extraAlertLabels }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          annotations:
+            summary: 'JaaS storage sweep is failing'
+            description: |
+              The background sweep that removes orphaned .tar.gz.tmp
+              residue has been returning errors. The reconcile hot path
+              is unaffected, but stale .tmp files accumulate in the
+              store until the underlying issue (filesystem permissions,
+              disk full, S3 throttling) is fixed.
+            {{ $rbKey }}: {{ printf "%sstorage-recovery.md" $rbBase | quote }}
+
+        - alert: JaaSWebhookCertRenewalFailing
+          # self-signed cert renewal failures used to only emit
+          # slog.Warn; the existing cert keeps working until its natural
+          # expiry, so the operational signal must fire well before
+          # that — cluster-wide admission breaks at expiry.
+          expr: |
+            increase(jaas_webhook_cert_renewal_failures_total[1h]) > {{ .Values.operator.metrics.prometheusRule.thresholds.webhookCertRenewalFailuresPerHour }}
+          for: {{ .Values.operator.metrics.prometheusRule.thresholds.webhookCertRenewalFailuresDuration }}
+          labels:
+            severity: critical
+            {{- with .Values.operator.metrics.prometheusRule.extraAlertLabels }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          annotations:
+            summary: 'JaaS self-signed webhook cert rotation is failing'
+            description: |
+              jaas_webhook_cert_renewal_failures_total has been increasing
+              for the alert window. The Renewer can't refresh the
+              self-signed cert — usually revoked patch verb on the
+              named VWC, CertDir gone read-only, or the VWC was renamed
+              without the operator's resourceNames being updated. The
+              existing cert keeps working until its natural expiry;
+              that's the deadline.
+            {{ $rbKey }}: {{ printf "%swebhook-cert-renewal.md" $rbBase | quote }}
+
+        - alert: JaaSTenantTokenMintFailing
+          # tenant SA TokenRequest failures used to only emit
+          # slog.Warn on the reconciler side; per-snippet status
+          # reflected stale reconciles while the workqueue silently
+          # burned retries. This alert pages the operator once the
+          # mint pipeline is sustained-failing.
+          expr: |
+            sum by (namespace, serviceAccount) (
+              rate(jaas_tenant_token_mint_failures_total[5m])
+            ) > {{ .Values.operator.metrics.prometheusRule.thresholds.tenantTokenMintFailureRate }}
+          for: {{ .Values.operator.metrics.prometheusRule.thresholds.tenantTokenMintFailureDuration }}
+          labels:
+            severity: warning
+            {{- with .Values.operator.metrics.prometheusRule.extraAlertLabels }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          annotations:
+            summary: 'JaaS cannot mint tenant SA tokens for {{ "{{" }} $labels.namespace {{ "}}" }}/{{ "{{" }} $labels.serviceAccount {{ "}}" }}'
+            description: |
+              jaas_tenant_token_mint_failures_total has been rising for
+              this (namespace, serviceAccount) pair. Either the
+              operator SA's `serviceaccounts/token: create` verb on
+              this SA was revoked, the SA itself was deleted, or the
+              namespace is being torn down. Snippets impersonating
+              this SA are pinning Ready=Unknown.
+            {{ $rbKey }}: {{ printf "%srbacdenied.md" $rbBase | quote }}
+
+        - alert: JaaSForceDropsAccumulating
+          # a force-drop leaves an orphan tarball that no live CR
+          # can be used to clean up; sustained drops mean a
+          # permanently-broken backend (revoked RBAC, deleted bucket,
+          # missing CRD) is eating tenant snippets. The Events stream
+          # and slog.Warn are the only other signal, neither of which
+          # drives operator paging.
+          expr: |
+            increase(jaas_snippet_force_drop_total[1h]) > {{ .Values.operator.metrics.prometheusRule.thresholds.forceDropsPerHour }}
+          for: {{ .Values.operator.metrics.prometheusRule.thresholds.forceDropsDuration }}
+          labels:
+            severity: warning
+            {{- with .Values.operator.metrics.prometheusRule.extraAlertLabels }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          annotations:
+            summary: 'JaaS force-dropped a snippet finalizer ({{ "{{" }} $labels.namespace {{ "}}" }}/{{ "{{" }} $labels.name {{ "}}" }}, reason: {{ "{{" }} $labels.reason {{ "}}" }})'
+            description: |
+              jaas_snippet_force_drop_total has been increasing. Each
+              force-drop leaves an orphaned tarball in storage that
+              an operator must remove by hand. Sustained drops mean
+              the storage / RBAC pipeline is permanently broken; the
+              reason label names which decision branch triggered each
+              drop. See storage-recovery.md.
+            {{ $rbKey }}: {{ printf "%sstorage-recovery.md" $rbBase | quote }}
+
+        - alert: JaaSCRDWatchEngagementFailing
+          # when a previously-missing Flux source CRD becomes
+          # Established, crdWatcher engages the watch. If that fails,
+          # the apiextensions informer fires no further events on a
+          # stable CRD — the watch stays un-engaged indefinitely.
+          # Dependent snippets stop re-rendering on upstream source
+          # updates without any per-snippet signal.
+          expr: |
+            increase(jaas_crd_watch_engagement_failures_total[1h]) > {{ .Values.operator.metrics.prometheusRule.thresholds.crdWatchEngagementFailuresPerHour }}
+          for: {{ .Values.operator.metrics.prometheusRule.thresholds.crdWatchEngagementFailuresDuration }}
+          labels:
+            severity: warning
+            {{- with .Values.operator.metrics.prometheusRule.extraAlertLabels }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          annotations:
+            summary: 'JaaS cannot engage Flux source watch for {{ "{{" }} $labels.gvk {{ "}}" }}'
+            description: |
+              jaas_crd_watch_engagement_failures_total has been
+              increasing for {{ "{{" }} $labels.gvk {{ "}}" }}. The
+              source CRD is installed and Established but the operator's
+              attempt to register the watch keeps erroring (transient
+              controller-runtime cache reconnect, missing ClusterRole
+              verb on the source kind). Snippets depending on this
+              kind aren't re-rendering on upstream source updates.
+            {{ $rbKey }}: {{ printf "%scrd-watch-engagement.md" $rbBase | quote }}
+
+        - alert: JaaSEvalSaturation
+          expr: |
+            jaas_eval_max_concurrent > 0
+            and
+            jaas_eval_in_flight / jaas_eval_max_concurrent > {{ .Values.operator.metrics.prometheusRule.thresholds.evalSaturationRatio }}
+          for: {{ .Values.operator.metrics.prometheusRule.thresholds.evalSaturationDuration }}
+          labels:
+            severity: warning
+            {{- with .Values.operator.metrics.prometheusRule.extraAlertLabels }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          annotations:
+            summary: 'JaaS eval-concurrency saturated'
+            description: |
+              In-flight evaluations have been above
+              {{ .Values.operator.metrics.prometheusRule.thresholds.evalSaturationRatio }}x the
+              --max-concurrent-evals cap for the alert window. New
+              HTTP requests are returning 503; new snippets enqueue
+              with EvalUnavailable Warning events. Likely causes: a
+              runaway snippet whose synchronous eval outlives every
+              ctx, or genuine load exceeding the cap.
+            {{ $rbKey }}: {{ printf "%seval-saturation.md" $rbBase | quote }}
+
+        - alert: JaaSEvalRejected
+          expr: |
+            rate(jaas_eval_unavailable_total[5m]) > {{ .Values.operator.metrics.prometheusRule.thresholds.evalRejectedRate }}
+          for: {{ .Values.operator.metrics.prometheusRule.thresholds.evalRejectedDuration }}
+          labels:
+            severity: warning
+            {{- with .Values.operator.metrics.prometheusRule.extraAlertLabels }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          annotations:
+            summary: 'JaaS rejecting evaluations'
+            description: |
+              The concurrent-eval semaphore has been turning evaluations
+              away at a rate above the configured threshold. Pairs with
+              JaaSEvalSaturation — saturation explains why the gate
+              fills; this alert flags that rejections are actually
+              happening rather than just running close to the limit.
+            {{ $rbKey }}: {{ printf "%seval-saturation.md" $rbBase | quote }}
+
+        - alert: JaaSEvalLeakedGoroutines
+          # the leak gauge counts orphan eval goroutines whose
+          # parent ctx already fired but whose synchronous go-jsonnet
+          # call is still running. CLAUDE.md's documented design is
+          # "> 0 for 5m" — a sustained leak is textbook runaway-snippet
+          # signal that the saturation alerts can miss (the cap can sit
+          # at e.g. 5/32 with growing leakage and never trip
+          # JaaSEvalSaturation's 0.9 ratio). Routes to path A of
+          # eval-saturation.md (runaway-snippet diagnosis).
+          expr: |
+            jaas_eval_outstanding_timed_out > {{ .Values.operator.metrics.prometheusRule.thresholds.evalLeakedFloor }}
+          for: {{ .Values.operator.metrics.prometheusRule.thresholds.evalLeakedDuration }}
+          labels:
+            severity: warning
+            {{- with .Values.operator.metrics.prometheusRule.extraAlertLabels }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          annotations:
+            summary: 'JaaS has leaked evaluation goroutines'
+            description: |
+              jaas_eval_outstanding_timed_out has been above the floor
+              for the alert window — orphan eval goroutines are still
+              consuming CPU after their parent ctx fired. Almost always
+              a single runaway snippet whose evaluation cost dwarfs
+              --evaluation-timeout. eval-saturation.md's path A
+              walks the diagnosis (find the snippet, suspend, tighten
+              --max-stack / --evaluation-timeout).
+            {{ $rbKey }}: {{ printf "%seval-saturation.md" $rbBase | quote }}
+    {{- /* User-supplied extra rules append after the chart-shipped
+           ones, under a separate group so the existing group names
+           stay reserved for built-ins. Rendered verbatim — operators
+           are responsible for matching the PrometheusRule alert
+           schema. To silence a built-in, raise its threshold to an
+           impossibly high value rather than adding a `vector(0)`
+           shadow here (both would still evaluate; Prometheus does
+           not give "redefine wins" semantics). */ -}}
+    {{- with .Values.operator.metrics.prometheusRule.extraRules }}
+    - name: jaas-operator-extras
+      interval: {{ $.Values.operator.metrics.prometheusRule.interval }}
+      rules:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+{{- end }}

@@ -1,0 +1,832 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+ports:
+  # Used by the /jsonnet endpoint
+  http: 8080
+  # Used by startup, readiness, and liveness probes
+  management: 8081
+  # Used by the operator's storage HTTP server (operator.enabled only)
+  storage: 8082
+  # Used by controller-runtime's Prometheus metrics endpoint
+  # (operator.enabled only). Defaults to 8083 to avoid the collision
+  # with controller-runtime's own :8080 default and the jsonnet HTTP
+  # port. Set to 0 in operator.metrics.enabled to disable entirely.
+  metrics: 8083
+  # Used by the validating admission webhook (operator.webhook.enabled only)
+  webhook: 9443
+
+# Overwrite these in case you want to use an internal registry mirror
+image:
+  registry: ghcr.io
+  repository: metio/jaas
+  # @schema
+  # type: string
+  # enum:
+  #   - Always
+  #   - IfNotPresent
+  #   - Never
+  # @schema
+  # Pull policy for the jaas container. IfNotPresent is the default —
+  # safe for tagged release images. Switch to Always when running off a
+  # mutable tag (latest, edge, dev) so each restart re-checks the
+  # registry. Never is useful when the image is preloaded into the node
+  # (kind, k3d).
+  pullPolicy: IfNotPresent
+  # Optional explicit tag override. Defaults to .Chart.AppVersion (the
+  # chart's released version). Useful when running a custom build:
+  #   --set-string image.tag=dev-abc123
+  tag: ""
+
+# Optional pull secrets in case you use a private mirror/image
+imagePullSecrets: []
+
+# It is safe to increase the number of replicas
+replicas:
+  min: 1
+  max: 1
+
+# Smallest possible values here, increase if you have more resources to spare
+resources:
+  memory: 64Mi
+  cpu: 32m
+  ephemeralStorage: 10Mi
+
+# These arguments map directly to their corresponding CLI flag
+arguments:
+  # @schema
+  # type: string
+  # enum:
+  #   - debug
+  #   - info
+  #   - warn
+  #   - error
+  # @schema
+  logLevel: info
+  writeTimeout: 10s
+  readTimeout: 10s
+  managementWriteTimeout: 10s
+  managementReadTimeout: 10s
+  jsonnetEndpointPath: jsonnet
+  evaluationTimeout: 5s
+  maxStack: 500
+  # @schema
+  # type: integer
+  # minimum: 0
+  # @schema
+  # Maximum in-flight Jsonnet evaluations across both HTTP and operator
+  # paths. Excess requests return 503 (HTTP) or RequeueAfter (operator)
+  # with EvalUnavailable backpressure events. Sized to bound worst-case
+  # goroutine pile-up when a runaway snippet's synchronous eval outlives
+  # every caller's ctx — the cap turns "unbounded leak" into a tunable
+  # backpressure boundary. 0 disables the gate; the operator default
+  # (process-side) is max(GOMAXPROCS*4, 16).
+  maxConcurrentEvals: 32
+  shutdownDelay: 5s
+  # Bind address for the jsonnet HTTP and management servers. `::`
+  # listens on every IPv6 interface and — because Go opens
+  # IPV6_V6ONLY=0 by default on Linux — also accepts IPv4 connections
+  # via v4-mapped addresses. Use `0.0.0.0` to constrain to IPv4 on
+  # clusters that don't support dual-stack pods.
+  listenAddress: "::"
+  managementListenAddress: "::"
+
+# Fine tune the Deployment resource
+deployment:
+  revisionHistoryLimit: 1
+  additionalLabels: {}
+
+# Fine tune the managed Pod resources
+pod:
+  additionalLabels: {}
+
+# Fine tune the Service resource
+service:
+  # @schema
+  # type: string
+  # enum:
+  #   - ""
+  #   - SingleStack
+  #   - PreferDualStack
+  #   - RequireDualStack
+  # @schema
+  # K8s Service ipFamilyPolicy. Empty leaves the cluster's default
+  # (usually SingleStack). Set to PreferDualStack on dual-stack
+  # clusters that may still have single-stack nodes, or
+  # RequireDualStack to refuse single-stack clusters at admission.
+  ipFamilyPolicy: ""
+  # Explicit list of IP families for the Service. Empty defers to
+  # the cluster's default. Example for explicit IPv4+IPv6:
+  #   ipFamilies: [IPv4, IPv6]
+  # Order matters: the first family becomes the primary ClusterIP.
+  ipFamilies: []
+
+# Fine tune the PodDisruptionBudget. Rendered only when
+# replicas.max > replicas.min.
+pdb:
+  # @schema
+  # type: string
+  # enum:
+  #   - ""
+  #   - IfHealthyBudget
+  #   - AlwaysAllow
+  # @schema
+  unhealthyPodEvictionPolicy: ""
+  # Disruption budget shape. Exactly one of minAvailable / maxUnavailable
+  # is rendered into the PDB spec; setting both is a config error
+  # K8s would reject.
+  #
+  # Default `maxUnavailable: 1` caps voluntary disruptions to one pod
+  # at a time regardless of replica count — the right knob for a
+  # rolling restart / node drain story. `minAvailable: N` is the
+  # alternative when you want "always keep at least N pods up" instead
+  # — useful only when the workload's headroom is a fixed floor, not
+  # the more common "one out at a time".
+  #
+  # Override examples:
+  #   pdb: { maxUnavailable: 2 }       # allow draining two nodes in parallel
+  #   pdb: { minAvailable: 1, maxUnavailable: null }  # floor of 1 instead
+  #   pdb: { minAvailable: "50%", maxUnavailable: null }  # percentage form
+  # @schema
+  # type: [integer, string, "null"]
+  # @schema
+  minAvailable: null
+  # @schema
+  # type: [integer, string, "null"]
+  # @schema
+  maxUnavailable: 1
+
+# Modify the paths used, use this in case you run a custom image
+paths:
+  snippets: /srv/snippets
+  libraries: /srv/libraries
+
+# @schema
+# type: [object, "null"]
+# additionalProperties:
+#   type: string
+# @schema
+# IMPORTANT!
+# Add snippet directories here. The key is the name of the directory and the value is an OCI volume that will be
+# mounted beneath .Values.paths.snippets, e.g., the commented example below would result in all files from
+# 'ghcr.io/metio/something:latest' to be mounted at '/srv/snippets/something/' (using the default configuration)
+snippets:
+#  something: ghcr.io/metio/something:latest
+
+# Enable/disable well-known jsonnet libraries
+libraries:
+  grafonnet:
+    enabled: true
+    registry: ghcr.io
+    repository: metio/joi-grafana-grafonnet
+    version: v11.4.0
+  docsonnet:
+    enabled: true
+    registry: ghcr.io
+    repository: metio/joi-jsonnet-libs-docsonnet
+    version: latest
+  xtd:
+    enabled: true
+    registry: ghcr.io
+    repository: metio/joi-jsonnet-libs-xtd
+    version: latest
+
+# @schema
+# type: [object, "null"]
+# additionalProperties:
+#   type: string
+# @schema
+# IMPORTANT!
+# Add additional libraries here. The key is the name of the directory and the value is an OCI volume that will be
+# mounted beneath .Values.paths.libraries, e.g., the commented example below would result in all files from
+# 'ghcr.io/metio/something:latest' to be mounted at '/srv/libraries/something/' (using the default configuration)
+#
+# OCI mounts suit large, independently-released library bundles pinned by digest. For shared libraries you want to
+# manage as ordinary manifests — published and updated via kubectl/GitOps without an operator restart — apply a
+# namespaced JsonnetLibrary instead and reference it from a snippet's spec.libraries.
+additionalLibraries:
+#  something: ghcr.io/metio/something:latest
+
+# @schema
+# type: [object, "null"]
+# additionalProperties:
+#   type: string
+# @schema
+# IMPORTANT!
+# Add external variables here. They will be added as JAAS_EXT_VAR_your_name and are available as your_name in your
+# Jsonnet snippets.
+externalVariables:
+#  something: some-value
+
+# IMPORTANT!
+# Add external variables loaded from ConfigMaps or Secrets here. Each array expects the name of either ConfigMaps or
+# Secrets. Only those values in ConfigMaps and Secrets that start with JAAS_EXT_VAR will be available as external
+# variable in your Jsonnet snippets.
+externalVariablesFrom:
+  configMaps: []
+  secrets: []
+
+# Opt-in install-namespace render with Pod Security Standards labels.
+# Default-off so the chart doesn't claim ownership of a pre-existing
+# namespace operators created via kubectl / Argo. Enable for fresh
+# installs that want the namespace's PSS posture baked into the chart.
+namespace:
+  create: false
+  podSecurity:
+    # @schema
+    # type: string
+    # enum:
+    #   - privileged
+    #   - baseline
+    #   - restricted
+    # @schema
+    # `restricted` is the strictest PSS level. Image volumes (used by
+    # the chart for snippet/library mounts) are restricted-compliant
+    # from Kubernetes 1.33 onward; clusters on 1.32 or older must drop
+    # this to `baseline`.
+    enforce: restricted
+    enforceVersion: latest
+    # @schema
+    # type: string
+    # enum:
+    #   - privileged
+    #   - baseline
+    #   - restricted
+    # @schema
+    audit: restricted
+    auditVersion: latest
+    # @schema
+    # type: string
+    # enum:
+    #   - privileged
+    #   - baseline
+    #   - restricted
+    # @schema
+    warn: restricted
+    warnVersion: latest
+  additionalLabels: {}
+  annotations: {}
+
+# Operator mode — opt-in. When enabled, jaas runs alongside its HTTP path as a
+# Kubernetes operator that watches JsonnetSnippet / JsonnetLibrary CRs and
+# publishes evaluated results as Flux ExternalArtifact resources.
+operator:
+  enabled: false
+
+  # ServiceAccount the operator runs as. When create is true the chart
+  # provisions one; otherwise the operator binds against the named SA.
+  serviceAccount:
+    create: true
+    name: jaas
+    # Annotations to attach to the operator ServiceAccount. Common
+    # uses: AWS IRSA (eks.amazonaws.com/role-arn),
+    # GCP Workload Identity (iam.gke.io/gcp-service-account),
+    # Azure Workload Identity (azure.workload.identity/client-id).
+    # These bind cloud-IAM identities to the SA so the operator can
+    # access cloud resources without static credentials.
+    annotations: {}
+
+  # Opt out of chart-rendered RBAC when external governance owns
+  # ClusterRole/RoleBinding shape (ArgoCD app-of-apps, Crossplane,
+  # GitOps controller that manages RBAC separately). The operator
+  # still expects the named SA to have the verbs documented in
+  # README's "Operator Mode" section; with rbac.create=false you're
+  # responsible for granting them.
+  rbac:
+    create: true
+
+  # The default ServiceAccount the operator impersonates when a snippet does
+  # not specify spec.serviceAccountName. Snippets without an effective SA are
+  # rejected at reconcile time.
+  defaultServiceAccount: ""
+
+  # When true, the operator rejects JsonnetSnippet / library refs that point
+  # at a SourceRef in a different namespace.
+  noCrossNamespaceRefs: true
+
+  # Optional label selector that narrows which CRs the operator watches.
+  # Leave empty to watch every CR in the cluster.
+  labelSelector: ""
+
+  # @schema
+  # type: array
+  # items:
+  #   type: string
+  # @schema
+  # Namespaces this operator instance scopes its cache to. Empty (the
+  # default) means cluster-wide. When set, the manager's informer
+  # cache only observes CRs in these namespaces, AND the rendered
+  # RBAC pivots from a single ClusterRoleBinding to one RoleBinding
+  # per namespace — multi-tenant operator-instances pattern.
+  watchNamespaces: []
+
+  # Per-snippet steady-state re-render budget. N/period where period is one of
+  # sec, min, hour. Token-bucket combined with rerenderBurst.
+  rerenderRate: "60/min"
+  # Per-snippet token-bucket depth.
+  rerenderBurst: 120
+
+  # Bound the time a deleted JsonnetSnippet's finalizer can hold while
+  # Publisher.Withdraw keeps failing. Past this, the operator emits a
+  # Warning WithdrawForced event, drops the finalizer, and lets the
+  # snippet be garbage-collected — possibly leaving an orphan tarball
+  # in storage (`<namespace>/<name>/<rev>.tar.gz`). Required so a
+  # permanently-broken backend (S3 perma-down, deleted bucket, revoked
+  # RBAC) doesn't block namespace teardown. 1h rides out transient
+  # apiserver/S3 incidents while bounding the wait.
+  maxWithdrawWait: 1h
+
+  # On `helm uninstall`, run a pre-delete Job that bulk-deletes every
+  # JsonnetSnippet so the operator's finalizer drops the published
+  # ExternalArtifact + tarball BEFORE the operator pod itself is
+  # removed. Without this, the operator goes away first and downstream
+  # Flux consumers are left referencing orphaned ExternalArtifacts.
+  #
+  # Disable when uninstall is driven by something other than Helm
+  # (e.g., ArgoCD with hooks off) — the manual cleanup pattern is:
+  #
+  #   kubectl delete jsonnetsnippet --all -A --wait=true --timeout=2m
+  #   helm uninstall jaas -n <ns>
+  cleanupOnDelete:
+    enabled: true
+    # Maximum wall-clock time the pre-delete Job waits for snippet
+    # finalizers to run before it strips them forcibly and proceeds.
+    # Bigger when snippets publish to slow S3 endpoints.
+    kubectlTimeout: 2m
+    # Job-level safety net. activeDeadlineSeconds caps the Job's total
+    # runtime; if the operator is wedged, Helm won't be blocked
+    # forever.
+    activeDeadlineSeconds: 600
+    backoffLimit: 2
+    image:
+      registry: registry.k8s.io
+      repository: kubectl
+      tag: v1.34.0
+      pullPolicy: IfNotPresent
+    resources:
+      cpu: 100m
+      memory: 64Mi
+      # Ephemeral-storage requests/limits. The cleanup Job runs a few
+      # `kubectl` calls then exits — disk usage is negligible. Sized
+      # small to satisfy kube-score's resource-completeness check
+      # without crowding cluster ephemeral-storage budgets.
+      ephemeralStorage: 16Mi
+
+  # OpenTelemetry tracing for the operator. When endpoint is empty
+  # (the default), no spans are emitted and the OTel SDK is in no-op
+  # mode. Set the endpoint to ship spans to an OTLP gRPC collector:
+  #   tracing:
+  #     endpoint: otel-collector.observability.svc:4317
+  #     insecure: true
+  tracing:
+    endpoint: ""
+    insecure: false
+    sampleRatio: 1.0
+
+  # Leader election guards against two operator replicas double-reconciling
+  # the same JsonnetSnippet. With replicas.max: 1 (the chart default) only
+  # one replica ever runs, so the lock is just defensive — but operators
+  # who scale the Deployment up (rolling restarts, blue-green) MUST keep
+  # this on. Off is supported (single replica only) but unsafe to scale.
+  leaderElection:
+    enabled: true
+    # Lease object name. Defaults to "<release name>-operator" so multiple
+    # JaaS installs in the same namespace don't fight over a shared lease.
+    id: ""
+
+  # Operator-level external variables. Keys here are non-overridable: a
+  # JsonnetSnippet whose spec.externalVariables names any of these keys is
+  # rejected at admission (and as a fallback at reconcile time).
+  extVars: {}
+  # Example:
+  # extVars:
+  #   cluster: prod
+  #   region:  eu-west-1
+
+  storage:
+    # Artifact backend used to persist ExternalArtifact tarballs.
+    #   local — emptyDir or PVC mounted into the pod. Simple,
+    #     single-pod (RWO PVC) unless a ReadWriteMany storage class
+    #     is configured.
+    #   s3    — any S3-compatible bucket (AWS S3, MinIO, Ceph RGW,
+    #     etc.). The chart-default story for multi-replica HA: every
+    #     replica reads from the same bucket; leader election still
+    #     gates writes. PVC settings below are ignored when backend=s3.
+    # @schema
+    # type: string
+    # enum:
+    #   - local
+    #   - s3
+    # @schema
+    backend: local
+
+    # Bind address for the storage HTTP server. Same dual-stack
+    # semantics as arguments.listenAddress: `::` accepts both IPv6
+    # and IPv4-mapped traffic on Linux.
+    listenAddress: "::"
+
+    # Directory inside the container the operator writes tarballs to.
+    # Only consulted when backend=local.
+    path: /var/lib/jaas/artifacts
+
+    # Public URL prefix downstream Flux consumers dereference. Defaults to
+    # the in-cluster Service DNS name when empty — operators wiring this up
+    # via Ingress should set it explicitly.
+    baseURL: ""
+
+    # Maximum tarball size the storage HTTP server is willing to write within
+    # a single response. Match against your largest expected snippet output.
+    writeTimeout: 5m
+
+    # Read timeout on the storage HTTP server.
+    readTimeout: 30s
+
+    # Periodic GC: sweep orphaned <rev>.tar.gz.tmp residue left by Puts
+    # whose process died mid-rename. Local backend only — the S3
+    # backend's Put is atomic so no .tmp files exist. Set interval to
+    # "0s" to disable.
+    sweep:
+      interval: 10m
+      maxTmpAge: 30m
+
+    # Cap the rendered artifact size in bytes. Snippets whose rendered
+    # output exceeds this fail with ReasonArtifactTooLarge before any
+    # disk/S3 write — stops one runaway snippet from filling a shared
+    # storage volume. Zero disables.
+    maxArtifactBytes: 0
+
+    # Minimum time a superseded artifact revision stays fetchable after
+    # being evicted from the keep-set. Closes the pin→fetch race in
+    # which a Flux consumer reads ExternalArtifact.status.artifact a
+    # moment before the operator garbage-collects the superseded
+    # revision and then 404s on the URL. Supersession time is derived
+    # from on-disk storage metadata so the window survives operator
+    # restarts. Zero restores eager pruning; the snippet teardown path
+    # (finalizer Withdraw) is unaffected. See docs/consumers.md for
+    # when to leave the default vs raise spec.history for deliberate
+    # rollback retention.
+    gcGrace: 5m
+
+    # When true, the storage Service is rendered as headless
+    # (clusterIP: None) so DNS resolves each pod IP directly. Useful
+    # for external sidecars that want stable per-pod targets, or for
+    # traffic that should skip kube-proxy. Default ClusterIP otherwise.
+    headless: false
+
+    # emptyDir size limit. Only consulted when persistence.enabled is
+    # false. Tarballs typically are well under 1 MiB; the sizing here is
+    # generous so transient bursts don't OOM the pod.
+    sizeLimit: 256Mi
+
+    # Persist tarballs across pod restarts via a PVC. With persistence
+    # OFF (the default) the chart uses an emptyDir, which is lost on pod
+    # restart — downstream Flux consumers then see brief 404s while every
+    # snippet re-renders. With persistence ON, the PVC survives restarts
+    # and downstream consumers see no gap.
+    #
+    # PVC access mode is RWO by default, which constrains the chart to a
+    # single replica (RWO can only attach to one pod). For multi-replica
+    # HA you need an RWX storage class — uncommon in cloud providers.
+    persistence:
+      enabled: false
+      # storageClassName picks the StorageClass. Empty means "cluster
+      # default" — usually right.
+      storageClassName: ""
+      # accessModes the PVC declares. ReadWriteOnce is the safe default;
+      # ReadWriteMany unlocks multi-replica HA when the StorageClass
+      # supports it.
+      accessModes:
+        - ReadWriteOnce
+      # Requested volume size. 10 GiB holds many thousand small tarballs.
+      size: 10Gi
+      # Extra annotations on the PVC (e.g., CSI volume tags).
+      annotations: {}
+      # Extra labels on the PVC.
+      labels: {}
+      # Optional PVC selector for matching pre-provisioned volumes.
+      selector: {}
+
+    # S3 backend configuration. Only consulted when backend=s3.
+    s3:
+      # Endpoint host:port (e.g. s3.amazonaws.com, minio.minio.svc:9000).
+      # Required.
+      endpoint: ""
+      # Bucket the artifacts live in. Must already exist; jaas does
+      # not create it. Required.
+      bucket: ""
+      # Optional object-key prefix so jaas can coexist with other
+      # tenants in one bucket: <prefix>/<namespace>/<snippet>/<rev>.tar.gz
+      prefix: ""
+      # Region the bucket lives in. Required for AWS multi-region;
+      # ignored by most S3-compatible servers.
+      region: ""
+      # Talk HTTPS. Disable only for local MinIO over HTTP.
+      useSSL: true
+      # Skip request signing entirely. Public-bucket test mode only.
+      anonymous: false
+      # Static credentials. Leave empty to use the IAM/IRSA discovery
+      # chain (AWS_* env vars, EKS web-identity, EC2 metadata).
+      # When set inline, the values land in the Pod's command line —
+      # prefer credentialsSecret instead.
+      accessKey: ""
+      secretKey: ""
+      sessionToken: ""
+      # Pull credentials from a Secret instead of inline values.
+      # Expected keys: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and
+      # optionally AWS_SESSION_TOKEN. minio-go's env chain picks them
+      # up automatically when no static -s3-* flags are passed.
+      credentialsSecret:
+        name: ""
+
+  # Controller-runtime exposes a Prometheus metrics endpoint covering
+  # workqueue depth, reconcile latencies, the manager's REST client, and
+  # whatever custom collectors the reconciler registers. The chart wires
+  # the endpoint to a dedicated Service; ServiceMonitor rendering is
+  # opt-in for clusters running the Prometheus Operator.
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: false
+      # Scrape interval the Prometheus instance honors. Match this to
+      # your shared scrape config.
+      interval: 30s
+      # Per-scrape timeout. Must stay strictly less than interval.
+      scrapeTimeout: 10s
+      # Extra labels the ServiceMonitor carries (typically the labels
+      # your Prometheus instance selects on, e.g., release: kube-prom).
+      labels: {}
+      # Extra annotations on the ServiceMonitor.
+      annotations: {}
+    # Opt-in PrometheusRule shipping a starter set of alerts on the
+    # operator's custom metrics plus a handful of standard
+    # controller-runtime signals. Requires the Prometheus Operator's
+    # `monitoring.coreos.com/v1` API to be installed in the cluster.
+    # Thresholds default to conservative values — page on sustained
+    # failure patterns, not single bad reconciles. Tune per cluster.
+    prometheusRule:
+      enabled: false
+      # Evaluation interval for every group in the rendered rule.
+      interval: 30s
+      # Extra labels copied onto the PrometheusRule object itself
+      # (typically the labels your Prometheus instance selects on).
+      labels: {}
+      # Extra annotations on the PrometheusRule.
+      annotations: {}
+      # Labels merged onto EVERY alert this PrometheusRule renders.
+      # Useful for routing all jaas alerts through one Alertmanager
+      # receiver (e.g., `team: platform`).
+      extraAlertLabels: {}
+      # Prefix prepended to per-alert runbook page names. Defaults to
+      # the upstream repo; override to a fork or an internal mirror.
+      runbookBaseURL: https://github.com/metio/jaas/blob/main/docs/runbooks/
+      # Annotation key the runbook URL lands under on every alert.
+      # `runbook_url` is the Prometheus-operator convention (kube-prom,
+      # Alertmanager templates, most third-party tooling key off it);
+      # `runbook` is common in older internal stacks. Anything goes —
+      # the value is just a YAML map key.
+      runbookAnnotationKey: runbook_url
+      # Extra alert rules appended to the rendered PrometheusRule
+      # under a separate "jaas-operator-extras" group. Lets operators
+      # ship cluster-specific alerts (e.g. custom thresholds on jaas
+      # metrics, alerts joined against deployment labels) without
+      # forking the chart. The list is rendered verbatim — each entry
+      # must be a valid PrometheusRule alert (see Prometheus
+      # documentation for the schema).
+      #
+      # To silence a built-in alert: raise its threshold under the
+      # `thresholds` block above to an impossibly high value. There
+      # is no per-built-in disable toggle — the threshold pattern is
+      # the recommended path because it surfaces "this alert is
+      # intentionally inert" in the chart values rather than hiding
+      # the configuration behind a flag list.
+      #
+      # Example:
+      # extraRules:
+      #   - alert: JaaSManySnippetsDown
+      #     expr: count(jaas_snippet_reconcile_total{status="False"}) > 10
+      #     for: 5m
+      #     labels: { severity: critical, team: platform }
+      #     annotations:
+      #       summary: '>10 snippets failing across all namespaces'
+      extraRules: []
+      # All-numeric/duration thresholds in one place so operators can
+      # adjust the noise floor without copy-pasting the rule body.
+      thresholds:
+        # JaaSSnippetReconcileErrorsHigh: per-snippet Ready=False rate
+        # (reconciles per second, 5m window). 0.1/s ≈ one failure every
+        # 10s — a clearly stuck snippet, not transient flapping.
+        reconcileErrorRate: 0.1
+        reconcileErrorDuration: 10m
+        # JaaSSnippetArtifactGrowing: p99 rendered bytes threshold.
+        # Defaults to 16 MiB — well below the 64 MiB MaxArchiveBytes
+        # default but enough to catch a runaway snippet early.
+        artifactSizeBytes: 16777216
+        artifactSizeDuration: 30m
+        # JaaSControllerWorkqueueDepthHigh: items the workqueue holds
+        # before alerting. Default 50 is high enough to absorb a normal
+        # roll-out, low enough that genuine apiserver stalls page.
+        workqueueDepth: 50
+        workqueueDuration: 15m
+        # JaaSReconcileLatencyHigh: reconcile-time p99 ceiling, in
+        # seconds. 30s is generous — long enough for an OCI fetch plus
+        # eval of a non-trivial snippet, short enough to catch a
+        # genuinely stuck reconciler.
+        reconcileLatencySeconds: 30
+        reconcileLatencyDuration: 15m
+        # JaaSOperatorPodDown: how long an operator pod can stay
+        # NotReady before paging. Below 5m the alert tends to fire
+        # during normal pod rolls.
+        podDownDuration: 5m
+        # JaaSStorageSweepFailures: per-hour count of failing
+        # background sweep passes before alerting. Default 3 absorbs
+        # the occasional flake without paging while catching a
+        # genuinely degraded backend (chronic disk full, revoked
+        # permissions). The sweep runs on operator.storage.sweep.interval
+        # (default 10m), so 3/hour ≈ half the passes failing.
+        sweepFailuresPerHour: 3
+        sweepFailuresDuration: 30m
+        # JaaSEvalSaturation: ratio of in-flight evaluations to the
+        # configured cap before alerting. 0.9 means "running at 90 %+ of
+        # the eval semaphore for evalSaturationDuration" — close enough
+        # to the cap that any new burst will start landing rejections.
+        # The alert guards on jaas_eval_max_concurrent > 0 so a
+        # disabled gate (--max-concurrent-evals=0) never fires.
+        evalSaturationRatio: 0.9
+        evalSaturationDuration: 10m
+        # JaaSEvalRejected: per-second rate of evaluations the
+        # semaphore turned away. 0.05/s ≈ one rejection every 20s, a
+        # rate that indicates sustained overload rather than a
+        # transient spike a single retry would clear.
+        evalRejectedRate: 0.05
+        evalRejectedDuration: 10m
+        # JaaSEvalLeakedGoroutines: floor on the leak gauge before
+        # alerting. The gauge counts eval goroutines whose parent ctx
+        # already fired — orphans still consuming CPU until their
+        # synchronous go-jsonnet call returns naturally. CLAUDE.md's
+        # documented design is "> 0 for 5m" — any sustained leak is
+        # textbook runaway-snippet signal. 0 is intentional; the
+        # accompanying duration window catches transient spikes
+        # without paging.
+        evalLeakedFloor: 0
+        evalLeakedDuration: 5m
+        # JaaSWebhookCertRenewalFailing: hourly increase on the cert
+        # renewal failure counter. The Renewer ticks every Validity/3
+        # (typically every few months), so a single failure shouldn't
+        # page; sustained failures across multiple ticks (RBAC drift,
+        # CertDir write-perm loss) mean the rotation pipeline is broken
+        # and the existing cert's natural expiry is the deadline.
+        webhookCertRenewalFailuresPerHour: 1
+        webhookCertRenewalFailuresDuration: 30m
+        # JaaSTenantTokenMintFailing: per-second mint failure rate
+        # across the cluster. Even one mint failure on a (namespace, SA)
+        # pair flags revoked `serviceaccounts/token: create` or a
+        # deleted SA — actionable immediately.
+        tenantTokenMintFailureRate: 0.01
+        tenantTokenMintFailureDuration: 10m
+        # JaaSCRDWatchEngagementFailing: hourly increase on the CRD
+        # watch engagement failure counter. The retry pipeline
+        # will eventually re-engage, but a sustained inability to
+        # engage means dependent snippets aren't re-rendering on
+        # upstream source events.
+        crdWatchEngagementFailuresPerHour: 1
+        crdWatchEngagementFailuresDuration: 30m
+        # JaaSForceDropsAccumulating: hourly increase on the
+        # force-drop counter. Even a single force-drop means an orphan
+        # tarball was left behind; sustained drops mean a
+        # permanently-broken pipeline (revoked RBAC on the EA Delete,
+        # deleted S3 bucket, missing CRD). The remediation runbook
+        # is storage-recovery.md.
+        forceDropsPerHour: 0
+        forceDropsDuration: 5m
+
+  webhook:
+    enabled: false
+    # Directory inside the container where the TLS cert and key land.
+    # With certMode=cert-manager this is mounted read-only from the
+    # secretName below. With certMode=self-signed it's a writable
+    # emptyDir the operator writes into on startup.
+    certDir: /tmp/k8s-webhook-server/serving-certs
+
+    # @schema
+    # type: string
+    # enum:
+    #   - cert-manager
+    #   - self-signed
+    # @schema
+    # How TLS material for the webhook is provisioned:
+    #   cert-manager — chart renders a cert-manager Certificate;
+    #     the Secret is mounted into the pod read-only.
+    #   self-signed  — operator generates a CA + serving cert at
+    #     startup and stamps its own ValidatingWebhookConfiguration
+    #     caBundle. Requires the operator to have get/update on the
+    #     named VWC (added automatically). Removes the cert-manager
+    #     dependency entirely.
+    certMode: cert-manager
+
+    # cert-manager-mode knobs. Only consulted when certMode is
+    # "cert-manager". When self-signed, this block is ignored and no
+    # cert-manager API objects are rendered.
+    certManager:
+      enabled: true
+      issuerRef:
+        # @schema
+        # type: string
+        # enum:
+        #   - Issuer
+        #   - ClusterIssuer
+        # @schema
+        # Issuer kind: Issuer or ClusterIssuer
+        kind: Issuer
+        # Issuer name in the chart's namespace (Issuer) or cluster
+        # (ClusterIssuer). Required when certMode=cert-manager.
+        name: ""
+
+    # Validity of the self-signed serving cert. Operators that want
+    # short-lived rotation should use cert-manager instead — the
+    # self-signed mode renews on every pod restart, no in-flight
+    # rotation. Only consulted when certMode=self-signed.
+    selfSignedValidity: 8760h
+
+    # The Secret the cert lives in. cert-manager writes it; the Deployment
+    # mounts it read-only at certDir.
+    secretName: jaas-webhook-cert
+
+    # Failure policy for the ValidatingWebhookConfiguration. Fail is the
+    # safer default — a webhook outage blocks JsonnetSnippet writes
+    # cluster-wide until the operator is back. Switch to Ignore only
+    # when you're willing to accept invalid snippets reaching the
+    # reconciler. Either way, the reconciler enforces the same
+    # ext-var-conflict invariant as a fallback so admission bypass
+    # never silently breaks the contract.
+    #
+    # During an operator restart (rolling update, crash-loop, eviction)
+    # the webhook is briefly unreachable and Fail blocks every
+    # JsonnetSnippet create/update for that window — typically <5s with
+    # `LeaderElectionReleaseOnCancel: true`. If your CI/GitOps tooling
+    # can't tolerate that, scope the webhook with objectSelector /
+    # namespaceSelector to limit the blast radius, or set failurePolicy:
+    # Ignore.
+    failurePolicy: Fail
+
+    # Side-effect mode for the ValidatingWebhookConfiguration.
+    sideEffects: None
+
+    # objectSelector restricts the webhook to JsonnetSnippets carrying
+    # the listed labels. Useful when only some snippets are
+    # operator-managed (the rest live in Argo or kustomize).
+    # Example:
+    #   objectSelector:
+    #     matchLabels:
+    #       jaas.metio.wtf/managed: "true"
+    objectSelector: {}
+
+    # namespaceSelector restricts the webhook to Namespaces carrying
+    # the listed labels. A common pattern: opt-in per namespace via a
+    # label so the apiserver doesn't dial the webhook for unrelated
+    # namespaces during operator outages.
+    # Example:
+    #   namespaceSelector:
+    #     matchLabels:
+    #       jaas.metio.wtf/admission: enforce
+    namespaceSelector: {}
+
+    # matchConditions are CEL expressions evaluated server-side before
+    # the webhook is dialed. Lets operators short-circuit admission
+    # checks for specific snippet shapes without a round trip. Requires
+    # Kubernetes 1.30+.
+    matchConditions: []
+
+networkPolicy:
+  # Opt-in. When enabled, a NetworkPolicy targets the jaas pod and locks
+  # the storage HTTP port down to the configured source-controller selector
+  # (defaults to flux-system/app=source-controller). Other ports stay open
+  # so kubelet probes, the jsonnet HTTP path, and the webhook traffic from
+  # kube-apiserver continue to work. Leave OFF on initial install if the
+  # cluster has no NetworkPolicy controller (Calico/Cilium/etc.) — without
+  # one, the policy is silently inert; with one, default-deny semantics
+  # apply to everything not listed here.
+  enabled: false
+  # Sources allowed to read tarballs from the storage HTTP port. Defaults
+  # to Flux's source-controller in flux-system.
+  storage:
+    from:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: flux-system
+        podSelector:
+          matchLabels:
+            app: source-controller
+  # Restrict sources allowed to hit the jsonnet HTTP endpoint. Empty list
+  # allows everything (typical when an Ingress fronts the service).
+  http:
+    from: []
+  # Restrict sources allowed to hit the management probes. Empty list
+  # allows everything — kubelet probes source from the node IP.
+  management:
+    from: []
+  # Restrict sources allowed to dial the webhook. Empty list allows
+  # everything — kube-apiserver cannot be expressed as a podSelector.
+  webhook:
+    from: []
+  # Free-form additional ingress rules merged into the policy verbatim.
+  additionalIngress: []

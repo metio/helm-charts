@@ -1,0 +1,9 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+# Webhook TLS via cert-manager (needs cert-manager + an Issuer named below).
+webhook:
+  certMode: cert-manager
+  certManager:
+    issuerRef:
+      kind: Issuer
+      name: stageset-selfsigned

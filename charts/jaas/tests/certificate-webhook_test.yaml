@@ -1,0 +1,122 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+suite: test jaas webhook certificate
+templates:
+  - certificate-webhook.yaml
+tests:
+  - it: is empty when operator is disabled
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: is empty when webhook is enabled but cert-manager is disabled
+    set:
+      operator:
+        enabled: true
+        webhook:
+          enabled: true
+          certManager:
+            enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: is empty when certMode=self-signed (no cert-manager involvement)
+    set:
+      operator:
+        enabled: true
+        webhook:
+          enabled: true
+          certMode: self-signed
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: fails template rendering when issuer name is empty
+    set:
+      operator:
+        enabled: true
+        webhook:
+          enabled: true
+          certManager:
+            enabled: true
+            issuerRef:
+              name: ""
+    asserts:
+      - failedTemplate:
+          errorMessage: "operator.webhook.certManager.issuerRef.name must be set when certMode=cert-manager"
+
+  - it: renders when both webhook and certManager are enabled
+    set:
+      operator:
+        enabled: true
+        webhook:
+          enabled: true
+          certManager:
+            enabled: true
+            issuerRef:
+              kind: Issuer
+              name: jaas-issuer
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Certificate
+
+  - it: writes into the configured Secret
+    set:
+      operator:
+        enabled: true
+        webhook:
+          enabled: true
+          secretName: my-cert-secret
+          certManager:
+            enabled: true
+            issuerRef:
+              kind: Issuer
+              name: jaas-issuer
+    asserts:
+      - equal:
+          path: spec.secretName
+          value: my-cert-secret
+
+  - it: dnsNames cover the Service's in-cluster DNS names
+    release:
+      namespace: jaas-system
+    set:
+      operator:
+        enabled: true
+        webhook:
+          enabled: true
+          certManager:
+            enabled: true
+            issuerRef:
+              kind: Issuer
+              name: jaas-issuer
+    asserts:
+      - contains:
+          path: spec.dnsNames
+          content: jaas-webhook.jaas-system.svc
+      - contains:
+          path: spec.dnsNames
+          content: jaas-webhook.jaas-system.svc.cluster.local
+
+  - it: honors a ClusterIssuer issuerRef
+    set:
+      operator:
+        enabled: true
+        webhook:
+          enabled: true
+          certManager:
+            enabled: true
+            issuerRef:
+              kind: ClusterIssuer
+              name: jaas-cluster-issuer
+    asserts:
+      - equal:
+          path: spec.issuerRef.kind
+          value: ClusterIssuer
+      - equal:
+          path: spec.issuerRef.name
+          value: jaas-cluster-issuer

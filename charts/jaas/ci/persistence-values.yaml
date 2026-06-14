@@ -1,0 +1,9 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+# Operator mode with a PVC-backed artifact store.
+operator:
+  enabled: true
+  defaultServiceAccount: default
+  storage:
+    persistence:
+      enabled: true

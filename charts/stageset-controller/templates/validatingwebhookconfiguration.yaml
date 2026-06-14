@@ -1,0 +1,35 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+{{- if .Values.webhook.enabled }}
+# The name is referenced by the controller's --webhook-validating-config-name in
+# self-signed mode (the controller patches this object's caBundle in-pod). In
+# cert-manager mode the CA is injected via the cert-manager.io/inject-ca-from
+# annotation instead.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: {{ include "stageset.name" . }}-{{ include "stageset.namespace" . }}
+  labels:
+    {{- include "stageset.labels" . | nindent 4 }}
+  {{- if eq .Values.webhook.certMode "cert-manager" }}
+  annotations:
+    cert-manager.io/inject-ca-from: {{ include "stageset.namespace" . }}/{{ include "stageset.name" . }}-webhook-cert
+  {{- end }}
+webhooks:
+  - name: vstageset.stages.metio.wtf
+    admissionReviewVersions: [v1]
+    sideEffects: None
+    failurePolicy: Fail
+    clientConfig:
+      service:
+        name: {{ include "stageset.name" . }}-webhook
+        namespace: {{ include "stageset.namespace" . }}
+        path: /validate-stages-metio-wtf-v1-stageset
+        port: 443
+    rules:
+      - apiGroups: [stages.metio.wtf]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [stagesets]
+{{- end }}

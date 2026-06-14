@@ -1,0 +1,27 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+version = 1
+
+# helm-unittest snapshot files carry no inline header (the plugin rewrites
+# them verbatim on -u); license declared here.
+[[annotations]]
+path = "charts/**/tests/__snapshot__/*.snap"
+precedence = "override"
+SPDX-FileCopyrightText = "The helm-charts Authors"
+SPDX-License-Identifier = "0BSD"
+
+# JSON can't carry inline comments — helm-schema regenerates these, so an
+# inline header would be clobbered anyway.
+[[annotations]]
+path = "charts/**/values.schema.json"
+precedence = "override"
+SPDX-FileCopyrightText = "The helm-charts Authors"
+SPDX-License-Identifier = "0BSD"
+
+# renovate.json is JSON (no comment syntax) and follows Renovate's fixed schema.
+[[annotations]]
+path = "renovate.json"
+precedence = "override"
+SPDX-FileCopyrightText = "The helm-charts Authors"
+SPDX-License-Identifier = "0BSD"

@@ -1,0 +1,28 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+apiVersion: v2
+name: joi
+description: Jsonnet-OCI-Images (JOI) as Flux OCIRepository + JaaS JsonnetLibrary pairs for in-cluster use.
+type: application
+home: https://github.com/metio/jsonnet-oci-images
+sources:
+  - https://github.com/metio/jsonnet-oci-images
+  - https://github.com/metio/helm-charts
+keywords:
+  - jsonnet
+  - flux
+  - gitops
+  - grafonnet
+maintainers:
+  # name must be the GitHub login — chart-testing's validate-maintainers checks
+  # it against the GitHub users API.
+  - name: sebhoss
+    url: https://github.com/sebhoss
+# version is the chart's own version; the release pipeline rewrites this
+# placeholder to a calendar+time value (%Y.%-m.%-d+%H%M%S) at package time.
+version: 0.0.0
+# This chart deploys CRs (OCIRepository + JsonnetLibrary), not a single image,
+# so appVersion is a nominal chart-content version; per-library image tags live
+# in values.yaml.
+appVersion: "1.0.0"

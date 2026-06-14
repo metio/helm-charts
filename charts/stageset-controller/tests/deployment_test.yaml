@@ -1,0 +1,110 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+suite: test stageset deployment
+templates:
+  - templates/deployment.yaml
+tests:
+  - it: renders the image as registry/repository:appVersion
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/metio/stageset-controller:0.0.0
+  - it: omits spec.replicas so the HPA (or default) owns the count
+    asserts:
+      - notExists:
+          path: spec.replicas
+  - it: passes the core controller flags
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --leader-elect
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --inventory-mode=hybrid
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --gate-bind-address=:8082
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --enable-webhook=true
+  - it: defaults to self-signed webhook flags
+    release:
+      namespace: stageset-system
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --webhook-cert-mode=self-signed
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --webhook-validating-config-name=stageset-controller-stageset-system
+  - it: disables the gate endpoint with an empty bind address
+    set:
+      gate.enabled: false
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --gate-bind-address=
+  - it: drops leader-elect when disabled
+    set:
+      controller.leaderElect: false
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].args
+          content: --leader-elect
+  - it: applies a hardened container securityContext
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsUser
+          value: 65532
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+  - it: sets cpu, memory, and ephemeral-storage on both requests and limits
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.ephemeral-storage
+          value: 32Mi
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.cpu
+          value: 50m
+  - it: mounts a writable tmp and the cert dir
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: tmp
+            mountPath: /tmp
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: webhook-certs
+            emptyDir: {}
+  - it: mounts a cert-manager Secret read-only when in cert-manager mode
+    set:
+      webhook.certMode: cert-manager
+      webhook.certManager.issuerRef.name: my-issuer
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: webhook-certs
+            secret:
+              secretName: stageset-controller-webhook-cert
+  - it: wires the S3 rollback flags and creds Secret
+    set:
+      rollbackStore.backend: s3
+      rollbackStore.s3.endpoint: minio:9000
+      rollbackStore.s3.bucket: rb
+      rollbackStore.s3.existingSecret: rb-creds
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --rollback-store-s3-endpoint=minio:9000
+      - contains:
+          path: spec.template.spec.containers[0].envFrom
+          content:
+            secretRef:
+              name: rb-creds

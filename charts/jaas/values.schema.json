@@ -1,0 +1,1737 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "properties": {
+    "additionalLibraries": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "default": "",
+      "description": "IMPORTANT!\nAdd additional libraries here. The key is the name of the directory and the value is an OCI volume that will be\nmounted beneath .Values.paths.libraries, e.g., the commented example below would result in all files from\n'ghcr.io/metio/something:latest' to be mounted at '/srv/libraries/something/' (using the default configuration)\n\nOCI mounts suit large, independently-released library bundles pinned by digest. For shared libraries you want to\nmanage as ordinary manifests — published and updated via kubectl/GitOps without an operator restart — apply a\nnamespaced JsonnetLibrary instead and reference it from a snippet's spec.libraries.",
+      "required": [],
+      "title": "additionalLibraries",
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "arguments": {
+      "description": "These arguments map directly to their corresponding CLI flag",
+      "properties": {
+        "evaluationTimeout": {
+          "default": "5s",
+          "title": "evaluationTimeout",
+          "type": "string"
+        },
+        "jsonnetEndpointPath": {
+          "default": "jsonnet",
+          "title": "jsonnetEndpointPath",
+          "type": "string"
+        },
+        "listenAddress": {
+          "default": "::",
+          "description": "Bind address for the jsonnet HTTP and management servers. `::`\nlistens on every IPv6 interface and — because Go opens\nIPV6_V6ONLY=0 by default on Linux — also accepts IPv4 connections\nvia v4-mapped addresses. Use `0.0.0.0` to constrain to IPv4 on\nclusters that don't support dual-stack pods.",
+          "title": "listenAddress",
+          "type": "string"
+        },
+        "logLevel": {
+          "default": "info",
+          "enum": [
+            "debug",
+            "info",
+            "warn",
+            "error"
+          ],
+          "title": "logLevel",
+          "type": "string"
+        },
+        "managementListenAddress": {
+          "default": "::",
+          "title": "managementListenAddress",
+          "type": "string"
+        },
+        "managementReadTimeout": {
+          "default": "10s",
+          "title": "managementReadTimeout",
+          "type": "string"
+        },
+        "managementWriteTimeout": {
+          "default": "10s",
+          "title": "managementWriteTimeout",
+          "type": "string"
+        },
+        "maxConcurrentEvals": {
+          "default": 32,
+          "description": "Maximum in-flight Jsonnet evaluations across both HTTP and operator\npaths. Excess requests return 503 (HTTP) or RequeueAfter (operator)\nwith EvalUnavailable backpressure events. Sized to bound worst-case\ngoroutine pile-up when a runaway snippet's synchronous eval outlives\nevery caller's ctx — the cap turns \"unbounded leak\" into a tunable\nbackpressure boundary. 0 disables the gate; the operator default\n(process-side) is max(GOMAXPROCS*4, 16).",
+          "minimum": 0,
+          "title": "maxConcurrentEvals",
+          "type": "integer"
+        },
+        "maxStack": {
+          "default": 500,
+          "title": "maxStack",
+          "type": "integer"
+        },
+        "readTimeout": {
+          "default": "10s",
+          "title": "readTimeout",
+          "type": "string"
+        },
+        "shutdownDelay": {
+          "default": "5s",
+          "title": "shutdownDelay",
+          "type": "string"
+        },
+        "writeTimeout": {
+          "default": "10s",
+          "title": "writeTimeout",
+          "type": "string"
+        }
+      },
+      "required": [
+        "writeTimeout",
+        "readTimeout",
+        "managementWriteTimeout",
+        "managementReadTimeout",
+        "jsonnetEndpointPath",
+        "evaluationTimeout",
+        "maxStack",
+        "shutdownDelay",
+        "listenAddress",
+        "managementListenAddress"
+      ],
+      "title": "arguments",
+      "type": "object"
+    },
+    "deployment": {
+      "description": "Fine tune the Deployment resource",
+      "properties": {
+        "additionalLabels": {
+          "required": [],
+          "title": "additionalLabels",
+          "type": "object"
+        },
+        "revisionHistoryLimit": {
+          "default": 1,
+          "title": "revisionHistoryLimit",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "revisionHistoryLimit",
+        "additionalLabels"
+      ],
+      "title": "deployment",
+      "type": "object"
+    },
+    "externalVariables": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "default": "",
+      "description": "IMPORTANT!\nAdd external variables here. They will be added as JAAS_EXT_VAR_your_name and are available as your_name in your\nJsonnet snippets.",
+      "required": [],
+      "title": "externalVariables",
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "externalVariablesFrom": {
+      "description": "IMPORTANT!\nAdd external variables loaded from ConfigMaps or Secrets here. Each array expects the name of either ConfigMaps or\nSecrets. Only those values in ConfigMaps and Secrets that start with JAAS_EXT_VAR will be available as external\nvariable in your Jsonnet snippets.",
+      "properties": {
+        "configMaps": {
+          "items": {
+            "required": []
+          },
+          "title": "configMaps",
+          "type": "array"
+        },
+        "secrets": {
+          "items": {
+            "required": []
+          },
+          "title": "secrets",
+          "type": "array"
+        }
+      },
+      "required": [
+        "configMaps",
+        "secrets"
+      ],
+      "title": "externalVariablesFrom",
+      "type": "object"
+    },
+    "global": {
+      "description": "Global values are values that can be accessed from any chart or subchart by exactly the same name.",
+      "required": [],
+      "title": "global",
+      "type": "object"
+    },
+    "image": {
+      "description": "Overwrite these in case you want to use an internal registry mirror",
+      "properties": {
+        "pullPolicy": {
+          "default": "IfNotPresent",
+          "description": "Pull policy for the jaas container. IfNotPresent is the default —\nsafe for tagged release images. Switch to Always when running off a\nmutable tag (latest, edge, dev) so each restart re-checks the\nregistry. Never is useful when the image is preloaded into the node\n(kind, k3d).",
+          "enum": [
+            "Always",
+            "IfNotPresent",
+            "Never"
+          ],
+          "title": "pullPolicy",
+          "type": "string"
+        },
+        "registry": {
+          "default": "ghcr.io",
+          "title": "registry",
+          "type": "string"
+        },
+        "repository": {
+          "default": "metio/jaas",
+          "title": "repository",
+          "type": "string"
+        },
+        "tag": {
+          "default": "",
+          "description": "Optional explicit tag override. Defaults to .Chart.AppVersion (the\nchart's released version). Useful when running a custom build:\n  --set-string image.tag=dev-abc123",
+          "title": "tag",
+          "type": "string"
+        }
+      },
+      "required": [
+        "registry",
+        "repository",
+        "tag"
+      ],
+      "title": "image",
+      "type": "object"
+    },
+    "imagePullSecrets": {
+      "description": "Optional pull secrets in case you use a private mirror/image",
+      "items": {
+        "required": []
+      },
+      "title": "imagePullSecrets",
+      "type": "array"
+    },
+    "libraries": {
+      "description": "Enable/disable well-known jsonnet libraries",
+      "properties": {
+        "docsonnet": {
+          "properties": {
+            "enabled": {
+              "default": true,
+              "title": "enabled",
+              "type": "boolean"
+            },
+            "registry": {
+              "default": "ghcr.io",
+              "title": "registry",
+              "type": "string"
+            },
+            "repository": {
+              "default": "metio/joi-jsonnet-libs-docsonnet",
+              "title": "repository",
+              "type": "string"
+            },
+            "version": {
+              "default": "latest",
+              "title": "version",
+              "type": "string"
+            }
+          },
+          "required": [
+            "enabled",
+            "registry",
+            "repository",
+            "version"
+          ],
+          "title": "docsonnet",
+          "type": "object"
+        },
+        "grafonnet": {
+          "properties": {
+            "enabled": {
+              "default": true,
+              "title": "enabled",
+              "type": "boolean"
+            },
+            "registry": {
+              "default": "ghcr.io",
+              "title": "registry",
+              "type": "string"
+            },
+            "repository": {
+              "default": "metio/joi-grafana-grafonnet",
+              "title": "repository",
+              "type": "string"
+            },
+            "version": {
+              "default": "v11.4.0",
+              "title": "version",
+              "type": "string"
+            }
+          },
+          "required": [
+            "enabled",
+            "registry",
+            "repository",
+            "version"
+          ],
+          "title": "grafonnet",
+          "type": "object"
+        },
+        "xtd": {
+          "properties": {
+            "enabled": {
+              "default": true,
+              "title": "enabled",
+              "type": "boolean"
+            },
+            "registry": {
+              "default": "ghcr.io",
+              "title": "registry",
+              "type": "string"
+            },
+            "repository": {
+              "default": "metio/joi-jsonnet-libs-xtd",
+              "title": "repository",
+              "type": "string"
+            },
+            "version": {
+              "default": "latest",
+              "title": "version",
+              "type": "string"
+            }
+          },
+          "required": [
+            "enabled",
+            "registry",
+            "repository",
+            "version"
+          ],
+          "title": "xtd",
+          "type": "object"
+        }
+      },
+      "required": [
+        "grafonnet",
+        "docsonnet",
+        "xtd"
+      ],
+      "title": "libraries",
+      "type": "object"
+    },
+    "namespace": {
+      "description": "Opt-in install-namespace render with Pod Security Standards labels.\nDefault-off so the chart doesn't claim ownership of a pre-existing\nnamespace operators created via kubectl / Argo. Enable for fresh\ninstalls that want the namespace's PSS posture baked into the chart.",
+      "properties": {
+        "additionalLabels": {
+          "required": [],
+          "title": "additionalLabels",
+          "type": "object"
+        },
+        "annotations": {
+          "required": [],
+          "title": "annotations",
+          "type": "object"
+        },
+        "create": {
+          "default": false,
+          "title": "create",
+          "type": "boolean"
+        },
+        "podSecurity": {
+          "properties": {
+            "audit": {
+              "default": "restricted",
+              "enum": [
+                "privileged",
+                "baseline",
+                "restricted"
+              ],
+              "title": "audit",
+              "type": "string"
+            },
+            "auditVersion": {
+              "default": "latest",
+              "title": "auditVersion",
+              "type": "string"
+            },
+            "enforce": {
+              "default": "restricted",
+              "description": "`restricted` is the strictest PSS level. Image volumes (used by\nthe chart for snippet/library mounts) are restricted-compliant\nfrom Kubernetes 1.33 onward; clusters on 1.32 or older must drop\nthis to `baseline`.",
+              "enum": [
+                "privileged",
+                "baseline",
+                "restricted"
+              ],
+              "title": "enforce",
+              "type": "string"
+            },
+            "enforceVersion": {
+              "default": "latest",
+              "title": "enforceVersion",
+              "type": "string"
+            },
+            "warn": {
+              "default": "restricted",
+              "enum": [
+                "privileged",
+                "baseline",
+                "restricted"
+              ],
+              "title": "warn",
+              "type": "string"
+            },
+            "warnVersion": {
+              "default": "latest",
+              "title": "warnVersion",
+              "type": "string"
+            }
+          },
+          "required": [
+            "enforceVersion",
+            "auditVersion",
+            "warnVersion"
+          ],
+          "title": "podSecurity",
+          "type": "object"
+        }
+      },
+      "required": [
+        "create",
+        "podSecurity",
+        "additionalLabels",
+        "annotations"
+      ],
+      "title": "namespace",
+      "type": "object"
+    },
+    "networkPolicy": {
+      "properties": {
+        "additionalIngress": {
+          "description": "Free-form additional ingress rules merged into the policy verbatim.",
+          "items": {
+            "required": []
+          },
+          "title": "additionalIngress",
+          "type": "array"
+        },
+        "enabled": {
+          "default": false,
+          "description": "Opt-in. When enabled, a NetworkPolicy targets the jaas pod and locks\nthe storage HTTP port down to the configured source-controller selector\n(defaults to flux-system/app=source-controller). Other ports stay open\nso kubelet probes, the jsonnet HTTP path, and the webhook traffic from\nkube-apiserver continue to work. Leave OFF on initial install if the\ncluster has no NetworkPolicy controller (Calico/Cilium/etc.) — without\none, the policy is silently inert; with one, default-deny semantics\napply to everything not listed here.",
+          "title": "enabled",
+          "type": "boolean"
+        },
+        "http": {
+          "description": "Restrict sources allowed to hit the jsonnet HTTP endpoint. Empty list\nallows everything (typical when an Ingress fronts the service).",
+          "properties": {
+            "from": {
+              "items": {
+                "required": []
+              },
+              "title": "from",
+              "type": "array"
+            }
+          },
+          "required": [
+            "from"
+          ],
+          "title": "http",
+          "type": "object"
+        },
+        "management": {
+          "description": "Restrict sources allowed to hit the management probes. Empty list\nallows everything — kubelet probes source from the node IP.",
+          "properties": {
+            "from": {
+              "items": {
+                "required": []
+              },
+              "title": "from",
+              "type": "array"
+            }
+          },
+          "required": [
+            "from"
+          ],
+          "title": "management",
+          "type": "object"
+        },
+        "storage": {
+          "description": "Sources allowed to read tarballs from the storage HTTP port. Defaults\nto Flux's source-controller in flux-system.",
+          "properties": {
+            "from": {
+              "items": {
+                "anyOf": [
+                  {
+                    "properties": {
+                      "namespaceSelector": {
+                        "properties": {
+                          "matchLabels": {
+                            "properties": {
+                              "kubernetes.io/metadata.name": {
+                                "default": "flux-system",
+                                "title": "kubernetes.io/metadata.name",
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "kubernetes.io/metadata.name"
+                            ],
+                            "title": "matchLabels",
+                            "type": "object"
+                          }
+                        },
+                        "required": [
+                          "matchLabels"
+                        ],
+                        "title": "namespaceSelector",
+                        "type": "object"
+                      },
+                      "podSelector": {
+                        "properties": {
+                          "matchLabels": {
+                            "properties": {
+                              "app": {
+                                "default": "source-controller",
+                                "title": "app",
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "app"
+                            ],
+                            "title": "matchLabels",
+                            "type": "object"
+                          }
+                        },
+                        "required": [
+                          "matchLabels"
+                        ],
+                        "title": "podSelector",
+                        "type": "object"
+                      }
+                    },
+                    "required": [
+                      "namespaceSelector",
+                      "podSelector"
+                    ],
+                    "type": "object"
+                  }
+                ],
+                "required": []
+              },
+              "title": "from",
+              "type": "array"
+            }
+          },
+          "required": [
+            "from"
+          ],
+          "title": "storage",
+          "type": "object"
+        },
+        "webhook": {
+          "description": "Restrict sources allowed to dial the webhook. Empty list allows\neverything — kube-apiserver cannot be expressed as a podSelector.",
+          "properties": {
+            "from": {
+              "items": {
+                "required": []
+              },
+              "title": "from",
+              "type": "array"
+            }
+          },
+          "required": [
+            "from"
+          ],
+          "title": "webhook",
+          "type": "object"
+        }
+      },
+      "required": [
+        "enabled",
+        "storage",
+        "http",
+        "management",
+        "webhook",
+        "additionalIngress"
+      ],
+      "title": "networkPolicy",
+      "type": "object"
+    },
+    "operator": {
+      "description": "Operator mode — opt-in. When enabled, jaas runs alongside its HTTP path as a\nKubernetes operator that watches JsonnetSnippet / JsonnetLibrary CRs and\npublishes evaluated results as Flux ExternalArtifact resources.",
+      "properties": {
+        "cleanupOnDelete": {
+          "description": "On `helm uninstall`, run a pre-delete Job that bulk-deletes every\nJsonnetSnippet so the operator's finalizer drops the published\nExternalArtifact + tarball BEFORE the operator pod itself is\nremoved. Without this, the operator goes away first and downstream\nFlux consumers are left referencing orphaned ExternalArtifacts.\n\nDisable when uninstall is driven by something other than Helm\n(e.g., ArgoCD with hooks off) — the manual cleanup pattern is:\n\n  kubectl delete jsonnetsnippet --all -A --wait=true --timeout=2m\n  helm uninstall jaas -n \u003cns\u003e",
+          "properties": {
+            "activeDeadlineSeconds": {
+              "default": 600,
+              "description": "Job-level safety net. activeDeadlineSeconds caps the Job's total\nruntime; if the operator is wedged, Helm won't be blocked\nforever.",
+              "title": "activeDeadlineSeconds",
+              "type": "integer"
+            },
+            "backoffLimit": {
+              "default": 2,
+              "title": "backoffLimit",
+              "type": "integer"
+            },
+            "enabled": {
+              "default": true,
+              "title": "enabled",
+              "type": "boolean"
+            },
+            "image": {
+              "properties": {
+                "pullPolicy": {
+                  "default": "IfNotPresent",
+                  "title": "pullPolicy",
+                  "type": "string"
+                },
+                "registry": {
+                  "default": "registry.k8s.io",
+                  "title": "registry",
+                  "type": "string"
+                },
+                "repository": {
+                  "default": "kubectl",
+                  "title": "repository",
+                  "type": "string"
+                },
+                "tag": {
+                  "default": "v1.34.0",
+                  "title": "tag",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "registry",
+                "repository",
+                "tag",
+                "pullPolicy"
+              ],
+              "title": "image",
+              "type": "object"
+            },
+            "kubectlTimeout": {
+              "default": "2m",
+              "description": "Maximum wall-clock time the pre-delete Job waits for snippet\nfinalizers to run before it strips them forcibly and proceeds.\nBigger when snippets publish to slow S3 endpoints.",
+              "title": "kubectlTimeout",
+              "type": "string"
+            },
+            "resources": {
+              "properties": {
+                "cpu": {
+                  "default": "100m",
+                  "title": "cpu",
+                  "type": "string"
+                },
+                "ephemeralStorage": {
+                  "default": "16Mi",
+                  "description": "Ephemeral-storage requests/limits. The cleanup Job runs a few\n`kubectl` calls then exits — disk usage is negligible. Sized\nsmall to satisfy kube-score's resource-completeness check\nwithout crowding cluster ephemeral-storage budgets.",
+                  "title": "ephemeralStorage",
+                  "type": "string"
+                },
+                "memory": {
+                  "default": "64Mi",
+                  "title": "memory",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "cpu",
+                "memory",
+                "ephemeralStorage"
+              ],
+              "title": "resources",
+              "type": "object"
+            }
+          },
+          "required": [
+            "enabled",
+            "kubectlTimeout",
+            "activeDeadlineSeconds",
+            "backoffLimit",
+            "image",
+            "resources"
+          ],
+          "title": "cleanupOnDelete",
+          "type": "object"
+        },
+        "defaultServiceAccount": {
+          "default": "",
+          "description": "The default ServiceAccount the operator impersonates when a snippet does\nnot specify spec.serviceAccountName. Snippets without an effective SA are\nrejected at reconcile time.",
+          "title": "defaultServiceAccount",
+          "type": "string"
+        },
+        "enabled": {
+          "default": false,
+          "title": "enabled",
+          "type": "boolean"
+        },
+        "extVars": {
+          "description": "Operator-level external variables. Keys here are non-overridable: a\nJsonnetSnippet whose spec.externalVariables names any of these keys is\nrejected at admission (and as a fallback at reconcile time).",
+          "required": [],
+          "title": "extVars",
+          "type": "object"
+        },
+        "labelSelector": {
+          "default": "",
+          "description": "Optional label selector that narrows which CRs the operator watches.\nLeave empty to watch every CR in the cluster.",
+          "title": "labelSelector",
+          "type": "string"
+        },
+        "leaderElection": {
+          "description": "Leader election guards against two operator replicas double-reconciling\nthe same JsonnetSnippet. With replicas.max: 1 (the chart default) only\none replica ever runs, so the lock is just defensive — but operators\nwho scale the Deployment up (rolling restarts, blue-green) MUST keep\nthis on. Off is supported (single replica only) but unsafe to scale.",
+          "properties": {
+            "enabled": {
+              "default": true,
+              "title": "enabled",
+              "type": "boolean"
+            },
+            "id": {
+              "default": "",
+              "description": "Lease object name. Defaults to \"\u003crelease name\u003e-operator\" so multiple\nJaaS installs in the same namespace don't fight over a shared lease.",
+              "title": "id",
+              "type": "string"
+            }
+          },
+          "required": [
+            "enabled",
+            "id"
+          ],
+          "title": "leaderElection",
+          "type": "object"
+        },
+        "maxWithdrawWait": {
+          "default": "1h",
+          "description": "Bound the time a deleted JsonnetSnippet's finalizer can hold while\nPublisher.Withdraw keeps failing. Past this, the operator emits a\nWarning WithdrawForced event, drops the finalizer, and lets the\nsnippet be garbage-collected — possibly leaving an orphan tarball\nin storage (`\u003cnamespace\u003e/\u003cname\u003e/\u003crev\u003e.tar.gz`). Required so a\npermanently-broken backend (S3 perma-down, deleted bucket, revoked\nRBAC) doesn't block namespace teardown. 1h rides out transient\napiserver/S3 incidents while bounding the wait.",
+          "title": "maxWithdrawWait",
+          "type": "string"
+        },
+        "metrics": {
+          "description": "Controller-runtime exposes a Prometheus metrics endpoint covering\nworkqueue depth, reconcile latencies, the manager's REST client, and\nwhatever custom collectors the reconciler registers. The chart wires\nthe endpoint to a dedicated Service; ServiceMonitor rendering is\nopt-in for clusters running the Prometheus Operator.",
+          "properties": {
+            "enabled": {
+              "default": true,
+              "title": "enabled",
+              "type": "boolean"
+            },
+            "prometheusRule": {
+              "description": "Opt-in PrometheusRule shipping a starter set of alerts on the\noperator's custom metrics plus a handful of standard\ncontroller-runtime signals. Requires the Prometheus Operator's\n`monitoring.coreos.com/v1` API to be installed in the cluster.\nThresholds default to conservative values — page on sustained\nfailure patterns, not single bad reconciles. Tune per cluster.",
+              "properties": {
+                "annotations": {
+                  "description": "Extra annotations on the PrometheusRule.",
+                  "required": [],
+                  "title": "annotations",
+                  "type": "object"
+                },
+                "enabled": {
+                  "default": false,
+                  "title": "enabled",
+                  "type": "boolean"
+                },
+                "extraAlertLabels": {
+                  "description": "Labels merged onto EVERY alert this PrometheusRule renders.\nUseful for routing all jaas alerts through one Alertmanager\nreceiver (e.g., `team: platform`).",
+                  "required": [],
+                  "title": "extraAlertLabels",
+                  "type": "object"
+                },
+                "extraRules": {
+                  "description": "Extra alert rules appended to the rendered PrometheusRule\nunder a separate \"jaas-operator-extras\" group. Lets operators\nship cluster-specific alerts (e.g. custom thresholds on jaas\nmetrics, alerts joined against deployment labels) without\nforking the chart. The list is rendered verbatim — each entry\nmust be a valid PrometheusRule alert (see Prometheus\ndocumentation for the schema).\n\nTo silence a built-in alert: raise its threshold under the\n`thresholds` block above to an impossibly high value. There\nis no per-built-in disable toggle — the threshold pattern is\nthe recommended path because it surfaces \"this alert is\nintentionally inert\" in the chart values rather than hiding\nthe configuration behind a flag list.\n\nExample:\nextraRules:\n  - alert: JaaSManySnippetsDown\n    expr: count(jaas_snippet_reconcile_total{status=\"False\"}) \u003e 10\n    for: 5m\n    labels: { severity: critical, team: platform }\n    annotations:\n      summary: '\u003e10 snippets failing across all namespaces'",
+                  "items": {
+                    "required": []
+                  },
+                  "title": "extraRules",
+                  "type": "array"
+                },
+                "interval": {
+                  "default": "30s",
+                  "description": "Evaluation interval for every group in the rendered rule.",
+                  "title": "interval",
+                  "type": "string"
+                },
+                "labels": {
+                  "description": "Extra labels copied onto the PrometheusRule object itself\n(typically the labels your Prometheus instance selects on).",
+                  "required": [],
+                  "title": "labels",
+                  "type": "object"
+                },
+                "runbookAnnotationKey": {
+                  "default": "runbook_url",
+                  "description": "Annotation key the runbook URL lands under on every alert.\n`runbook_url` is the Prometheus-operator convention (kube-prom,\nAlertmanager templates, most third-party tooling key off it);\n`runbook` is common in older internal stacks. Anything goes —\nthe value is just a YAML map key.",
+                  "title": "runbookAnnotationKey",
+                  "type": "string"
+                },
+                "runbookBaseURL": {
+                  "default": "https://github.com/metio/jaas/blob/main/docs/runbooks/",
+                  "description": "Prefix prepended to per-alert runbook page names. Defaults to\nthe upstream repo; override to a fork or an internal mirror.",
+                  "title": "runbookBaseURL",
+                  "type": "string"
+                },
+                "thresholds": {
+                  "description": "All-numeric/duration thresholds in one place so operators can\nadjust the noise floor without copy-pasting the rule body.",
+                  "properties": {
+                    "artifactSizeBytes": {
+                      "default": 16777216,
+                      "description": "JaaSSnippetArtifactGrowing: p99 rendered bytes threshold.\nDefaults to 16 MiB — well below the 64 MiB MaxArchiveBytes\ndefault but enough to catch a runaway snippet early.",
+                      "title": "artifactSizeBytes",
+                      "type": "integer"
+                    },
+                    "artifactSizeDuration": {
+                      "default": "30m",
+                      "title": "artifactSizeDuration",
+                      "type": "string"
+                    },
+                    "crdWatchEngagementFailuresDuration": {
+                      "default": "30m",
+                      "title": "crdWatchEngagementFailuresDuration",
+                      "type": "string"
+                    },
+                    "crdWatchEngagementFailuresPerHour": {
+                      "default": 1,
+                      "description": "JaaSCRDWatchEngagementFailing: hourly increase on the CRD\nwatch engagement failure counter. The retry pipeline\nwill eventually re-engage, but a sustained inability to\nengage means dependent snippets aren't re-rendering on\nupstream source events.",
+                      "title": "crdWatchEngagementFailuresPerHour",
+                      "type": "integer"
+                    },
+                    "evalLeakedDuration": {
+                      "default": "5m",
+                      "title": "evalLeakedDuration",
+                      "type": "string"
+                    },
+                    "evalLeakedFloor": {
+                      "default": 0,
+                      "description": "JaaSEvalLeakedGoroutines: floor on the leak gauge before\nalerting. The gauge counts eval goroutines whose parent ctx\nalready fired — orphans still consuming CPU until their\nsynchronous go-jsonnet call returns naturally. CLAUDE.md's\ndocumented design is \"\u003e 0 for 5m\" — any sustained leak is\ntextbook runaway-snippet signal. 0 is intentional; the\naccompanying duration window catches transient spikes\nwithout paging.",
+                      "title": "evalLeakedFloor",
+                      "type": "integer"
+                    },
+                    "evalRejectedDuration": {
+                      "default": "10m",
+                      "title": "evalRejectedDuration",
+                      "type": "string"
+                    },
+                    "evalRejectedRate": {
+                      "default": 0.05,
+                      "description": "JaaSEvalRejected: per-second rate of evaluations the\nsemaphore turned away. 0.05/s ≈ one rejection every 20s, a\nrate that indicates sustained overload rather than a\ntransient spike a single retry would clear.",
+                      "title": "evalRejectedRate",
+                      "type": "number"
+                    },
+                    "evalSaturationDuration": {
+                      "default": "10m",
+                      "title": "evalSaturationDuration",
+                      "type": "string"
+                    },
+                    "evalSaturationRatio": {
+                      "default": 0.9,
+                      "description": "JaaSEvalSaturation: ratio of in-flight evaluations to the\nconfigured cap before alerting. 0.9 means \"running at 90 %+ of\nthe eval semaphore for evalSaturationDuration\" — close enough\nto the cap that any new burst will start landing rejections.\nThe alert guards on jaas_eval_max_concurrent \u003e 0 so a\ndisabled gate (--max-concurrent-evals=0) never fires.",
+                      "title": "evalSaturationRatio",
+                      "type": "number"
+                    },
+                    "forceDropsDuration": {
+                      "default": "5m",
+                      "title": "forceDropsDuration",
+                      "type": "string"
+                    },
+                    "forceDropsPerHour": {
+                      "default": 0,
+                      "description": "JaaSForceDropsAccumulating: hourly increase on the\nforce-drop counter. Even a single force-drop means an orphan\ntarball was left behind; sustained drops mean a\npermanently-broken pipeline (revoked RBAC on the EA Delete,\ndeleted S3 bucket, missing CRD). The remediation runbook\nis storage-recovery.md.",
+                      "title": "forceDropsPerHour",
+                      "type": "integer"
+                    },
+                    "podDownDuration": {
+                      "default": "5m",
+                      "description": "JaaSOperatorPodDown: how long an operator pod can stay\nNotReady before paging. Below 5m the alert tends to fire\nduring normal pod rolls.",
+                      "title": "podDownDuration",
+                      "type": "string"
+                    },
+                    "reconcileErrorDuration": {
+                      "default": "10m",
+                      "title": "reconcileErrorDuration",
+                      "type": "string"
+                    },
+                    "reconcileErrorRate": {
+                      "default": 0.1,
+                      "description": "JaaSSnippetReconcileErrorsHigh: per-snippet Ready=False rate\n(reconciles per second, 5m window). 0.1/s ≈ one failure every\n10s — a clearly stuck snippet, not transient flapping.",
+                      "title": "reconcileErrorRate",
+                      "type": "number"
+                    },
+                    "reconcileLatencyDuration": {
+                      "default": "15m",
+                      "title": "reconcileLatencyDuration",
+                      "type": "string"
+                    },
+                    "reconcileLatencySeconds": {
+                      "default": 30,
+                      "description": "JaaSReconcileLatencyHigh: reconcile-time p99 ceiling, in\nseconds. 30s is generous — long enough for an OCI fetch plus\neval of a non-trivial snippet, short enough to catch a\ngenuinely stuck reconciler.",
+                      "title": "reconcileLatencySeconds",
+                      "type": "integer"
+                    },
+                    "sweepFailuresDuration": {
+                      "default": "30m",
+                      "title": "sweepFailuresDuration",
+                      "type": "string"
+                    },
+                    "sweepFailuresPerHour": {
+                      "default": 3,
+                      "description": "JaaSStorageSweepFailures: per-hour count of failing\nbackground sweep passes before alerting. Default 3 absorbs\nthe occasional flake without paging while catching a\ngenuinely degraded backend (chronic disk full, revoked\npermissions). The sweep runs on operator.storage.sweep.interval\n(default 10m), so 3/hour ≈ half the passes failing.",
+                      "title": "sweepFailuresPerHour",
+                      "type": "integer"
+                    },
+                    "tenantTokenMintFailureDuration": {
+                      "default": "10m",
+                      "title": "tenantTokenMintFailureDuration",
+                      "type": "string"
+                    },
+                    "tenantTokenMintFailureRate": {
+                      "default": 0.01,
+                      "description": "JaaSTenantTokenMintFailing: per-second mint failure rate\nacross the cluster. Even one mint failure on a (namespace, SA)\npair flags revoked `serviceaccounts/token: create` or a\ndeleted SA — actionable immediately.",
+                      "title": "tenantTokenMintFailureRate",
+                      "type": "number"
+                    },
+                    "webhookCertRenewalFailuresDuration": {
+                      "default": "30m",
+                      "title": "webhookCertRenewalFailuresDuration",
+                      "type": "string"
+                    },
+                    "webhookCertRenewalFailuresPerHour": {
+                      "default": 1,
+                      "description": "JaaSWebhookCertRenewalFailing: hourly increase on the cert\nrenewal failure counter. The Renewer ticks every Validity/3\n(typically every few months), so a single failure shouldn't\npage; sustained failures across multiple ticks (RBAC drift,\nCertDir write-perm loss) mean the rotation pipeline is broken\nand the existing cert's natural expiry is the deadline.",
+                      "title": "webhookCertRenewalFailuresPerHour",
+                      "type": "integer"
+                    },
+                    "workqueueDepth": {
+                      "default": 50,
+                      "description": "JaaSControllerWorkqueueDepthHigh: items the workqueue holds\nbefore alerting. Default 50 is high enough to absorb a normal\nroll-out, low enough that genuine apiserver stalls page.",
+                      "title": "workqueueDepth",
+                      "type": "integer"
+                    },
+                    "workqueueDuration": {
+                      "default": "15m",
+                      "title": "workqueueDuration",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "reconcileErrorRate",
+                    "reconcileErrorDuration",
+                    "artifactSizeBytes",
+                    "artifactSizeDuration",
+                    "workqueueDepth",
+                    "workqueueDuration",
+                    "reconcileLatencySeconds",
+                    "reconcileLatencyDuration",
+                    "podDownDuration",
+                    "sweepFailuresPerHour",
+                    "sweepFailuresDuration",
+                    "evalSaturationRatio",
+                    "evalSaturationDuration",
+                    "evalRejectedRate",
+                    "evalRejectedDuration",
+                    "evalLeakedFloor",
+                    "evalLeakedDuration",
+                    "webhookCertRenewalFailuresPerHour",
+                    "webhookCertRenewalFailuresDuration",
+                    "tenantTokenMintFailureRate",
+                    "tenantTokenMintFailureDuration",
+                    "crdWatchEngagementFailuresPerHour",
+                    "crdWatchEngagementFailuresDuration",
+                    "forceDropsPerHour",
+                    "forceDropsDuration"
+                  ],
+                  "title": "thresholds",
+                  "type": "object"
+                }
+              },
+              "required": [
+                "enabled",
+                "interval",
+                "labels",
+                "annotations",
+                "extraAlertLabels",
+                "runbookBaseURL",
+                "runbookAnnotationKey",
+                "extraRules",
+                "thresholds"
+              ],
+              "title": "prometheusRule",
+              "type": "object"
+            },
+            "serviceMonitor": {
+              "properties": {
+                "annotations": {
+                  "description": "Extra annotations on the ServiceMonitor.",
+                  "required": [],
+                  "title": "annotations",
+                  "type": "object"
+                },
+                "enabled": {
+                  "default": false,
+                  "title": "enabled",
+                  "type": "boolean"
+                },
+                "interval": {
+                  "default": "30s",
+                  "description": "Scrape interval the Prometheus instance honors. Match this to\nyour shared scrape config.",
+                  "title": "interval",
+                  "type": "string"
+                },
+                "labels": {
+                  "description": "Extra labels the ServiceMonitor carries (typically the labels\nyour Prometheus instance selects on, e.g., release: kube-prom).",
+                  "required": [],
+                  "title": "labels",
+                  "type": "object"
+                },
+                "scrapeTimeout": {
+                  "default": "10s",
+                  "description": "Per-scrape timeout. Must stay strictly less than interval.",
+                  "title": "scrapeTimeout",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "enabled",
+                "interval",
+                "scrapeTimeout",
+                "labels",
+                "annotations"
+              ],
+              "title": "serviceMonitor",
+              "type": "object"
+            }
+          },
+          "required": [
+            "enabled",
+            "serviceMonitor",
+            "prometheusRule"
+          ],
+          "title": "metrics",
+          "type": "object"
+        },
+        "noCrossNamespaceRefs": {
+          "default": true,
+          "description": "When true, the operator rejects JsonnetSnippet / library refs that point\nat a SourceRef in a different namespace.",
+          "title": "noCrossNamespaceRefs",
+          "type": "boolean"
+        },
+        "rbac": {
+          "description": "Opt out of chart-rendered RBAC when external governance owns\nClusterRole/RoleBinding shape (ArgoCD app-of-apps, Crossplane,\nGitOps controller that manages RBAC separately). The operator\nstill expects the named SA to have the verbs documented in\nREADME's \"Operator Mode\" section; with rbac.create=false you're\nresponsible for granting them.",
+          "properties": {
+            "create": {
+              "default": true,
+              "title": "create",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "create"
+          ],
+          "title": "rbac",
+          "type": "object"
+        },
+        "rerenderBurst": {
+          "default": 120,
+          "description": "Per-snippet token-bucket depth.",
+          "title": "rerenderBurst",
+          "type": "integer"
+        },
+        "rerenderRate": {
+          "default": "60/min",
+          "description": "Per-snippet steady-state re-render budget. N/period where period is one of\nsec, min, hour. Token-bucket combined with rerenderBurst.",
+          "title": "rerenderRate",
+          "type": "string"
+        },
+        "serviceAccount": {
+          "description": "ServiceAccount the operator runs as. When create is true the chart\nprovisions one; otherwise the operator binds against the named SA.",
+          "properties": {
+            "annotations": {
+              "description": "Annotations to attach to the operator ServiceAccount. Common\nuses: AWS IRSA (eks.amazonaws.com/role-arn),\nGCP Workload Identity (iam.gke.io/gcp-service-account),\nAzure Workload Identity (azure.workload.identity/client-id).\nThese bind cloud-IAM identities to the SA so the operator can\naccess cloud resources without static credentials.",
+              "required": [],
+              "title": "annotations",
+              "type": "object"
+            },
+            "create": {
+              "default": true,
+              "title": "create",
+              "type": "boolean"
+            },
+            "name": {
+              "default": "jaas",
+              "title": "name",
+              "type": "string"
+            }
+          },
+          "required": [
+            "create",
+            "name",
+            "annotations"
+          ],
+          "title": "serviceAccount",
+          "type": "object"
+        },
+        "storage": {
+          "properties": {
+            "backend": {
+              "default": "local",
+              "description": "Artifact backend used to persist ExternalArtifact tarballs.\n  local — emptyDir or PVC mounted into the pod. Simple,\n    single-pod (RWO PVC) unless a ReadWriteMany storage class\n    is configured.\n  s3    — any S3-compatible bucket (AWS S3, MinIO, Ceph RGW,\n    etc.). The chart-default story for multi-replica HA: every\n    replica reads from the same bucket; leader election still\n    gates writes. PVC settings below are ignored when backend=s3.",
+              "enum": [
+                "local",
+                "s3"
+              ],
+              "title": "backend",
+              "type": "string"
+            },
+            "baseURL": {
+              "default": "",
+              "description": "Public URL prefix downstream Flux consumers dereference. Defaults to\nthe in-cluster Service DNS name when empty — operators wiring this up\nvia Ingress should set it explicitly.",
+              "title": "baseURL",
+              "type": "string"
+            },
+            "gcGrace": {
+              "default": "5m",
+              "description": "Minimum time a superseded artifact revision stays fetchable after\nbeing evicted from the keep-set. Closes the pin→fetch race in\nwhich a Flux consumer reads ExternalArtifact.status.artifact a\nmoment before the operator garbage-collects the superseded\nrevision and then 404s on the URL. Supersession time is derived\nfrom on-disk storage metadata so the window survives operator\nrestarts. Zero restores eager pruning; the snippet teardown path\n(finalizer Withdraw) is unaffected. See docs/consumers.md for\nwhen to leave the default vs raise spec.history for deliberate\nrollback retention.",
+              "title": "gcGrace",
+              "type": "string"
+            },
+            "headless": {
+              "default": false,
+              "description": "When true, the storage Service is rendered as headless\n(clusterIP: None) so DNS resolves each pod IP directly. Useful\nfor external sidecars that want stable per-pod targets, or for\ntraffic that should skip kube-proxy. Default ClusterIP otherwise.",
+              "title": "headless",
+              "type": "boolean"
+            },
+            "listenAddress": {
+              "default": "::",
+              "description": "Bind address for the storage HTTP server. Same dual-stack\nsemantics as arguments.listenAddress: `::` accepts both IPv6\nand IPv4-mapped traffic on Linux.",
+              "title": "listenAddress",
+              "type": "string"
+            },
+            "maxArtifactBytes": {
+              "default": 0,
+              "description": "Cap the rendered artifact size in bytes. Snippets whose rendered\noutput exceeds this fail with ReasonArtifactTooLarge before any\ndisk/S3 write — stops one runaway snippet from filling a shared\nstorage volume. Zero disables.",
+              "title": "maxArtifactBytes",
+              "type": "integer"
+            },
+            "path": {
+              "default": "/var/lib/jaas/artifacts",
+              "description": "Directory inside the container the operator writes tarballs to.\nOnly consulted when backend=local.",
+              "title": "path",
+              "type": "string"
+            },
+            "persistence": {
+              "description": "Persist tarballs across pod restarts via a PVC. With persistence\nOFF (the default) the chart uses an emptyDir, which is lost on pod\nrestart — downstream Flux consumers then see brief 404s while every\nsnippet re-renders. With persistence ON, the PVC survives restarts\nand downstream consumers see no gap.\n\nPVC access mode is RWO by default, which constrains the chart to a\nsingle replica (RWO can only attach to one pod). For multi-replica\nHA you need an RWX storage class — uncommon in cloud providers.",
+              "properties": {
+                "accessModes": {
+                  "description": "accessModes the PVC declares. ReadWriteOnce is the safe default;\nReadWriteMany unlocks multi-replica HA when the StorageClass\nsupports it.",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      }
+                    ],
+                    "required": []
+                  },
+                  "title": "accessModes",
+                  "type": "array"
+                },
+                "annotations": {
+                  "description": "Extra annotations on the PVC (e.g., CSI volume tags).",
+                  "required": [],
+                  "title": "annotations",
+                  "type": "object"
+                },
+                "enabled": {
+                  "default": false,
+                  "title": "enabled",
+                  "type": "boolean"
+                },
+                "labels": {
+                  "description": "Extra labels on the PVC.",
+                  "required": [],
+                  "title": "labels",
+                  "type": "object"
+                },
+                "selector": {
+                  "description": "Optional PVC selector for matching pre-provisioned volumes.",
+                  "required": [],
+                  "title": "selector",
+                  "type": "object"
+                },
+                "size": {
+                  "default": "10Gi",
+                  "description": "Requested volume size. 10 GiB holds many thousand small tarballs.",
+                  "title": "size",
+                  "type": "string"
+                },
+                "storageClassName": {
+                  "default": "",
+                  "description": "storageClassName picks the StorageClass. Empty means \"cluster\ndefault\" — usually right.",
+                  "title": "storageClassName",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "enabled",
+                "storageClassName",
+                "accessModes",
+                "size",
+                "annotations",
+                "labels",
+                "selector"
+              ],
+              "title": "persistence",
+              "type": "object"
+            },
+            "readTimeout": {
+              "default": "30s",
+              "description": "Read timeout on the storage HTTP server.",
+              "title": "readTimeout",
+              "type": "string"
+            },
+            "s3": {
+              "description": "S3 backend configuration. Only consulted when backend=s3.",
+              "properties": {
+                "accessKey": {
+                  "default": "",
+                  "description": "Static credentials. Leave empty to use the IAM/IRSA discovery\nchain (AWS_* env vars, EKS web-identity, EC2 metadata).\nWhen set inline, the values land in the Pod's command line —\nprefer credentialsSecret instead.",
+                  "title": "accessKey",
+                  "type": "string"
+                },
+                "anonymous": {
+                  "default": false,
+                  "description": "Skip request signing entirely. Public-bucket test mode only.",
+                  "title": "anonymous",
+                  "type": "boolean"
+                },
+                "bucket": {
+                  "default": "",
+                  "description": "Bucket the artifacts live in. Must already exist; jaas does\nnot create it. Required.",
+                  "title": "bucket",
+                  "type": "string"
+                },
+                "credentialsSecret": {
+                  "description": "Pull credentials from a Secret instead of inline values.\nExpected keys: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and\noptionally AWS_SESSION_TOKEN. minio-go's env chain picks them\nup automatically when no static -s3-* flags are passed.",
+                  "properties": {
+                    "name": {
+                      "default": "",
+                      "title": "name",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "name"
+                  ],
+                  "title": "credentialsSecret",
+                  "type": "object"
+                },
+                "endpoint": {
+                  "default": "",
+                  "description": "Endpoint host:port (e.g. s3.amazonaws.com, minio.minio.svc:9000).\nRequired.",
+                  "title": "endpoint",
+                  "type": "string"
+                },
+                "prefix": {
+                  "default": "",
+                  "description": "Optional object-key prefix so jaas can coexist with other\ntenants in one bucket: \u003cprefix\u003e/\u003cnamespace\u003e/\u003csnippet\u003e/\u003crev\u003e.tar.gz",
+                  "title": "prefix",
+                  "type": "string"
+                },
+                "region": {
+                  "default": "",
+                  "description": "Region the bucket lives in. Required for AWS multi-region;\nignored by most S3-compatible servers.",
+                  "title": "region",
+                  "type": "string"
+                },
+                "secretKey": {
+                  "default": "",
+                  "title": "secretKey",
+                  "type": "string"
+                },
+                "sessionToken": {
+                  "default": "",
+                  "title": "sessionToken",
+                  "type": "string"
+                },
+                "useSSL": {
+                  "default": true,
+                  "description": "Talk HTTPS. Disable only for local MinIO over HTTP.",
+                  "title": "useSSL",
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "endpoint",
+                "bucket",
+                "prefix",
+                "region",
+                "useSSL",
+                "anonymous",
+                "accessKey",
+                "secretKey",
+                "sessionToken",
+                "credentialsSecret"
+              ],
+              "title": "s3",
+              "type": "object"
+            },
+            "sizeLimit": {
+              "default": "256Mi",
+              "description": "emptyDir size limit. Only consulted when persistence.enabled is\nfalse. Tarballs typically are well under 1 MiB; the sizing here is\ngenerous so transient bursts don't OOM the pod.",
+              "title": "sizeLimit",
+              "type": "string"
+            },
+            "sweep": {
+              "description": "Periodic GC: sweep orphaned \u003crev\u003e.tar.gz.tmp residue left by Puts\nwhose process died mid-rename. Local backend only — the S3\nbackend's Put is atomic so no .tmp files exist. Set interval to\n\"0s\" to disable.",
+              "properties": {
+                "interval": {
+                  "default": "10m",
+                  "title": "interval",
+                  "type": "string"
+                },
+                "maxTmpAge": {
+                  "default": "30m",
+                  "title": "maxTmpAge",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "interval",
+                "maxTmpAge"
+              ],
+              "title": "sweep",
+              "type": "object"
+            },
+            "writeTimeout": {
+              "default": "5m",
+              "description": "Maximum tarball size the storage HTTP server is willing to write within\na single response. Match against your largest expected snippet output.",
+              "title": "writeTimeout",
+              "type": "string"
+            }
+          },
+          "required": [
+            "listenAddress",
+            "path",
+            "baseURL",
+            "writeTimeout",
+            "readTimeout",
+            "sweep",
+            "maxArtifactBytes",
+            "gcGrace",
+            "headless",
+            "sizeLimit",
+            "persistence",
+            "s3"
+          ],
+          "title": "storage",
+          "type": "object"
+        },
+        "tracing": {
+          "description": "OpenTelemetry tracing for the operator. When endpoint is empty\n(the default), no spans are emitted and the OTel SDK is in no-op\nmode. Set the endpoint to ship spans to an OTLP gRPC collector:\n  tracing:\n    endpoint: otel-collector.observability.svc:4317\n    insecure: true",
+          "properties": {
+            "endpoint": {
+              "default": "",
+              "title": "endpoint",
+              "type": "string"
+            },
+            "insecure": {
+              "default": false,
+              "title": "insecure",
+              "type": "boolean"
+            },
+            "sampleRatio": {
+              "default": 1,
+              "title": "sampleRatio",
+              "type": "number"
+            }
+          },
+          "required": [
+            "endpoint",
+            "insecure",
+            "sampleRatio"
+          ],
+          "title": "tracing",
+          "type": "object"
+        },
+        "watchNamespaces": {
+          "description": "Namespaces this operator instance scopes its cache to. Empty (the\ndefault) means cluster-wide. When set, the manager's informer\ncache only observes CRs in these namespaces, AND the rendered\nRBAC pivots from a single ClusterRoleBinding to one RoleBinding\nper namespace — multi-tenant operator-instances pattern.",
+          "items": {
+            "type": "string"
+          },
+          "title": "watchNamespaces",
+          "type": "array"
+        },
+        "webhook": {
+          "properties": {
+            "certDir": {
+              "default": "/tmp/k8s-webhook-server/serving-certs",
+              "description": "Directory inside the container where the TLS cert and key land.\nWith certMode=cert-manager this is mounted read-only from the\nsecretName below. With certMode=self-signed it's a writable\nemptyDir the operator writes into on startup.",
+              "title": "certDir",
+              "type": "string"
+            },
+            "certManager": {
+              "description": "cert-manager-mode knobs. Only consulted when certMode is\n\"cert-manager\". When self-signed, this block is ignored and no\ncert-manager API objects are rendered.",
+              "properties": {
+                "enabled": {
+                  "default": true,
+                  "title": "enabled",
+                  "type": "boolean"
+                },
+                "issuerRef": {
+                  "properties": {
+                    "kind": {
+                      "default": "Issuer",
+                      "description": "Issuer kind: Issuer or ClusterIssuer",
+                      "enum": [
+                        "Issuer",
+                        "ClusterIssuer"
+                      ],
+                      "title": "kind",
+                      "type": "string"
+                    },
+                    "name": {
+                      "default": "",
+                      "description": "Issuer name in the chart's namespace (Issuer) or cluster\n(ClusterIssuer). Required when certMode=cert-manager.",
+                      "title": "name",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "name"
+                  ],
+                  "title": "issuerRef",
+                  "type": "object"
+                }
+              },
+              "required": [
+                "enabled",
+                "issuerRef"
+              ],
+              "title": "certManager",
+              "type": "object"
+            },
+            "certMode": {
+              "default": "cert-manager",
+              "description": "How TLS material for the webhook is provisioned:\n  cert-manager — chart renders a cert-manager Certificate;\n    the Secret is mounted into the pod read-only.\n  self-signed  — operator generates a CA + serving cert at\n    startup and stamps its own ValidatingWebhookConfiguration\n    caBundle. Requires the operator to have get/update on the\n    named VWC (added automatically). Removes the cert-manager\n    dependency entirely.",
+              "enum": [
+                "cert-manager",
+                "self-signed"
+              ],
+              "title": "certMode",
+              "type": "string"
+            },
+            "enabled": {
+              "default": false,
+              "title": "enabled",
+              "type": "boolean"
+            },
+            "failurePolicy": {
+              "default": "Fail",
+              "description": "Failure policy for the ValidatingWebhookConfiguration. Fail is the\nsafer default — a webhook outage blocks JsonnetSnippet writes\ncluster-wide until the operator is back. Switch to Ignore only\nwhen you're willing to accept invalid snippets reaching the\nreconciler. Either way, the reconciler enforces the same\next-var-conflict invariant as a fallback so admission bypass\nnever silently breaks the contract.\n\nDuring an operator restart (rolling update, crash-loop, eviction)\nthe webhook is briefly unreachable and Fail blocks every\nJsonnetSnippet create/update for that window — typically \u003c5s with\n`LeaderElectionReleaseOnCancel: true`. If your CI/GitOps tooling\ncan't tolerate that, scope the webhook with objectSelector /\nnamespaceSelector to limit the blast radius, or set failurePolicy:\nIgnore.",
+              "title": "failurePolicy",
+              "type": "string"
+            },
+            "matchConditions": {
+              "description": "matchConditions are CEL expressions evaluated server-side before\nthe webhook is dialed. Lets operators short-circuit admission\nchecks for specific snippet shapes without a round trip. Requires\nKubernetes 1.30+.",
+              "items": {
+                "required": []
+              },
+              "title": "matchConditions",
+              "type": "array"
+            },
+            "namespaceSelector": {
+              "description": "namespaceSelector restricts the webhook to Namespaces carrying\nthe listed labels. A common pattern: opt-in per namespace via a\nlabel so the apiserver doesn't dial the webhook for unrelated\nnamespaces during operator outages.\nExample:\n  namespaceSelector:\n    matchLabels:\n      jaas.metio.wtf/admission: enforce",
+              "required": [],
+              "title": "namespaceSelector",
+              "type": "object"
+            },
+            "objectSelector": {
+              "description": "objectSelector restricts the webhook to JsonnetSnippets carrying\nthe listed labels. Useful when only some snippets are\noperator-managed (the rest live in Argo or kustomize).\nExample:\n  objectSelector:\n    matchLabels:\n      jaas.metio.wtf/managed: \"true\"",
+              "required": [],
+              "title": "objectSelector",
+              "type": "object"
+            },
+            "secretName": {
+              "default": "jaas-webhook-cert",
+              "description": "The Secret the cert lives in. cert-manager writes it; the Deployment\nmounts it read-only at certDir.",
+              "title": "secretName",
+              "type": "string"
+            },
+            "selfSignedValidity": {
+              "default": "8760h",
+              "description": "Validity of the self-signed serving cert. Operators that want\nshort-lived rotation should use cert-manager instead — the\nself-signed mode renews on every pod restart, no in-flight\nrotation. Only consulted when certMode=self-signed.",
+              "title": "selfSignedValidity",
+              "type": "string"
+            },
+            "sideEffects": {
+              "default": "None",
+              "description": "Side-effect mode for the ValidatingWebhookConfiguration.",
+              "title": "sideEffects",
+              "type": "string"
+            }
+          },
+          "required": [
+            "enabled",
+            "certDir",
+            "certManager",
+            "selfSignedValidity",
+            "secretName",
+            "failurePolicy",
+            "sideEffects",
+            "objectSelector",
+            "namespaceSelector",
+            "matchConditions"
+          ],
+          "title": "webhook",
+          "type": "object"
+        }
+      },
+      "required": [
+        "enabled",
+        "serviceAccount",
+        "rbac",
+        "defaultServiceAccount",
+        "noCrossNamespaceRefs",
+        "labelSelector",
+        "rerenderRate",
+        "rerenderBurst",
+        "maxWithdrawWait",
+        "cleanupOnDelete",
+        "tracing",
+        "leaderElection",
+        "extVars",
+        "storage",
+        "metrics",
+        "webhook"
+      ],
+      "title": "operator",
+      "type": "object"
+    },
+    "paths": {
+      "description": "Modify the paths used, use this in case you run a custom image",
+      "properties": {
+        "libraries": {
+          "default": "/srv/libraries",
+          "title": "libraries",
+          "type": "string"
+        },
+        "snippets": {
+          "default": "/srv/snippets",
+          "title": "snippets",
+          "type": "string"
+        }
+      },
+      "required": [
+        "snippets",
+        "libraries"
+      ],
+      "title": "paths",
+      "type": "object"
+    },
+    "pdb": {
+      "description": "Fine tune the PodDisruptionBudget. Rendered only when\nreplicas.max \u003e replicas.min.",
+      "properties": {
+        "maxUnavailable": {
+          "default": 1,
+          "required": [],
+          "title": "maxUnavailable",
+          "type": [
+            "integer",
+            "string",
+            "null"
+          ]
+        },
+        "minAvailable": {
+          "default": "null",
+          "description": "Disruption budget shape. Exactly one of minAvailable / maxUnavailable\nis rendered into the PDB spec; setting both is a config error\nK8s would reject.\n\nDefault `maxUnavailable: 1` caps voluntary disruptions to one pod\nat a time regardless of replica count — the right knob for a\nrolling restart / node drain story. `minAvailable: N` is the\nalternative when you want \"always keep at least N pods up\" instead\n— useful only when the workload's headroom is a fixed floor, not\nthe more common \"one out at a time\".\n\nOverride examples:\n  pdb: { maxUnavailable: 2 }       # allow draining two nodes in parallel\n  pdb: { minAvailable: 1, maxUnavailable: null }  # floor of 1 instead\n  pdb: { minAvailable: \"50%\", maxUnavailable: null }  # percentage form",
+          "required": [],
+          "title": "minAvailable",
+          "type": [
+            "integer",
+            "string",
+            "null"
+          ]
+        },
+        "unhealthyPodEvictionPolicy": {
+          "default": "",
+          "enum": [
+            "",
+            "IfHealthyBudget",
+            "AlwaysAllow"
+          ],
+          "title": "unhealthyPodEvictionPolicy",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "title": "pdb",
+      "type": "object"
+    },
+    "pod": {
+      "description": "Fine tune the managed Pod resources",
+      "properties": {
+        "additionalLabels": {
+          "required": [],
+          "title": "additionalLabels",
+          "type": "object"
+        }
+      },
+      "required": [
+        "additionalLabels"
+      ],
+      "title": "pod",
+      "type": "object"
+    },
+    "ports": {
+      "properties": {
+        "http": {
+          "default": 8080,
+          "description": "Used by the /jsonnet endpoint",
+          "title": "http",
+          "type": "integer"
+        },
+        "management": {
+          "default": 8081,
+          "description": "Used by startup, readiness, and liveness probes",
+          "title": "management",
+          "type": "integer"
+        },
+        "metrics": {
+          "default": 8083,
+          "description": "Used by controller-runtime's Prometheus metrics endpoint\n(operator.enabled only). Defaults to 8083 to avoid the collision\nwith controller-runtime's own :8080 default and the jsonnet HTTP\nport. Set to 0 in operator.metrics.enabled to disable entirely.",
+          "title": "metrics",
+          "type": "integer"
+        },
+        "storage": {
+          "default": 8082,
+          "description": "Used by the operator's storage HTTP server (operator.enabled only)",
+          "title": "storage",
+          "type": "integer"
+        },
+        "webhook": {
+          "default": 9443,
+          "description": "Used by the validating admission webhook (operator.webhook.enabled only)",
+          "title": "webhook",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "http",
+        "management",
+        "storage",
+        "metrics",
+        "webhook"
+      ],
+      "title": "ports",
+      "type": "object"
+    },
+    "replicas": {
+      "description": "It is safe to increase the number of replicas",
+      "properties": {
+        "max": {
+          "default": 1,
+          "title": "max",
+          "type": "integer"
+        },
+        "min": {
+          "default": 1,
+          "title": "min",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "min",
+        "max"
+      ],
+      "title": "replicas",
+      "type": "object"
+    },
+    "resources": {
+      "description": "Smallest possible values here, increase if you have more resources to spare",
+      "properties": {
+        "cpu": {
+          "default": "32m",
+          "title": "cpu",
+          "type": "string"
+        },
+        "ephemeralStorage": {
+          "default": "10Mi",
+          "title": "ephemeralStorage",
+          "type": "string"
+        },
+        "memory": {
+          "default": "64Mi",
+          "title": "memory",
+          "type": "string"
+        }
+      },
+      "required": [
+        "memory",
+        "cpu",
+        "ephemeralStorage"
+      ],
+      "title": "resources",
+      "type": "object"
+    },
+    "service": {
+      "description": "Fine tune the Service resource",
+      "properties": {
+        "ipFamilies": {
+          "description": "Explicit list of IP families for the Service. Empty defers to\nthe cluster's default. Example for explicit IPv4+IPv6:\n  ipFamilies: [IPv4, IPv6]\nOrder matters: the first family becomes the primary ClusterIP.",
+          "items": {
+            "required": []
+          },
+          "title": "ipFamilies",
+          "type": "array"
+        },
+        "ipFamilyPolicy": {
+          "default": "",
+          "description": "K8s Service ipFamilyPolicy. Empty leaves the cluster's default\n(usually SingleStack). Set to PreferDualStack on dual-stack\nclusters that may still have single-stack nodes, or\nRequireDualStack to refuse single-stack clusters at admission.",
+          "enum": [
+            "",
+            "SingleStack",
+            "PreferDualStack",
+            "RequireDualStack"
+          ],
+          "title": "ipFamilyPolicy",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ipFamilies"
+      ],
+      "title": "service",
+      "type": "object"
+    },
+    "snippets": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "default": "",
+      "description": "IMPORTANT!\nAdd snippet directories here. The key is the name of the directory and the value is an OCI volume that will be\nmounted beneath .Values.paths.snippets, e.g., the commented example below would result in all files from\n'ghcr.io/metio/something:latest' to be mounted at '/srv/snippets/something/' (using the default configuration)",
+      "required": [],
+      "title": "snippets",
+      "type": [
+        "object",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "ports",
+    "image",
+    "imagePullSecrets",
+    "replicas",
+    "resources",
+    "arguments",
+    "deployment",
+    "pod",
+    "service",
+    "pdb",
+    "paths",
+    "libraries",
+    "externalVariablesFrom",
+    "namespace",
+    "operator",
+    "networkPolicy"
+  ],
+  "type": "object"
+}

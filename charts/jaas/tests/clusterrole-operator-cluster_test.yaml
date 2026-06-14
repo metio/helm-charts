@@ -1,0 +1,92 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+suite: test jaas operator cluster-scope clusterrole
+templates:
+  - clusterrole-operator-cluster.yaml
+tests:
+  - it: is empty when operator is disabled
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders when operator is enabled
+    set:
+      operator:
+        enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ClusterRole
+
+  - it: name is prefixed with the release name and cluster suffix
+    release:
+      name: my-release
+    set:
+      operator:
+        enabled: true
+    asserts:
+      - equal:
+          path: metadata.name
+          value: my-release-operator-cluster
+
+  - it: can watch CRDs (for late Flux source CRD detection)
+    set:
+      operator:
+        enabled: true
+    asserts:
+      - contains:
+          path: rules
+          content:
+            apiGroups: [apiextensions.k8s.io]
+            resources: [customresourcedefinitions]
+            verbs: [get, list, watch]
+
+  - it: omits the VWC rule when self-signed webhook mode is disabled
+    set:
+      operator:
+        enabled: true
+        webhook:
+          enabled: false
+    asserts:
+      - notContains:
+          path: rules
+          content:
+            apiGroups: [admissionregistration.k8s.io]
+            resources: [validatingwebhookconfigurations]
+            verbs: [get, update]
+
+  - it: includes the VWC rule when self-signed webhook mode is enabled
+    release:
+      name: my-release
+    set:
+      operator:
+        enabled: true
+        webhook:
+          enabled: true
+          certMode: self-signed
+    asserts:
+      - contains:
+          path: rules
+          content:
+            apiGroups: [admissionregistration.k8s.io]
+            resources: [validatingwebhookconfigurations]
+            resourceNames:
+              - my-release-jsonnetsnippet
+            verbs: [get, update]
+
+  - it: does NOT include the VWC rule when cert-manager mode is selected
+    set:
+      operator:
+        enabled: true
+        webhook:
+          enabled: true
+          certMode: cert-manager
+    asserts:
+      - notContains:
+          path: rules
+          content:
+            apiGroups: [admissionregistration.k8s.io]
+            resources: [validatingwebhookconfigurations]
+            verbs: [get, update]

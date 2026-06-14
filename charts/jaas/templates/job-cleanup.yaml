@@ -1,0 +1,183 @@
+{{- /*
+SPDX-FileCopyrightText: The helm-charts Authors
+SPDX-License-Identifier: 0BSD
+*/ -}}
+{{- if and .Values.operator.enabled .Values.operator.cleanupOnDelete.enabled -}}
+# pre-delete hook: bulk-delete every JsonnetSnippet so the operator's
+# finalizer runs (drops the ExternalArtifact CR, removes the tarball
+# from storage) BEFORE Helm removes the operator itself. Otherwise the
+# operator goes away first, its finalizer never runs, and downstream
+# Flux consumers are left referencing orphaned ExternalArtifacts.
+#
+# Lives as a pre-delete hook so the operator pod is still alive when
+# the snippets get deleted. The hook-weight is set high (positive
+# number → runs late in the pre-delete batch) so any RBAC the cleanup
+# Job needs is still present.
+#
+# If the operator is already unreachable when uninstall runs, the
+# kubectl-delete will eventually time out and Helm proceeds with the
+# uninstall. Operators in that state must manually patch off finalizers
+# afterwards:
+#
+#   kubectl get jsonnetsnippet -A -o name | xargs -I{} \
+#     kubectl patch {} --type=merge -p '{"metadata":{"finalizers":[]}}'
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Release.Name }}-cleanup
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/component: cleanup
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/part-of: {{ .Chart.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+  annotations:
+    helm.sh/hook: pre-delete
+    helm.sh/hook-weight: "-10"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ .Release.Name }}-cleanup
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/component: cleanup
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/part-of: {{ .Chart.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+  annotations:
+    helm.sh/hook: pre-delete
+    helm.sh/hook-weight: "-10"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+rules:
+  - apiGroups:
+      - jaas.metio.wtf
+    resources:
+      - jsonnetsnippets
+    verbs:
+      - get
+      - list
+      - delete
+      - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ .Release.Name }}-cleanup
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/component: cleanup
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/part-of: {{ .Chart.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+  annotations:
+    helm.sh/hook: pre-delete
+    helm.sh/hook-weight: "-10"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Release.Name }}-cleanup
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: ClusterRole
+  name: {{ .Release.Name }}-cleanup
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-cleanup
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/component: cleanup
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/part-of: {{ .Chart.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+  annotations:
+    helm.sh/hook: pre-delete
+    helm.sh/hook-weight: "0"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+    # kube-score ignores:
+    #   container-image-pull-policy — kubectl image is tagged; IfNotPresent
+    #     avoids a registry round-trip on every uninstall.
+    #   pod-networkpolicy — the cleanup Job runs briefly during uninstall
+    #     and the chart's NetworkPolicy doesn't (and shouldn't) target it.
+    kube-score/ignore: container-image-pull-policy,pod-networkpolicy
+spec:
+  backoffLimit: {{ .Values.operator.cleanupOnDelete.backoffLimit }}
+  activeDeadlineSeconds: {{ .Values.operator.cleanupOnDelete.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ .Chart.Name }}
+        app.kubernetes.io/component: cleanup
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/part-of: {{ .Chart.Name }}
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: {{ .Release.Name }}-cleanup
+      # Pod-level securityContext for PSS restricted compliance —
+      # mirrors the container-level fields so admission controllers
+      # validate the pod outright instead of recursing into the
+      # container set.
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+          {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: cleanup
+          image: "{{ .Values.operator.cleanupOnDelete.image.registry }}/{{ .Values.operator.cleanupOnDelete.image.repository }}:{{ .Values.operator.cleanupOnDelete.image.tag }}"
+          imagePullPolicy: {{ .Values.operator.cleanupOnDelete.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -eu
+              echo "Listing JsonnetSnippets..."
+              kubectl get jsonnetsnippets.jaas.metio.wtf -A -o name || true
+              echo "Deleting all JsonnetSnippets (operator finalizer drops the tarballs)..."
+              if ! kubectl delete jsonnetsnippets.jaas.metio.wtf --all -A \
+                   --wait=true --timeout={{ .Values.operator.cleanupOnDelete.kubectlTimeout }}; then
+                echo "WARNING: bulk delete timed out — operator may be unreachable."
+                echo "Stripping finalizers so Helm can proceed with uninstall."
+                kubectl get jsonnetsnippets.jaas.metio.wtf -A -o name | while read -r snip; do
+                  ns=$(kubectl get $snip -o jsonpath='{.metadata.namespace}' || true)
+                  kubectl patch $snip -n "$ns" --type=merge \
+                    -p '{"metadata":{"finalizers":[]}}' || true
+                done
+                kubectl delete jsonnetsnippets.jaas.metio.wtf --all -A --ignore-not-found
+              fi
+              echo "Cleanup complete."
+          securityContext:
+            runAsNonRoot: true
+            runAsGroup: 65532
+            runAsUser: 65532
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
+          resources:
+            requests:
+              cpu: {{ .Values.operator.cleanupOnDelete.resources.cpu }}
+              memory: {{ .Values.operator.cleanupOnDelete.resources.memory }}
+              ephemeral-storage: {{ .Values.operator.cleanupOnDelete.resources.ephemeralStorage }}
+            limits:
+              cpu: {{ .Values.operator.cleanupOnDelete.resources.cpu }}
+              memory: {{ .Values.operator.cleanupOnDelete.resources.memory }}
+              ephemeral-storage: {{ .Values.operator.cleanupOnDelete.resources.ephemeralStorage }}
+{{- end }}

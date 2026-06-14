@@ -1,0 +1,62 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+suite: test jaas operator role
+templates:
+  - role-operator.yaml
+tests:
+  - it: is empty when operator is disabled
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders when operator is enabled
+    set:
+      operator:
+        enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Role
+
+  - it: lives in the release namespace
+    release:
+      namespace: jaas-system
+    set:
+      operator:
+        enabled: true
+    asserts:
+      - equal:
+          path: metadata.namespace
+          value: jaas-system
+
+  - it: grants CRUD on coordination.k8s.io leases for leader election
+    set:
+      operator:
+        enabled: true
+    asserts:
+      - contains:
+          path: rules
+          content:
+            apiGroups: ["coordination.k8s.io"]
+            resources: [leases]
+            verbs: [get, list, watch, create, update, patch, delete]
+
+  - it: grants event creation on both event APIs
+    set:
+      operator:
+        enabled: true
+    asserts:
+      - contains:
+          path: rules
+          content:
+            apiGroups: [""]
+            resources: [events]
+            verbs: [create, patch]
+      - contains:
+          path: rules
+          content:
+            apiGroups: ["events.k8s.io"]
+            resources: [events]
+            verbs: [create, patch]

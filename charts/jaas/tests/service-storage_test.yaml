@@ -1,0 +1,80 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+suite: test jaas storage service
+templates:
+  - service-storage.yaml
+tests:
+  - it: is empty when operator is disabled
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders when operator is enabled
+    set:
+      operator:
+        enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Service
+      - equal:
+          path: metadata.name
+          value: jaas-storage
+
+  - it: exposes the configured storage port
+    set:
+      operator:
+        enabled: true
+      ports:
+        storage: 9999
+    asserts:
+      - equal:
+          path: spec.ports[0].port
+          value: 9999
+      - equal:
+          path: spec.ports[0].name
+          value: storage
+      - equal:
+          path: spec.ports[0].targetPort
+          value: storage
+
+  - it: defaults the storage port to 8082
+    set:
+      operator:
+        enabled: true
+    asserts:
+      - equal:
+          path: spec.ports[0].port
+          value: 8082
+
+  - it: selector points at the jaas pods (not the operator SA)
+    set:
+      operator:
+        enabled: true
+    asserts:
+      - equal:
+          path: spec.selector["app.kubernetes.io/component"]
+          value: jaas
+      - notExists:
+          path: spec.selector["app.kubernetes.io/managed-by"]
+
+  - it: defaults to a ClusterIP Service (clusterIP omitted)
+    set:
+      operator:
+        enabled: true
+    asserts:
+      - notExists:
+          path: spec.clusterIP
+
+  - it: "headless mode sets clusterIP: None"
+    set:
+      operator:
+        enabled: true
+        storage:
+          headless: true
+    asserts:
+      - equal:
+          path: spec.clusterIP
+          value: None

@@ -1,0 +1,6 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+# Air-gapped: pull all JOI artifacts from an internal mirror with auth.
+registryMirror: registry.internal:5000
+imagePullSecret: mirror-creds
+namespace: platform

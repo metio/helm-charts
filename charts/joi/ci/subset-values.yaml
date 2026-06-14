@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+# Only the xtd library; a user adds their own as well (exercises the
+# additional-properties map).
+libraries:
+  grafonnet:
+    enabled: false
+  docsonnet:
+    enabled: false
+  internal-helpers:
+    enabled: true
+    image: ghcr.io/acme/joi-internal-helpers
+    tag: v1.2.3
+    path: github.com/acme/helpers

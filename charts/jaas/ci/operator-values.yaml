@@ -1,0 +1,9 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+# Operator mode (Flux integration) with multi-replica HA + leader election.
+operator:
+  enabled: true
+  defaultServiceAccount: default
+replicas:
+  min: 2
+  max: 3

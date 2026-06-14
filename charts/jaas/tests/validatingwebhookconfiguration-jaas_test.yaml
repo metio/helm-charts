@@ -1,0 +1,196 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+suite: test jaas validatingwebhookconfiguration
+templates:
+  - validatingwebhookconfiguration-jaas.yaml
+tests:
+  - it: is empty when operator is disabled
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: is empty when operator is enabled but webhook is not
+    set:
+      operator:
+        enabled: true
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders when both operator and webhook are enabled
+    set:
+      operator:
+        enabled: true
+        webhook:
+          enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ValidatingWebhookConfiguration
+
+  - it: hits the controller-runtime validating path for JsonnetSnippet
+    set:
+      operator:
+        enabled: true
+        webhook:
+          enabled: true
+    asserts:
+      - equal:
+          path: webhooks[0].clientConfig.service.path
+          value: /validate-jaas-metio-wtf-v1-jsonnetsnippet
+      - equal:
+          path: webhooks[0].clientConfig.service.name
+          value: jaas-webhook
+      - equal:
+          path: webhooks[0].clientConfig.service.port
+          value: 443
+
+  - it: rules cover CREATE and UPDATE on JsonnetSnippet only
+    set:
+      operator:
+        enabled: true
+        webhook:
+          enabled: true
+    asserts:
+      - equal:
+          path: webhooks[0].rules[0].apiGroups[0]
+          value: jaas.metio.wtf
+      - equal:
+          path: webhooks[0].rules[0].resources[0]
+          value: jsonnetsnippets
+      - contains:
+          path: webhooks[0].rules[0].operations
+          content: CREATE
+      - contains:
+          path: webhooks[0].rules[0].operations
+          content: UPDATE
+      - notContains:
+          path: webhooks[0].rules[0].operations
+          content: DELETE
+
+  - it: defaults failurePolicy to Fail (strict)
+    set:
+      operator:
+        enabled: true
+        webhook:
+          enabled: true
+    asserts:
+      - equal:
+          path: webhooks[0].failurePolicy
+          value: Fail
+
+  - it: honors a configured failurePolicy override
+    set:
+      operator:
+        enabled: true
+        webhook:
+          enabled: true
+          failurePolicy: Ignore
+    asserts:
+      - equal:
+          path: webhooks[0].failurePolicy
+          value: Ignore
+
+  - it: injects the cert-manager CA annotation when certManager is enabled
+    release:
+      name: my-release
+      namespace: jaas-system
+    set:
+      operator:
+        enabled: true
+        webhook:
+          enabled: true
+          certManager:
+            enabled: true
+            issuerRef:
+              kind: ClusterIssuer
+              name: jaas-issuer
+    asserts:
+      - equal:
+          path: metadata.annotations["cert-manager.io/inject-ca-from"]
+          value: "jaas-system/my-release-webhook"
+
+  - it: omits the cert-manager annotation in self-signed mode
+    set:
+      operator:
+        enabled: true
+        webhook:
+          enabled: true
+          certMode: self-signed
+    asserts:
+      - notExists:
+          path: metadata.annotations["cert-manager.io/inject-ca-from"]
+
+  - it: render-time preflight fails when cert-manager mode is set but certManager.enabled is false
+    set:
+      operator:
+        enabled: true
+        webhook:
+          enabled: true
+          certMode: cert-manager
+          certManager:
+            enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: "operator.webhook.enabled=true with certMode=cert-manager requires operator.webhook.certManager.enabled=true (or switch to certMode=self-signed)"
+
+  - it: omits objectSelector / namespaceSelector / matchConditions by default
+    set:
+      operator:
+        enabled: true
+        webhook:
+          enabled: true
+    asserts:
+      - notExists:
+          path: webhooks[0].objectSelector
+      - notExists:
+          path: webhooks[0].namespaceSelector
+      - notExists:
+          path: webhooks[0].matchConditions
+
+  - it: renders objectSelector when configured
+    set:
+      operator:
+        enabled: true
+        webhook:
+          enabled: true
+          objectSelector:
+            matchLabels:
+              jaas.metio.wtf/managed: "true"
+    asserts:
+      - equal:
+          path: webhooks[0].objectSelector.matchLabels["jaas.metio.wtf/managed"]
+          value: "true"
+
+  - it: renders namespaceSelector when configured
+    set:
+      operator:
+        enabled: true
+        webhook:
+          enabled: true
+          namespaceSelector:
+            matchLabels:
+              jaas.metio.wtf/admission: enforce
+    asserts:
+      - equal:
+          path: webhooks[0].namespaceSelector.matchLabels["jaas.metio.wtf/admission"]
+          value: enforce
+
+  - it: renders matchConditions when configured
+    set:
+      operator:
+        enabled: true
+        webhook:
+          enabled: true
+          matchConditions:
+            - name: skip-system
+              expression: "request.namespace != 'kube-system'"
+    asserts:
+      - equal:
+          path: webhooks[0].matchConditions[0].name
+          value: skip-system
+      - equal:
+          path: webhooks[0].matchConditions[0].expression
+          value: "request.namespace != 'kube-system'"

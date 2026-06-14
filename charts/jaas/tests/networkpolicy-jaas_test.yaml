@@ -1,0 +1,209 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+suite: test jaas NetworkPolicy
+templates:
+  - networkpolicy-jaas.yaml
+tests:
+  - it: is empty when networkPolicy is disabled (default)
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders when networkPolicy is enabled
+    set:
+      networkPolicy:
+        enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: NetworkPolicy
+
+  - it: selects only the jaas pod
+    set:
+      networkPolicy:
+        enabled: true
+    release:
+      name: prod-jaas
+    asserts:
+      - equal:
+          path: spec.podSelector.matchLabels["app.kubernetes.io/name"]
+          value: jaas
+      - equal:
+          path: spec.podSelector.matchLabels["app.kubernetes.io/instance"]
+          value: prod-jaas
+      - notExists:
+          path: spec.podSelector.matchLabels["app.kubernetes.io/managed-by"]
+
+  - it: declares Ingress policy type
+    set:
+      networkPolicy:
+        enabled: true
+    asserts:
+      - equal:
+          path: spec.policyTypes[0]
+          value: Ingress
+
+  - it: leaves http and management ports open by default
+    set:
+      networkPolicy:
+        enabled: true
+    asserts:
+      - contains:
+          path: spec.ingress
+          content:
+            ports:
+              - protocol: TCP
+                port: 8080
+      - contains:
+          path: spec.ingress
+          content:
+            ports:
+              - protocol: TCP
+                port: 8081
+
+  - it: omits the storage rule when operator is disabled
+    set:
+      networkPolicy:
+        enabled: true
+    asserts:
+      - notContains:
+          path: spec.ingress
+          content:
+            ports:
+              - protocol: TCP
+                port: 8082
+            from:
+              - namespaceSelector:
+                  matchLabels:
+                    kubernetes.io/metadata.name: flux-system
+                podSelector:
+                  matchLabels:
+                    app: source-controller
+
+  - it: restricts the storage port to source-controller in flux-system when operator is enabled
+    set:
+      networkPolicy:
+        enabled: true
+      operator:
+        enabled: true
+    asserts:
+      - contains:
+          path: spec.ingress
+          content:
+            ports:
+              - protocol: TCP
+                port: 8082
+            from:
+              - namespaceSelector:
+                  matchLabels:
+                    kubernetes.io/metadata.name: flux-system
+                podSelector:
+                  matchLabels:
+                    app: source-controller
+
+  - it: honors a custom storage.from selector
+    set:
+      networkPolicy:
+        enabled: true
+        storage:
+          from:
+            - namespaceSelector:
+                matchLabels:
+                  kubernetes.io/metadata.name: my-flux
+              podSelector:
+                matchLabels:
+                  app: my-source-controller
+      operator:
+        enabled: true
+    asserts:
+      - contains:
+          path: spec.ingress
+          content:
+            ports:
+              - protocol: TCP
+                port: 8082
+            from:
+              - namespaceSelector:
+                  matchLabels:
+                    kubernetes.io/metadata.name: my-flux
+                podSelector:
+                  matchLabels:
+                    app: my-source-controller
+
+  - it: tightens the http port when http.from is configured
+    set:
+      networkPolicy:
+        enabled: true
+        http:
+          from:
+            - namespaceSelector:
+                matchLabels:
+                  kubernetes.io/metadata.name: ingress-nginx
+    asserts:
+      - contains:
+          path: spec.ingress
+          content:
+            ports:
+              - protocol: TCP
+                port: 8080
+            from:
+              - namespaceSelector:
+                  matchLabels:
+                    kubernetes.io/metadata.name: ingress-nginx
+
+  - it: includes the webhook port only when the webhook is enabled
+    set:
+      networkPolicy:
+        enabled: true
+      operator:
+        enabled: true
+        webhook:
+          enabled: true
+          certManager:
+            issuerRef:
+              name: jaas-ca
+    asserts:
+      - contains:
+          path: spec.ingress
+          content:
+            ports:
+              - protocol: TCP
+                port: 9443
+
+  - it: omits the webhook port when the webhook is disabled
+    set:
+      networkPolicy:
+        enabled: true
+      operator:
+        enabled: true
+    asserts:
+      - notContains:
+          path: spec.ingress
+          content:
+            ports:
+              - protocol: TCP
+                port: 9443
+
+  - it: appends additionalIngress entries verbatim
+    set:
+      networkPolicy:
+        enabled: true
+        additionalIngress:
+          - ports:
+              - protocol: TCP
+                port: 8080
+            from:
+              - ipBlock:
+                  cidr: 10.0.0.0/8
+    asserts:
+      - contains:
+          path: spec.ingress
+          content:
+            ports:
+              - protocol: TCP
+                port: 8080
+            from:
+              - ipBlock:
+                  cidr: 10.0.0.0/8

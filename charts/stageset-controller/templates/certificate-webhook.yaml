@@ -1,0 +1,23 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+{{- if and .Values.webhook.enabled (eq .Values.webhook.certMode "cert-manager") }}
+# cert-manager issues the webhook serving cert into the Secret the Deployment
+# mounts; its CA is injected into the ValidatingWebhookConfiguration via the
+# inject-ca-from annotation. Requires cert-manager and a configured issuer.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "stageset.name" . }}-webhook-cert
+  namespace: {{ include "stageset.namespace" . }}
+  labels:
+    {{- include "stageset.labels" . | nindent 4 }}
+spec:
+  secretName: {{ include "stageset.name" . }}-webhook-cert
+  dnsNames:
+    - {{ include "stageset.name" . }}-webhook.{{ include "stageset.namespace" . }}.svc
+    - {{ include "stageset.name" . }}-webhook.{{ include "stageset.namespace" . }}.svc.cluster.local
+  issuerRef:
+    name: {{ required "webhook.certManager.issuerRef.name is required in cert-manager mode" .Values.webhook.certManager.issuerRef.name }}
+    kind: {{ .Values.webhook.certManager.issuerRef.kind }}
+{{- end }}

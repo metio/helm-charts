@@ -1,0 +1,74 @@
+{{- /*
+SPDX-FileCopyrightText: The helm-charts Authors
+SPDX-License-Identifier: 0BSD
+*/ -}}
+{{- if .Values.networkPolicy.enabled -}}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: jaas
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/component: jaas
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+    app.kubernetes.io/part-of: {{ .Chart.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Chart.Name }}
+      app.kubernetes.io/component: jaas
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/part-of: {{ .Chart.Name }}
+  policyTypes:
+    - Ingress
+  ingress:
+    # Jsonnet HTTP endpoint — reachable from anywhere by default. Overridable
+    # via .Values.networkPolicy.http.from for tighter scopes.
+    - ports:
+        - protocol: TCP
+          port: {{ .Values.ports.http }}
+      {{- with .Values.networkPolicy.http.from }}
+      from:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    # Management probes — kubelet sources from the node IP, which cannot
+    # be expressed as a podSelector. Leaving this open is the only way the
+    # readiness/liveness probes succeed; the management server itself only
+    # exposes /start, /ready, /live.
+    - ports:
+        - protocol: TCP
+          port: {{ .Values.ports.management }}
+      {{- with .Values.networkPolicy.management.from }}
+      from:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    {{- if .Values.operator.enabled }}
+    # Storage HTTP server — serves the published ExternalArtifact tarballs.
+    # Default scope is Flux's source-controller in flux-system; override
+    # .Values.networkPolicy.storage.from for custom topologies.
+    - ports:
+        - protocol: TCP
+          port: {{ .Values.ports.storage }}
+      from:
+        {{- toYaml .Values.networkPolicy.storage.from | nindent 8 }}
+    {{- end }}
+    {{- if and .Values.operator.enabled .Values.operator.webhook.enabled }}
+    # Validating webhook — kube-apiserver dials this. The apiserver source
+    # cannot be expressed as a podSelector either; webhook TLS + the CA
+    # bundle on the ValidatingWebhookConfiguration enforce authenticity.
+    - ports:
+        - protocol: TCP
+          port: {{ .Values.ports.webhook }}
+      {{- with .Values.networkPolicy.webhook.from }}
+      from:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    {{- end }}
+    {{- with .Values.networkPolicy.additionalIngress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+{{- end }}

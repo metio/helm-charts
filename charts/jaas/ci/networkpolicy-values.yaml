@@ -1,0 +1,8 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+# Operator mode with the opt-in storage-port NetworkPolicy rendered.
+operator:
+  enabled: true
+  defaultServiceAccount: default
+networkPolicy:
+  enabled: true

@@ -1,0 +1,91 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+name: Release Charts
+on:
+  push:
+    branches: [main]
+    paths: ["charts/**"]
+  workflow_dispatch:
+    inputs:
+      chart:
+        description: Chart to force-release (directory name under charts/)
+        required: true
+permissions:
+  contents: write   # create tags + GitHub Releases
+  packages: write   # push OCI charts to ghcr.io
+  id-token: write   # cosign keyless signing
+jobs:
+  release:
+    name: Release changed charts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.21.0
+      - uses: sigstore/cosign-installer@v3
+      - name: Install git-cliff
+        run: |
+          curl -fsSL https://github.com/orhun/git-cliff/releases/download/v2.10.1/git-cliff-2.10.1-x86_64-unknown-linux-gnu.tar.gz | tar -xz -C /tmp
+          sudo mv /tmp/git-cliff-2.10.1/git-cliff /usr/local/bin/git-cliff
+      - name: Log in to GHCR (Helm OCI)
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - id: changed
+        name: Determine charts to release
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "charts=${{ github.event.inputs.chart }}" >> "$GITHUB_OUTPUT"
+          else
+            # chart dirs touched by this push, excluding the never-published common library chart
+            changed="$(git diff --name-only '${{ github.event.before }}' '${{ github.sha }}' -- 'charts/*/' \
+              | awk -F/ '{print $2}' | sort -u | grep -v '^common$' || true)"
+            echo "charts=$(echo "$changed" | tr '\n' ' ')" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Package, push, sign, and release each chart
+        if: steps.changed.outputs.charts != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          version="$(date +'%Y.%-m.%-d+%H%M%S')"
+          for name in ${{ steps.changed.outputs.charts }}; do
+            chart="charts/$name"
+            [ -f "$chart/Chart.yaml" ] || { echo "no such chart: $name"; continue; }
+            appVersion="$(grep -oP '^appVersion:\s*"?\K[^"]+' "$chart/Chart.yaml")"
+
+            echo "::group::release $name $version (appVersion $appVersion)"
+            helm dependency build "$chart"
+            helm package "$chart" --version "$version" --app-version "$appVersion"
+            pkg="${name}-${version}.tgz"
+
+            # Push and capture the pushed digest for keyless signing.
+            push_out="$(helm push "$pkg" oci://ghcr.io/metio/helm-charts 2>&1)"
+            echo "$push_out"
+            digest="$(echo "$push_out" | grep -oP 'Digest:\s*\K\S+')"
+            oci_tag="${version//+/_}"   # Helm renders SemVer build-metadata '+' as '_' in the OCI tag
+            cosign sign --yes \
+              --annotations "repo=${{ github.repository }}" \
+              --annotations "chart=$name" \
+              "ghcr.io/metio/helm-charts/${name}@${digest}"
+
+            # Per-chart, path-scoped release notes since this chart's last tag.
+            prev="$(git tag --list "${name}-*" --sort=-creatordate | head -1)"
+            range="HEAD"; [ -n "$prev" ] && range="${prev}..HEAD"
+            CHART="$name" VERSION="$version" \
+              git-cliff --config cliff.toml --include-path "charts/${name}/**" "$range" > notes.md || true
+
+            # Static footer: cosign verification + migration notes link.
+            hack/release-footer.sh "$name" "$oci_tag" "${{ github.repository }}" >> notes.md
+
+            tag="${name}-${version}"
+            git tag "$tag" "${{ github.sha }}"
+            git push origin "$tag"
+            gh release create "$tag" --title "$tag" --notes-file notes.md
+            rm -f "$pkg" notes.md
+            echo "::endgroup::"
+          done

@@ -1,0 +1,92 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+suite: test jaas operator tenants rolebindings (watchNamespaces)
+templates:
+  - rolebinding-operator-tenants.yaml
+tests:
+  - it: is empty when watchNamespaces is unset
+    set:
+      operator:
+        enabled: true
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: is empty when operator is disabled regardless of watchNamespaces
+    set:
+      operator:
+        enabled: false
+        watchNamespaces: [team-a]
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders one RoleBinding per watched namespace
+    set:
+      operator:
+        enabled: true
+        watchNamespaces: [team-a, team-b, team-c]
+    asserts:
+      - hasDocuments:
+          count: 3
+      - isKind:
+          of: RoleBinding
+
+  - it: each RoleBinding lives in its own watched namespace
+    release:
+      name: my-release
+      namespace: jaas-system
+    set:
+      operator:
+        enabled: true
+        watchNamespaces: [team-a, team-b]
+    asserts:
+      - documentIndex: 0
+        equal:
+          path: metadata.namespace
+          value: team-a
+      - documentIndex: 1
+        equal:
+          path: metadata.namespace
+          value: team-b
+
+  - it: each RoleBinding targets the operator-tenants ClusterRole
+    release:
+      name: my-release
+      namespace: jaas-system
+    set:
+      operator:
+        enabled: true
+        watchNamespaces: [team-a]
+    asserts:
+      - equal:
+          path: roleRef.kind
+          value: ClusterRole
+      - equal:
+          path: roleRef.name
+          value: my-release-operator-tenants
+      - equal:
+          path: roleRef.apiGroup
+          value: rbac.authorization.k8s.io
+
+  - it: each RoleBinding subjects the operator SA in its home namespace
+    release:
+      name: my-release
+      namespace: jaas-system
+    set:
+      operator:
+        enabled: true
+        watchNamespaces: [team-a]
+        serviceAccount:
+          name: custom-sa
+    asserts:
+      - equal:
+          path: subjects[0].kind
+          value: ServiceAccount
+      - equal:
+          path: subjects[0].name
+          value: custom-sa
+      - equal:
+          path: subjects[0].namespace
+          value: jaas-system

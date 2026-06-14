@@ -1,0 +1,209 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+# Container image. tag defaults to .Chart.AppVersion (the released controller
+# version); override only for a custom build.
+image:
+  registry: ghcr.io
+  repository: metio/stageset-controller
+  # @schema
+  # type: string
+  # enum:
+  #   - Always
+  #   - IfNotPresent
+  #   - Never
+  # @schema
+  # Pull policy. IfNotPresent suits tagged release images; switch to Always for
+  # a mutable tag (latest, edge).
+  pullPolicy: IfNotPresent
+  # Explicit tag override; empty defaults to .Chart.AppVersion.
+  tag: ""
+
+# Image pull secrets for a private registry.
+imagePullSecrets: []
+
+# Replica bounds. min is the Deployment replica count; when max > min an HPA and
+# a PodDisruptionBudget are rendered. At the default 1/1 both are omitted.
+replicas:
+  min: 1
+  max: 1
+
+# Ports the controller binds.
+ports:
+  # controller-runtime Prometheus metrics
+  metrics: 8080
+  # /healthz + /readyz probes
+  health: 8081
+  # read-only Flagger stage-gate endpoint
+  gate: 8082
+  # validating admission webhook
+  webhook: 9443
+
+# Controller behaviour (maps onto the binary's flags).
+controller:
+  # Leader election for HA replicas. Keep on; harmless single-replica.
+  leaderElect: true
+  # @schema
+  # type: string
+  # enum:
+  #   - entries
+  #   - hybrid
+  #   - applyset
+  # @schema
+  # Inventory strategy for tracking applied objects.
+  inventoryMode: hybrid
+  # Maximum entries per StageInventory shard.
+  inventoryShardCap: 5000
+  # Host globs permitted for http actions (SSRF guard). Loopback/link-local are
+  # always denied unless explicitly listed here.
+  allowedActionHosts: []
+  # Deny cross-namespace sourceRef / dependsOn references.
+  noCrossNamespaceRefs: false
+  # URL prefix appended to actionable Ready messages as (runbook: <base>/<reason>.md).
+  runbookBaseURL: ""
+
+# Flagger stage-gate endpoint (GET /gate/{ns}/{stageset}/{stage}). Renders a
+# dedicated Service when enabled.
+gate:
+  enabled: true
+
+# Validating admission webhook for StageSet.
+webhook:
+  enabled: true
+  # @schema
+  # type: string
+  # enum:
+  #   - cert-manager
+  #   - self-signed
+  # @schema
+  # TLS provisioning. self-signed (default) has the controller generate a CA +
+  # serving cert in-pod and patch the ValidatingWebhookConfiguration caBundle
+  # (HA-safe) — no cluster prerequisite, works out of the box. cert-manager
+  # renders a Certificate (cert mounted from the issued Secret) and needs
+  # cert-manager + a configured issuer.
+  certMode: self-signed
+  # @schema
+  # type: string
+  # pattern: ^[0-9]+(s|m|h)$
+  # @schema
+  # Validity of the self-signed serving cert; the renewer rotates at validity/3.
+  certValidity: 8760h
+  # cert-manager mode: the issuer that signs the webhook Certificate.
+  certManager:
+    issuerRef:
+      # @schema
+      # type: string
+      # enum:
+      #   - Issuer
+      #   - ClusterIssuer
+      # @schema
+      kind: Issuer
+      name: ""
+
+# Optional rollback store for bit-exact, GC-independent rollbacks.
+rollbackStore:
+  # @schema
+  # type: string
+  # enum:
+  #   - none
+  #   - pvc
+  #   - s3
+  # @schema
+  # none: rollback falls back to re-fetching the producer artifact. pvc: an RWX
+  # PersistentVolumeClaim (use RWX for HA replicas). s3: any S3-compatible bucket.
+  backend: none
+  pvc:
+    size: 1Gi
+    storageClass: ""
+    # @schema
+    # type: array
+    # items:
+    #   type: string
+    # @schema
+    accessModes:
+      - ReadWriteMany
+    mountPath: /var/lib/stageset/rollback
+  s3:
+    endpoint: ""
+    bucket: ""
+    prefix: ""
+    region: ""
+    useSSL: true
+    anonymous: false
+    # Secret holding accessKey / secretKey / sessionToken keys. Empty static
+    # creds engage minio-go's IAM/IRSA discovery chain.
+    existingSecret: ""
+
+# Prometheus integration.
+metrics:
+  serviceMonitor:
+    enabled: false
+    interval: 30s
+    additionalLabels: {}
+
+# Opt-in NetworkPolicy. Inert without a NetworkPolicy controller.
+networkPolicy:
+  enabled: false
+
+# Install namespace with Pod-Security labels. The chart installs into
+# .Release.Namespace; set create to render it with PSS labels.
+namespace:
+  create: false
+  # @schema
+  # type: string
+  # enum:
+  #   - restricted
+  #   - baseline
+  #   - privileged
+  # @schema
+  pssLevel: restricted
+
+# Pod resource sizing. Applied to both requests and limits (cpu, memory, and
+# ephemeral-storage) so the pod is fully constrained — kube-score's
+# resource-completeness checks require all three on both sides.
+resources:
+  cpu: 50m
+  memory: 256Mi
+  ephemeralStorage: 32Mi
+
+# Pod-level securityContext (PSS restricted).
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+# Container-level securityContext (PSS restricted). runAsUser/runAsGroup are
+# set above 10000 (kube-score requirement) for a static binary that needs no
+# real user identity.
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+  seccompProfile:
+    type: RuntimeDefault
+
+# Scheduling.
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+
+# Extra labels.
+deployment:
+  additionalLabels: {}
+  revisionHistoryLimit: 10
+pod:
+  additionalLabels: {}
+
+# PodDisruptionBudget (rendered only when replicas.max > replicas.min).
+podDisruptionBudget:
+  minAvailable: 1
+
+# HorizontalPodAutoscaler (rendered only when replicas.max > replicas.min).
+autoscaling:
+  targetCPUUtilizationPercentage: 80

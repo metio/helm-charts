@@ -1,0 +1,43 @@
+{{- /*
+SPDX-FileCopyrightText: The helm-charts Authors
+SPDX-License-Identifier: 0BSD
+*/ -}}
+{{- if .Values.operator.enabled -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: jaas-storage
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/component: storage
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+    app.kubernetes.io/part-of: {{ .Chart.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+spec:
+  {{- with .Values.service.ipFamilyPolicy }}
+  ipFamilyPolicy: {{ . }}
+  {{- end }}
+  {{- with .Values.service.ipFamilies }}
+  ipFamilies:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- if .Values.operator.storage.headless }}
+  # Headless: clients resolve each pod's IP via DNS. Useful when an
+  # external sidecar (rclone, restic) needs stable per-pod targets, or
+  # when traffic must skip kube-proxy. Standard ClusterIP otherwise.
+  clusterIP: None
+  {{- end }}
+  selector:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/component: jaas
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/part-of: {{ .Chart.Name }}
+  ports:
+    - name: storage
+      port: {{ .Values.ports.storage }}
+      targetPort: storage
+      protocol: TCP
+{{- end }}

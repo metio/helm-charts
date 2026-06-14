@@ -1,0 +1,32 @@
+{{- /*
+SPDX-FileCopyrightText: The helm-charts Authors
+SPDX-License-Identifier: 0BSD
+*/ -}}
+stageset-controller {{ .Chart.AppVersion }} is installed in namespace {{ .Release.Namespace }}.
+
+The controller reconciles StageSet resources cluster-wide. Create one with:
+
+  kubectl apply -f - <<'EOF'
+  apiVersion: stages.metio.wtf/v1
+  kind: StageSet
+  metadata:
+    name: example
+    namespace: {{ .Release.Namespace }}
+  spec:
+    serviceAccountName: my-deployer
+    stages: []
+  EOF
+
+{{ if .Values.webhook.enabled -}}
+Admission webhook: enabled ({{ .Values.webhook.certMode }} TLS).
+{{- if eq .Values.webhook.certMode "cert-manager" }}
+  Requires cert-manager and issuer {{ .Values.webhook.certManager.issuerRef.kind }}/{{ .Values.webhook.certManager.issuerRef.name }}.
+{{- end }}
+{{- else -}}
+Admission webhook: disabled. StageSet specs are not validated at admission.
+{{- end }}
+{{ if .Values.gate.enabled -}}
+Flagger gate endpoint: http://{{ include "stageset.name" . }}-gate.{{ .Release.Namespace }}.svc:{{ .Values.ports.gate }}/gate/{namespace}/{stageset}/{stage}
+{{- end }}
+
+Rollback store: {{ .Values.rollbackStore.backend }}{{ if eq .Values.rollbackStore.backend "none" }} (best-effort via producer retention){{ end }}.

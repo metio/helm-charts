@@ -1,0 +1,42 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+# Keep charts/joi/values.yaml in sync with the jsonnet-oci-images library set
+# with zero manual work: pull JOI's published libraries.json (the single source
+# of truth), regenerate the chart's library map + schema, and commit any change.
+# Runs daily (after JOI's discovery) and on demand; a repository_dispatch from
+# JOI makes it near-instant if a cross-repo token is configured there.
+name: Sync joi chart
+on:
+  schedule:
+    - cron: "47 6 * * *"
+  repository_dispatch:
+    types: [joi-manifest-updated]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.21.0
+      - name: Regenerate charts/joi from the JOI manifest
+        run: |
+          if ! curl -fsSL https://raw.githubusercontent.com/metio/jsonnet-oci-images/main/libraries.json -o /tmp/libraries.json; then
+            echo "JOI manifest not published yet — nothing to sync"; exit 0
+          fi
+          bash hack/gen-joi-values.sh /tmp/libraries.json > charts/joi/values.yaml
+          curl -fsSL https://github.com/dadav/helm-schema/releases/download/0.23.4/helm-schema_0.23.4_Linux_x86_64.tar.gz | tar -xz -C /usr/local/bin helm-schema
+          helm-schema -c charts/joi -k additionalProperties >/dev/null
+      - name: Commit if the library set changed
+        run: |
+          if ! git diff --quiet -- charts/joi/values.yaml charts/joi/values.schema.json; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add charts/joi/values.yaml charts/joi/values.schema.json
+            git commit -m 'chore: sync joi chart with jsonnet-oci-images library set'
+            git push
+          fi

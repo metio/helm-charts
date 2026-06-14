@@ -1,0 +1,55 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+suite: test jaas operator cluster-scope clusterrolebinding
+templates:
+  - clusterrolebinding-operator-cluster.yaml
+tests:
+  - it: is empty when operator is disabled
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders when operator is enabled
+    set:
+      operator:
+        enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ClusterRoleBinding
+
+  - it: ALWAYS renders even when watchNamespaces is set
+    set:
+      operator:
+        enabled: true
+        watchNamespaces: [team-a, team-b]
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ClusterRoleBinding
+
+  - it: binds the configured ServiceAccount to the operator-cluster ClusterRole
+    release:
+      name: my-release
+      namespace: jaas-system
+    set:
+      operator:
+        enabled: true
+        serviceAccount:
+          name: custom-sa
+    asserts:
+      - equal:
+          path: roleRef.name
+          value: my-release-operator-cluster
+      - equal:
+          path: subjects[0].name
+          value: custom-sa
+      - equal:
+          path: subjects[0].namespace
+          value: jaas-system
+      - equal:
+          path: subjects[0].kind
+          value: ServiceAccount

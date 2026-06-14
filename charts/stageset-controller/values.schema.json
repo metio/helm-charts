@@ -1,0 +1,684 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "properties": {
+    "affinity": {
+      "required": [],
+      "title": "affinity",
+      "type": "object"
+    },
+    "autoscaling": {
+      "description": "HorizontalPodAutoscaler (rendered only when replicas.max \u003e replicas.min).",
+      "properties": {
+        "targetCPUUtilizationPercentage": {
+          "default": 80,
+          "title": "targetCPUUtilizationPercentage",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "targetCPUUtilizationPercentage"
+      ],
+      "title": "autoscaling",
+      "type": "object"
+    },
+    "controller": {
+      "description": "Controller behaviour (maps onto the binary's flags).",
+      "properties": {
+        "allowedActionHosts": {
+          "description": "Host globs permitted for http actions (SSRF guard). Loopback/link-local are\nalways denied unless explicitly listed here.",
+          "items": {
+            "required": []
+          },
+          "title": "allowedActionHosts",
+          "type": "array"
+        },
+        "inventoryMode": {
+          "default": "hybrid",
+          "description": "Inventory strategy for tracking applied objects.",
+          "enum": [
+            "entries",
+            "hybrid",
+            "applyset"
+          ],
+          "title": "inventoryMode",
+          "type": "string"
+        },
+        "inventoryShardCap": {
+          "default": 5000,
+          "description": "Maximum entries per StageInventory shard.",
+          "title": "inventoryShardCap",
+          "type": "integer"
+        },
+        "leaderElect": {
+          "default": true,
+          "description": "Leader election for HA replicas. Keep on; harmless single-replica.",
+          "title": "leaderElect",
+          "type": "boolean"
+        },
+        "noCrossNamespaceRefs": {
+          "default": false,
+          "description": "Deny cross-namespace sourceRef / dependsOn references.",
+          "title": "noCrossNamespaceRefs",
+          "type": "boolean"
+        },
+        "runbookBaseURL": {
+          "default": "",
+          "description": "URL prefix appended to actionable Ready messages as (runbook: \u003cbase\u003e/\u003creason\u003e.md).",
+          "title": "runbookBaseURL",
+          "type": "string"
+        }
+      },
+      "required": [
+        "leaderElect",
+        "inventoryShardCap",
+        "allowedActionHosts",
+        "noCrossNamespaceRefs",
+        "runbookBaseURL"
+      ],
+      "title": "controller",
+      "type": "object"
+    },
+    "deployment": {
+      "description": "Extra labels.",
+      "properties": {
+        "additionalLabels": {
+          "required": [],
+          "title": "additionalLabels",
+          "type": "object"
+        },
+        "revisionHistoryLimit": {
+          "default": 10,
+          "title": "revisionHistoryLimit",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "additionalLabels",
+        "revisionHistoryLimit"
+      ],
+      "title": "deployment",
+      "type": "object"
+    },
+    "gate": {
+      "description": "Flagger stage-gate endpoint (GET /gate/{ns}/{stageset}/{stage}). Renders a\ndedicated Service when enabled.",
+      "properties": {
+        "enabled": {
+          "default": true,
+          "title": "enabled",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "enabled"
+      ],
+      "title": "gate",
+      "type": "object"
+    },
+    "global": {
+      "description": "Global values are values that can be accessed from any chart or subchart by exactly the same name.",
+      "required": [],
+      "title": "global",
+      "type": "object"
+    },
+    "image": {
+      "description": "Container image. tag defaults to .Chart.AppVersion (the released controller\nversion); override only for a custom build.",
+      "properties": {
+        "pullPolicy": {
+          "default": "IfNotPresent",
+          "description": "Pull policy. IfNotPresent suits tagged release images; switch to Always for\na mutable tag (latest, edge).",
+          "enum": [
+            "Always",
+            "IfNotPresent",
+            "Never"
+          ],
+          "title": "pullPolicy",
+          "type": "string"
+        },
+        "registry": {
+          "default": "ghcr.io",
+          "title": "registry",
+          "type": "string"
+        },
+        "repository": {
+          "default": "metio/stageset-controller",
+          "title": "repository",
+          "type": "string"
+        },
+        "tag": {
+          "default": "",
+          "description": "Explicit tag override; empty defaults to .Chart.AppVersion.",
+          "title": "tag",
+          "type": "string"
+        }
+      },
+      "required": [
+        "registry",
+        "repository",
+        "tag"
+      ],
+      "title": "image",
+      "type": "object"
+    },
+    "imagePullSecrets": {
+      "description": "Image pull secrets for a private registry.",
+      "items": {
+        "required": []
+      },
+      "title": "imagePullSecrets",
+      "type": "array"
+    },
+    "metrics": {
+      "description": "Prometheus integration.",
+      "properties": {
+        "serviceMonitor": {
+          "properties": {
+            "additionalLabels": {
+              "required": [],
+              "title": "additionalLabels",
+              "type": "object"
+            },
+            "enabled": {
+              "default": false,
+              "title": "enabled",
+              "type": "boolean"
+            },
+            "interval": {
+              "default": "30s",
+              "title": "interval",
+              "type": "string"
+            }
+          },
+          "required": [
+            "enabled",
+            "interval",
+            "additionalLabels"
+          ],
+          "title": "serviceMonitor",
+          "type": "object"
+        }
+      },
+      "required": [
+        "serviceMonitor"
+      ],
+      "title": "metrics",
+      "type": "object"
+    },
+    "namespace": {
+      "description": "Install namespace with Pod-Security labels. The chart installs into\n.Release.Namespace; set create to render it with PSS labels.",
+      "properties": {
+        "create": {
+          "default": false,
+          "title": "create",
+          "type": "boolean"
+        },
+        "pssLevel": {
+          "default": "restricted",
+          "enum": [
+            "restricted",
+            "baseline",
+            "privileged"
+          ],
+          "title": "pssLevel",
+          "type": "string"
+        }
+      },
+      "required": [
+        "create"
+      ],
+      "title": "namespace",
+      "type": "object"
+    },
+    "networkPolicy": {
+      "description": "Opt-in NetworkPolicy. Inert without a NetworkPolicy controller.",
+      "properties": {
+        "enabled": {
+          "default": false,
+          "title": "enabled",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "enabled"
+      ],
+      "title": "networkPolicy",
+      "type": "object"
+    },
+    "nodeSelector": {
+      "description": "Scheduling.",
+      "required": [],
+      "title": "nodeSelector",
+      "type": "object"
+    },
+    "pod": {
+      "properties": {
+        "additionalLabels": {
+          "required": [],
+          "title": "additionalLabels",
+          "type": "object"
+        }
+      },
+      "required": [
+        "additionalLabels"
+      ],
+      "title": "pod",
+      "type": "object"
+    },
+    "podDisruptionBudget": {
+      "description": "PodDisruptionBudget (rendered only when replicas.max \u003e replicas.min).",
+      "properties": {
+        "minAvailable": {
+          "default": 1,
+          "title": "minAvailable",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "minAvailable"
+      ],
+      "title": "podDisruptionBudget",
+      "type": "object"
+    },
+    "podSecurityContext": {
+      "description": "Pod-level securityContext (PSS restricted).",
+      "properties": {
+        "runAsNonRoot": {
+          "default": true,
+          "title": "runAsNonRoot",
+          "type": "boolean"
+        },
+        "seccompProfile": {
+          "properties": {
+            "type": {
+              "default": "RuntimeDefault",
+              "title": "type",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "title": "seccompProfile",
+          "type": "object"
+        }
+      },
+      "required": [
+        "runAsNonRoot",
+        "seccompProfile"
+      ],
+      "title": "podSecurityContext",
+      "type": "object"
+    },
+    "ports": {
+      "description": "Ports the controller binds.",
+      "properties": {
+        "gate": {
+          "default": 8082,
+          "description": "read-only Flagger stage-gate endpoint",
+          "title": "gate",
+          "type": "integer"
+        },
+        "health": {
+          "default": 8081,
+          "description": "/healthz + /readyz probes",
+          "title": "health",
+          "type": "integer"
+        },
+        "metrics": {
+          "default": 8080,
+          "description": "controller-runtime Prometheus metrics",
+          "title": "metrics",
+          "type": "integer"
+        },
+        "webhook": {
+          "default": 9443,
+          "description": "validating admission webhook",
+          "title": "webhook",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "metrics",
+        "health",
+        "gate",
+        "webhook"
+      ],
+      "title": "ports",
+      "type": "object"
+    },
+    "replicas": {
+      "description": "Replica bounds. min is the Deployment replica count; when max \u003e min an HPA and\na PodDisruptionBudget are rendered. At the default 1/1 both are omitted.",
+      "properties": {
+        "max": {
+          "default": 1,
+          "title": "max",
+          "type": "integer"
+        },
+        "min": {
+          "default": 1,
+          "title": "min",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "min",
+        "max"
+      ],
+      "title": "replicas",
+      "type": "object"
+    },
+    "resources": {
+      "description": "Pod resource sizing. Applied to both requests and limits (cpu, memory, and\nephemeral-storage) so the pod is fully constrained — kube-score's\nresource-completeness checks require all three on both sides.",
+      "properties": {
+        "cpu": {
+          "default": "50m",
+          "title": "cpu",
+          "type": "string"
+        },
+        "ephemeralStorage": {
+          "default": "32Mi",
+          "title": "ephemeralStorage",
+          "type": "string"
+        },
+        "memory": {
+          "default": "256Mi",
+          "title": "memory",
+          "type": "string"
+        }
+      },
+      "required": [
+        "cpu",
+        "memory",
+        "ephemeralStorage"
+      ],
+      "title": "resources",
+      "type": "object"
+    },
+    "rollbackStore": {
+      "description": "Optional rollback store for bit-exact, GC-independent rollbacks.",
+      "properties": {
+        "backend": {
+          "default": "none",
+          "description": "none: rollback falls back to re-fetching the producer artifact. pvc: an RWX\nPersistentVolumeClaim (use RWX for HA replicas). s3: any S3-compatible bucket.",
+          "enum": [
+            "none",
+            "pvc",
+            "s3"
+          ],
+          "title": "backend",
+          "type": "string"
+        },
+        "pvc": {
+          "properties": {
+            "accessModes": {
+              "items": {
+                "type": "string"
+              },
+              "title": "accessModes",
+              "type": "array"
+            },
+            "mountPath": {
+              "default": "/var/lib/stageset/rollback",
+              "title": "mountPath",
+              "type": "string"
+            },
+            "size": {
+              "default": "1Gi",
+              "title": "size",
+              "type": "string"
+            },
+            "storageClass": {
+              "default": "",
+              "title": "storageClass",
+              "type": "string"
+            }
+          },
+          "required": [
+            "size",
+            "storageClass",
+            "mountPath"
+          ],
+          "title": "pvc",
+          "type": "object"
+        },
+        "s3": {
+          "properties": {
+            "anonymous": {
+              "default": false,
+              "title": "anonymous",
+              "type": "boolean"
+            },
+            "bucket": {
+              "default": "",
+              "title": "bucket",
+              "type": "string"
+            },
+            "endpoint": {
+              "default": "",
+              "title": "endpoint",
+              "type": "string"
+            },
+            "existingSecret": {
+              "default": "",
+              "description": "Secret holding accessKey / secretKey / sessionToken keys. Empty static\ncreds engage minio-go's IAM/IRSA discovery chain.",
+              "title": "existingSecret",
+              "type": "string"
+            },
+            "prefix": {
+              "default": "",
+              "title": "prefix",
+              "type": "string"
+            },
+            "region": {
+              "default": "",
+              "title": "region",
+              "type": "string"
+            },
+            "useSSL": {
+              "default": true,
+              "title": "useSSL",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "endpoint",
+            "bucket",
+            "prefix",
+            "region",
+            "useSSL",
+            "anonymous",
+            "existingSecret"
+          ],
+          "title": "s3",
+          "type": "object"
+        }
+      },
+      "required": [
+        "pvc",
+        "s3"
+      ],
+      "title": "rollbackStore",
+      "type": "object"
+    },
+    "securityContext": {
+      "description": "Container-level securityContext (PSS restricted). runAsUser/runAsGroup are\nset above 10000 (kube-score requirement) for a static binary that needs no\nreal user identity.",
+      "properties": {
+        "allowPrivilegeEscalation": {
+          "default": false,
+          "title": "allowPrivilegeEscalation",
+          "type": "boolean"
+        },
+        "capabilities": {
+          "properties": {
+            "drop": {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  }
+                ],
+                "required": []
+              },
+              "title": "drop",
+              "type": "array"
+            }
+          },
+          "required": [
+            "drop"
+          ],
+          "title": "capabilities",
+          "type": "object"
+        },
+        "readOnlyRootFilesystem": {
+          "default": true,
+          "title": "readOnlyRootFilesystem",
+          "type": "boolean"
+        },
+        "runAsGroup": {
+          "default": 65532,
+          "title": "runAsGroup",
+          "type": "integer"
+        },
+        "runAsNonRoot": {
+          "default": true,
+          "title": "runAsNonRoot",
+          "type": "boolean"
+        },
+        "runAsUser": {
+          "default": 65532,
+          "title": "runAsUser",
+          "type": "integer"
+        },
+        "seccompProfile": {
+          "properties": {
+            "type": {
+              "default": "RuntimeDefault",
+              "title": "type",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "title": "seccompProfile",
+          "type": "object"
+        }
+      },
+      "required": [
+        "runAsNonRoot",
+        "runAsUser",
+        "runAsGroup",
+        "allowPrivilegeEscalation",
+        "readOnlyRootFilesystem",
+        "capabilities",
+        "seccompProfile"
+      ],
+      "title": "securityContext",
+      "type": "object"
+    },
+    "tolerations": {
+      "items": {
+        "required": []
+      },
+      "title": "tolerations",
+      "type": "array"
+    },
+    "topologySpreadConstraints": {
+      "items": {
+        "required": []
+      },
+      "title": "topologySpreadConstraints",
+      "type": "array"
+    },
+    "webhook": {
+      "description": "Validating admission webhook for StageSet.",
+      "properties": {
+        "certManager": {
+          "description": "cert-manager mode: the issuer that signs the webhook Certificate.",
+          "properties": {
+            "issuerRef": {
+              "properties": {
+                "kind": {
+                  "default": "Issuer",
+                  "enum": [
+                    "Issuer",
+                    "ClusterIssuer"
+                  ],
+                  "title": "kind",
+                  "type": "string"
+                },
+                "name": {
+                  "default": "",
+                  "title": "name",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "title": "issuerRef",
+              "type": "object"
+            }
+          },
+          "required": [
+            "issuerRef"
+          ],
+          "title": "certManager",
+          "type": "object"
+        },
+        "certMode": {
+          "default": "self-signed",
+          "description": "TLS provisioning. self-signed (default) has the controller generate a CA +\nserving cert in-pod and patch the ValidatingWebhookConfiguration caBundle\n(HA-safe) — no cluster prerequisite, works out of the box. cert-manager\nrenders a Certificate (cert mounted from the issued Secret) and needs\ncert-manager + a configured issuer.",
+          "enum": [
+            "cert-manager",
+            "self-signed"
+          ],
+          "title": "certMode",
+          "type": "string"
+        },
+        "certValidity": {
+          "default": "8760h",
+          "description": "Validity of the self-signed serving cert; the renewer rotates at validity/3.",
+          "pattern": "^[0-9]+(s|m|h)$",
+          "title": "certValidity",
+          "type": "string"
+        },
+        "enabled": {
+          "default": true,
+          "title": "enabled",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "enabled",
+        "certManager"
+      ],
+      "title": "webhook",
+      "type": "object"
+    }
+  },
+  "required": [
+    "image",
+    "imagePullSecrets",
+    "replicas",
+    "ports",
+    "controller",
+    "gate",
+    "webhook",
+    "rollbackStore",
+    "metrics",
+    "networkPolicy",
+    "namespace",
+    "resources",
+    "podSecurityContext",
+    "securityContext",
+    "nodeSelector",
+    "tolerations",
+    "affinity",
+    "topologySpreadConstraints",
+    "deployment",
+    "pod",
+    "podDisruptionBudget",
+    "autoscaling"
+  ],
+  "type": "object"
+}

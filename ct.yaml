@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+# chart-testing config. Charts are detected as changed via git diff against the
+# target branch, so verification only runs against what a PR actually touched.
+target-branch: main
+chart-dirs:
+  - charts
+# The committed Chart.yaml carries a 0.0.0 placeholder rewritten at release
+# time, so the "chart version must bump" check would always fail — the
+# event-driven release pipeline owns versioning, not the PR author.
+check-version-increment: false
+validate-maintainers: true
+helm-extra-args: --timeout 600s

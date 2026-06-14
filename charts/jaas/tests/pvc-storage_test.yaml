@@ -1,0 +1,160 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+suite: test jaas storage PVC
+templates:
+  - pvc-storage.yaml
+tests:
+  - it: is empty when operator is disabled
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: is empty when operator is enabled but persistence is off (default)
+    set:
+      operator:
+        enabled: true
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders when persistence is enabled
+    set:
+      operator:
+        enabled: true
+        storage:
+          persistence:
+            enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: PersistentVolumeClaim
+
+  - it: PVC name follows the release-storage convention
+    release:
+      name: my-jaas
+    set:
+      operator:
+        enabled: true
+        storage:
+          persistence:
+            enabled: true
+    asserts:
+      - equal:
+          path: metadata.name
+          value: my-jaas-storage
+
+  - it: defaults to ReadWriteOnce + 10Gi
+    set:
+      operator:
+        enabled: true
+        storage:
+          persistence:
+            enabled: true
+    asserts:
+      - equal:
+          path: spec.accessModes[0]
+          value: ReadWriteOnce
+      - equal:
+          path: spec.resources.requests.storage
+          value: 10Gi
+
+  - it: honors storageClassName override
+    set:
+      operator:
+        enabled: true
+        storage:
+          persistence:
+            enabled: true
+            storageClassName: fast-ssd
+    asserts:
+      - equal:
+          path: spec.storageClassName
+          value: fast-ssd
+
+  - it: honors ReadWriteMany access mode for multi-replica HA
+    set:
+      operator:
+        enabled: true
+        storage:
+          persistence:
+            enabled: true
+            accessModes: [ReadWriteMany]
+    asserts:
+      - equal:
+          path: spec.accessModes[0]
+          value: ReadWriteMany
+
+  - it: honors custom volume size
+    set:
+      operator:
+        enabled: true
+        storage:
+          persistence:
+            enabled: true
+            size: 50Gi
+    asserts:
+      - equal:
+          path: spec.resources.requests.storage
+          value: 50Gi
+
+  - it: honors annotations and labels
+    set:
+      operator:
+        enabled: true
+        storage:
+          persistence:
+            enabled: true
+            annotations:
+              csi.example.com/tag: jaas-artifacts
+            labels:
+              team: platform
+    asserts:
+      - equal:
+          path: metadata.annotations["csi.example.com/tag"]
+          value: jaas-artifacts
+      - equal:
+          path: metadata.labels.team
+          value: platform
+
+  - it: omits storageClassName when not set (cluster default)
+    set:
+      operator:
+        enabled: true
+        storage:
+          persistence:
+            enabled: true
+    asserts:
+      - notExists:
+          path: spec.storageClassName
+
+  - it: is empty when backend=s3 even with persistence on
+    set:
+      operator:
+        enabled: true
+        storage:
+          backend: s3
+          persistence:
+            enabled: true
+          s3:
+            endpoint: s3.amazonaws.com
+            bucket: b
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: includes a selector when configured
+    set:
+      operator:
+        enabled: true
+        storage:
+          persistence:
+            enabled: true
+            selector:
+              matchLabels:
+                jaas-volume: yes
+    asserts:
+      - equal:
+          path: spec.selector.matchLabels["jaas-volume"]
+          value: "yes"

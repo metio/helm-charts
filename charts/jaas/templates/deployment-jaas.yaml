@@ -1,0 +1,390 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jaas
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/component: jaas
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+    app.kubernetes.io/part-of: {{ .Chart.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    {{ with .Values.deployment.additionalLabels }}
+    {{ toYaml . | nindent 4 }}
+    {{ end }}
+  annotations:
+    # kube-score ignores for design-deliberate findings:
+    #   container-image-pull-policy — IfNotPresent is correct for
+    #     tagged release images; mutable-tag operators flip to Always
+    #     via image.pullPolicy (documented in values.yaml).
+    #   pod-networkpolicy — chart's NetworkPolicy is opt-in via
+    #     networkPolicy.enabled (silently inert without a NetworkPolicy
+    #     controller; renderable on demand).
+    #   deployment-has-host-podantiaffinity — replica spreading is done
+    #     via topologySpreadConstraints (per CLAUDE.md's "topology
+    #     spread and affinity selectors" guidance). The podAntiAffinity
+    #     block on this pod intentionally targets OTHER releases.
+    #   deployment-replicas — single replica is the safe default;
+    #     production installs scale via replicas.min.
+    #   deployment-has-poddisruptionbudget — PDB is rendered only when
+    #     replicas.max > replicas.min (single-replica installs would
+    #     have a PDB that blocks drains).
+    kube-score/ignore: container-image-pull-policy,pod-networkpolicy,deployment-has-host-podantiaffinity,deployment-replicas,deployment-has-poddisruptionbudget
+spec:
+  revisionHistoryLimit: {{ .Values.deployment.revisionHistoryLimit }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Chart.Name }}
+      app.kubernetes.io/component: jaas
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/part-of: {{ .Chart.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ .Chart.Name }}
+        app.kubernetes.io/component: jaas
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+        app.kubernetes.io/part-of: {{ .Chart.Name }}
+        app.kubernetes.io/managed-by: {{ .Release.Service }}
+        helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+        {{ with .Values.pod.additionalLabels }}
+        {{ toYaml . | nindent 8 }}
+        {{ end }}
+    spec:
+      # the binary's shutdown budget is `shutdownDelay` (readiness
+      # drain) + 30s HTTP graceful Shutdown + 30s operator-manager wait.
+      # Kubernetes' default terminationGracePeriodSeconds is 30s — SIGKILL
+      # would arrive before the leader-election lease releases, leaving
+      # the next replica waiting out the full LeaseDuration before
+      # taking over. Adding a generous 60s headroom on top of shutdownDelay
+      # covers both shutdown phases plus the lease release.
+      terminationGracePeriodSeconds: {{ add ((.Values.arguments.shutdownDelay | trimSuffix "s") | int) 65 }}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: {{ .Chart.Name }}
+                    app.kubernetes.io/component: jaas
+                    app.kubernetes.io/part-of: {{ .Chart.Name }}
+                  matchExpressions:
+                    - key: app.kubernetes.io/instance
+                      operator: NotIn
+                      values:
+                        - {{ .Release.Name }}
+                topologyKey: kubernetes.io/hostname
+              weight: 100
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: {{ .Chart.Name }}
+              app.kubernetes.io/component: jaas
+              app.kubernetes.io/instance: {{ .Release.Name }}
+              app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+              app.kubernetes.io/part-of: {{ .Chart.Name }}
+              helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+      {{- if .Values.operator.enabled }}
+      serviceAccountName: {{ .Values.operator.serviceAccount.name }}
+      automountServiceAccountToken: true
+      {{- else }}
+      automountServiceAccountToken: false
+      {{- end }}
+      # Pod-level securityContext mirrors the container-level fields so
+      # an admission controller evaluating Pod Security Standards
+      # "restricted" sees the strict posture even before recursing into
+      # containers. A future sidecar (debug, log shipper) inherits these
+      # by default — defense-in-depth.
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+          {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: jaas
+          image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}:{{ default .Chart.AppVersion .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - "-listen-address={{ .Values.arguments.listenAddress }}"
+            - -port={{ .Values.ports.http }}
+            - -read-timeout={{ .Values.arguments.readTimeout }}
+            - -write-timeout={{ .Values.arguments.writeTimeout }}
+            - "-management-listen-address={{ .Values.arguments.managementListenAddress }}"
+            - -management-port={{ .Values.ports.management }}
+            - -management-read-timeout={{ .Values.arguments.managementReadTimeout }}
+            - -management-write-timeout={{ .Values.arguments.managementWriteTimeout }}
+            - -log-level={{ .Values.arguments.logLevel }}
+            - -jsonnet-endpoint-path={{ .Values.arguments.jsonnetEndpointPath }}
+            - -evaluation-timeout={{ .Values.arguments.evaluationTimeout }}
+            - -max-stack={{ .Values.arguments.maxStack }}
+            - -max-concurrent-evals={{ .Values.arguments.maxConcurrentEvals }}
+            - -shutdown-delay={{ .Values.arguments.shutdownDelay }}
+            - -snippet-directory={{ $.Values.paths.snippets }}
+          {{- if .Values.operator.enabled }}
+            - -enable-flux-integration
+            - -storage-backend={{ .Values.operator.storage.backend }}
+            {{- if eq .Values.operator.storage.backend "local" }}
+            - -storage-path={{ .Values.operator.storage.path }}
+            {{- else if eq .Values.operator.storage.backend "s3" }}
+            - -s3-endpoint={{ required "operator.storage.s3.endpoint is required when backend is \"s3\"" .Values.operator.storage.s3.endpoint }}
+            - -s3-bucket={{ required "operator.storage.s3.bucket is required when backend is \"s3\"" .Values.operator.storage.s3.bucket }}
+            {{- with .Values.operator.storage.s3.prefix }}
+            - -s3-prefix={{ . }}
+            {{- end }}
+            {{- with .Values.operator.storage.s3.region }}
+            - -s3-region={{ . }}
+            {{- end }}
+            - -s3-use-ssl={{ .Values.operator.storage.s3.useSSL }}
+            - -s3-anonymous={{ .Values.operator.storage.s3.anonymous }}
+            {{- with .Values.operator.storage.s3.accessKey }}
+            - -s3-access-key={{ . }}
+            {{- end }}
+            {{- with .Values.operator.storage.s3.secretKey }}
+            - -s3-secret-key={{ . }}
+            {{- end }}
+            {{- with .Values.operator.storage.s3.sessionToken }}
+            - -s3-session-token={{ . }}
+            {{- end }}
+            {{- end }}
+            - "-storage-listen-address={{ .Values.operator.storage.listenAddress }}"
+            - -storage-port={{ .Values.ports.storage }}
+            - -storage-read-timeout={{ .Values.operator.storage.readTimeout }}
+            - -storage-write-timeout={{ .Values.operator.storage.writeTimeout }}
+            - -storage-base-url={{ default (printf "http://jaas-storage.%s.svc.cluster.local:%v" .Release.Namespace .Values.ports.storage) .Values.operator.storage.baseURL }}
+            - -no-cross-namespace-refs={{ .Values.operator.noCrossNamespaceRefs }}
+            - -rerender-rate={{ .Values.operator.rerenderRate }}
+            - -rerender-burst={{ .Values.operator.rerenderBurst }}
+            - -max-artifact-bytes={{ .Values.operator.storage.maxArtifactBytes }}
+            - -artifact-gc-grace={{ .Values.operator.storage.gcGrace }}
+            - -max-withdraw-wait={{ .Values.operator.maxWithdrawWait }}
+            - -storage-sweep-interval={{ .Values.operator.storage.sweep.interval }}
+            - -storage-sweep-max-tmp-age={{ .Values.operator.storage.sweep.maxTmpAge }}
+            {{- with .Values.operator.tracing.endpoint }}
+            - -tracing-endpoint={{ . }}
+            - -tracing-insecure={{ $.Values.operator.tracing.insecure }}
+            - -tracing-sample-ratio={{ $.Values.operator.tracing.sampleRatio }}
+            {{- end }}
+            {{- if .Values.operator.defaultServiceAccount }}
+            - -default-service-account={{ .Values.operator.defaultServiceAccount }}
+            {{- end }}
+            {{- if .Values.operator.labelSelector }}
+            - -label-selector={{ .Values.operator.labelSelector }}
+            {{- end }}
+            {{- if .Values.operator.watchNamespaces }}
+            - -watch-namespaces={{ join "," .Values.operator.watchNamespaces }}
+            {{- end }}
+            {{- range $name, $value := .Values.operator.extVars }}
+            - -ext-var={{ $name }}={{ $value }}
+            {{- end }}
+            {{- if .Values.operator.webhook.enabled }}
+            - -enable-webhook
+            - -webhook-port={{ .Values.ports.webhook }}
+            - -webhook-cert-dir={{ .Values.operator.webhook.certDir }}
+            - -webhook-cert-mode={{ .Values.operator.webhook.certMode }}
+            {{- if eq .Values.operator.webhook.certMode "self-signed" }}
+            - -webhook-service-name=jaas-webhook
+            - -webhook-service-namespace={{ .Release.Namespace }}
+            - -webhook-validating-config-name={{ .Release.Name }}-jsonnetsnippet
+            - -webhook-cert-validity={{ .Values.operator.webhook.selfSignedValidity }}
+            {{- end }}
+            {{- end }}
+            - -leader-election={{ .Values.operator.leaderElection.enabled }}
+            - -leader-election-id={{ default (printf "%s-operator" .Release.Name) .Values.operator.leaderElection.id }}
+            - -leader-election-namespace={{ .Release.Namespace }}
+            {{- if .Values.operator.metrics.enabled }}
+            - -metrics-bind-address=:{{ .Values.ports.metrics }}
+            {{- else }}
+            - -metrics-bind-address=0
+            {{- end }}
+          {{- end }}
+          {{ if .Values.libraries.grafonnet.enabled }}
+            - -library-path={{ .Values.paths.libraries }}/grafonnet
+          {{ end }}
+          {{ if .Values.libraries.docsonnet.enabled }}
+            - -library-path={{ .Values.paths.libraries }}/docsonnet
+          {{ end }}
+          {{ if .Values.libraries.xtd.enabled }}
+            - -library-path={{ .Values.paths.libraries }}/xtd
+          {{ end }}
+          {{ range $name, $image := .Values.additionalLibraries }}
+            - -library-path={{ $.Values.paths.libraries }}/{{ $name }}
+          {{ end }}
+          env:
+          {{ range $name, $value := .Values.externalVariables }}
+            - name: JAAS_EXT_VAR_{{ $name }}
+              value: {{ $value }}
+          {{ end }}
+          envFrom:
+          {{ range $name := .Values.externalVariablesFrom.configMaps }}
+            - configMapRef:
+                name: {{ $name }}
+          {{ end }}
+          {{ range $name := .Values.externalVariablesFrom.secrets }}
+            - secretRef:
+                name: {{ $name }}
+          {{ end }}
+          {{- if and .Values.operator.enabled (eq .Values.operator.storage.backend "s3") .Values.operator.storage.s3.credentialsSecret.name }}
+            - secretRef:
+                name: {{ .Values.operator.storage.s3.credentialsSecret.name }}
+          {{- end }}
+          volumeMounts:
+          {{ if .Values.libraries.grafonnet.enabled }}
+            - name: library-grafonnet
+              mountPath: {{ .Values.paths.libraries }}/grafonnet
+              readOnly: true
+          {{ end }}
+          {{ if .Values.libraries.docsonnet.enabled }}
+            - name: library-docsonnet
+              mountPath: {{ .Values.paths.libraries }}/docsonnet
+              readOnly: true
+          {{ end }}
+          {{ if .Values.libraries.xtd.enabled }}
+            - name: library-xtd
+              mountPath: {{ .Values.paths.libraries }}/xtd
+              readOnly: true
+          {{ end }}
+          {{ range $name, $image := .Values.additionalLibraries }}
+            - name: library-{{ $name | replace "_" "-" }}
+              mountPath: {{ $.Values.paths.libraries }}/{{ $name }}
+              readOnly: true
+          {{ end }}
+          {{ range $name, $image := .Values.snippets }}
+            - name: snippet-{{ $name | replace "_" "-" }}
+              mountPath: {{ $.Values.paths.snippets }}/{{ $name }}
+              readOnly: true
+          {{ end }}
+          {{- if and .Values.operator.enabled (eq .Values.operator.storage.backend "local") }}
+            - name: storage
+              mountPath: {{ .Values.operator.storage.path }}
+          {{- end }}
+          {{- if and .Values.operator.enabled .Values.operator.webhook.enabled }}
+            - name: webhook-cert
+              mountPath: {{ .Values.operator.webhook.certDir }}
+              {{- if eq .Values.operator.webhook.certMode "cert-manager" }}
+              readOnly: true
+              {{- end }}
+          {{- end }}
+          ports:
+            - containerPort: {{ .Values.ports.http }}
+              name: http
+              protocol: TCP
+            - containerPort: {{ .Values.ports.management }}
+              name: management
+              protocol: TCP
+          {{- if .Values.operator.enabled }}
+            - containerPort: {{ .Values.ports.storage }}
+              name: storage
+              protocol: TCP
+          {{- end }}
+          {{- if and .Values.operator.enabled .Values.operator.metrics.enabled }}
+            - containerPort: {{ .Values.ports.metrics }}
+              name: metrics
+              protocol: TCP
+          {{- end }}
+          {{- if and .Values.operator.enabled .Values.operator.webhook.enabled }}
+            - containerPort: {{ .Values.ports.webhook }}
+              name: webhook
+              protocol: TCP
+          {{- end }}
+          startupProbe:
+            periodSeconds: 1
+            failureThreshold: 60
+            httpGet:
+              path: /start
+              port: management
+          readinessProbe:
+            initialDelaySeconds: 0
+            httpGet:
+              path: /ready
+              port: management
+          livenessProbe:
+            initialDelaySeconds: 0
+            httpGet:
+              path: /live
+              port: management
+          resources:
+            requests:
+              cpu: {{ .Values.resources.cpu }}
+              memory: {{ .Values.resources.memory }}
+              ephemeral-storage: {{ .Values.resources.ephemeralStorage }}
+            limits:
+              cpu: {{ .Values.resources.cpu }}
+              memory: {{ .Values.resources.memory }}
+              ephemeral-storage: {{ .Values.resources.ephemeralStorage }}
+          securityContext:
+            runAsNonRoot: true
+            runAsGroup: 12345
+            runAsUser: 12345
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
+      volumes:
+        {{ if .Values.libraries.grafonnet.enabled }}
+        - name: library-grafonnet
+          image:
+            reference: "{{ .Values.libraries.grafonnet.registry }}/{{ .Values.libraries.grafonnet.repository }}:{{ .Values.libraries.grafonnet.version }}"
+            pullPolicy: IfNotPresent
+        {{ end }}
+        {{ if .Values.libraries.docsonnet.enabled }}
+        - name: library-docsonnet
+          image:
+            reference: "{{ .Values.libraries.docsonnet.registry }}/{{ .Values.libraries.docsonnet.repository }}:{{ .Values.libraries.docsonnet.version }}"
+            pullPolicy: IfNotPresent
+        {{ end }}
+        {{ if .Values.libraries.xtd.enabled }}
+        - name: library-xtd
+          image:
+            reference: "{{ .Values.libraries.xtd.registry }}/{{ .Values.libraries.xtd.repository }}:{{ .Values.libraries.xtd.version }}"
+            pullPolicy: IfNotPresent
+        {{ end }}
+        {{ range $name, $image := .Values.additionalLibraries }}
+        - name: library-{{ $name | replace "_" "-" }}
+          image:
+            reference: {{ $image }}
+            pullPolicy: IfNotPresent
+        {{ end }}
+        {{ range $name, $image := .Values.snippets }}
+        - name: snippet-{{ $name | replace "_" "-" }}
+          image:
+            reference: {{ $image }}
+            pullPolicy: IfNotPresent
+        {{ end }}
+        {{- if and .Values.operator.enabled (eq .Values.operator.storage.backend "local") }}
+        - name: storage
+          {{- if .Values.operator.storage.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ .Release.Name }}-storage
+          {{- else }}
+          emptyDir:
+            sizeLimit: {{ .Values.operator.storage.sizeLimit }}
+          {{- end }}
+        {{- end }}
+        {{- if and .Values.operator.enabled .Values.operator.webhook.enabled }}
+        - name: webhook-cert
+          {{- if eq .Values.operator.webhook.certMode "self-signed" }}
+          emptyDir:
+            # Cert + key are ephemeral per-pod: the operator regenerates
+            # them on startup and patches the VWC caBundle to match.
+            sizeLimit: 1Mi
+          {{- else }}
+          secret:
+            secretName: {{ .Values.operator.webhook.secretName }}
+            defaultMode: 0444
+          {{- end }}
+        {{- end }}

@@ -1,0 +1,84 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+suite: test stageset services, scaling, and rollback store
+templates:
+  - templates/service-metrics.yaml
+  - templates/service-gate.yaml
+  - templates/horizontalpodautoscaler.yaml
+  - templates/poddisruptionbudget.yaml
+  - templates/pvc-rollback.yaml
+  - templates/namespace.yaml
+tests:
+  - it: always renders the metrics Service
+    template: templates/service-metrics.yaml
+    asserts:
+      - equal:
+          path: spec.ports[0].targetPort
+          value: metrics
+  - it: renders the gate Service only when the gate is enabled
+    template: templates/service-gate.yaml
+    set:
+      gate.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: omits HPA and PDB at the default single replica
+    set:
+      replicas.min: 1
+      replicas.max: 1
+    asserts:
+      - hasDocuments:
+          count: 0
+        template: templates/horizontalpodautoscaler.yaml
+      - hasDocuments:
+          count: 0
+        template: templates/poddisruptionbudget.yaml
+  - it: renders HPA and PDB when max > min
+    set:
+      replicas.min: 2
+      replicas.max: 5
+    asserts:
+      - equal:
+          path: spec.minReplicas
+          value: 2
+        template: templates/horizontalpodautoscaler.yaml
+      - equal:
+          path: spec.maxReplicas
+          value: 5
+        template: templates/horizontalpodautoscaler.yaml
+      - equal:
+          path: spec.minAvailable
+          value: 1
+        template: templates/poddisruptionbudget.yaml
+  - it: renders no rollback PVC by default
+    template: templates/pvc-rollback.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: renders a rollback PVC with the configured access modes
+    template: templates/pvc-rollback.yaml
+    set:
+      rollbackStore.backend: pvc
+      rollbackStore.pvc.accessModes: [ReadWriteMany]
+      rollbackStore.pvc.size: 2Gi
+    asserts:
+      - equal:
+          path: spec.accessModes
+          value: [ReadWriteMany]
+      - equal:
+          path: spec.resources.requests.storage
+          value: 2Gi
+  - it: renders the namespace with PSS labels only when create is set
+    template: templates/namespace.yaml
+    set:
+      namespace.create: true
+      namespace.pssLevel: restricted
+    release:
+      namespace: stageset-system
+    asserts:
+      - equal:
+          path: metadata.labels["pod-security.kubernetes.io/enforce"]
+          value: restricted
+      - equal:
+          path: metadata.name
+          value: stageset-system

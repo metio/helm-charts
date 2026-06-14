@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+# Multi-replica HA: leader election + HPA + PDB + topology spread.
+replicas:
+  min: 2
+  max: 4
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: stageset-controller
+        app.kubernetes.io/component: controller

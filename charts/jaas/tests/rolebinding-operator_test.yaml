@@ -1,0 +1,44 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+suite: test jaas operator rolebinding
+templates:
+  - rolebinding-operator.yaml
+tests:
+  - it: is empty when operator is disabled
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders when operator is enabled
+    set:
+      operator:
+        enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: RoleBinding
+
+  - it: binds the operator SA to the namespaced operator Role
+    release:
+      name: my-release
+      namespace: jaas-system
+    set:
+      operator:
+        enabled: true
+        serviceAccount:
+          name: custom-sa
+    asserts:
+      - equal:
+          path: roleRef.name
+          value: my-release-operator
+      - equal:
+          path: roleRef.kind
+          value: Role
+      - equal:
+          path: subjects[0].name
+          value: custom-sa
+      - equal:
+          path: subjects[0].namespace
+          value: jaas-system

@@ -1,0 +1,205 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+name: Verify Charts
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  changed:
+    name: Detect changed charts
+    runs-on: ubuntu-latest
+    outputs:
+      charts: ${{ steps.list.outputs.charts }}
+      any: ${{ steps.list.outputs.any }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: helm/chart-testing-action@v2
+      - id: list
+        name: List changed charts
+        run: |
+          changed="$(ct list-changed --config ct.yaml || true)"
+          if [ -z "$changed" ]; then
+            echo "any=false" >> "$GITHUB_OUTPUT"
+            echo "charts=[]" >> "$GITHUB_OUTPUT"
+          else
+            echo "any=true" >> "$GITHUB_OUTPUT"
+            # chart dir paths -> JSON array of chart names
+            names="$(echo "$changed" | xargs -n1 basename | jq -R . | jq -cs .)"
+            echo "charts=$names" >> "$GITHUB_OUTPUT"
+          fi
+
+  static:
+    name: Static gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.21.0
+      - uses: helm/chart-testing-action@v2
+      - id: ct_lint
+        name: ct lint (changed charts)
+        run: ct lint --config ct.yaml
+      - id: unittest
+        name: helm-unittest
+        run: |
+          helm plugin install https://github.com/helm-unittest/helm-unittest --version v1.0.3
+          for c in charts/*/; do
+            [ -d "${c}tests" ] || continue
+            echo "::group::unittest ${c}"
+            helm unittest "$c"
+            echo "::endgroup::"
+          done
+      - id: schema_drift
+        name: helm-schema drift gate
+        run: |
+          curl -fsSL https://github.com/dadav/helm-schema/releases/download/0.23.4/helm-schema_0.23.4_Linux_x86_64.tar.gz | tar -xz -C /usr/local/bin helm-schema
+          for c in charts/*/; do
+            [ -f "${c}values.yaml" ] || continue
+            helm-schema -c "$c" -k additionalProperties
+          done
+          if ! git diff --exit-code -- 'charts/*/values.schema.json'; then
+            echo "::error::A values.schema.json is stale. Run 'ilo bash -c \"helm-schema -c charts/<name> -k additionalProperties\"' and commit."
+            exit 1
+          fi
+      - id: kube_score
+        name: kube-score (default + every ci/ variant, CRITICAL fails)
+        run: |
+          curl -fsSL https://github.com/zegl/kube-score/releases/download/v1.20.0/kube-score_1.20.0_linux_amd64.tar.gz | tar -xz -C /usr/local/bin kube-score
+          set -e
+          for c in charts/*/; do
+            name="$(basename "$c")"
+            render() {
+              echo "::group::kube-score $name ${1:-default}"
+              helm template release-x "$c" ${2:-} | kube-score score - --exit-one-on-warning=false
+              echo "::endgroup::"
+            }
+            render default ""
+            for vf in "$c"ci/*-values.yaml; do
+              [ -e "$vf" ] || continue
+              render "$(basename "$vf")" "-f $vf"
+            done
+          done
+      - id: kubeconform
+        name: kubeconform (rendered manifests, incl. CRDs)
+        run: |
+          curl -fsSL https://github.com/yannh/kubeconform/releases/download/v0.7.0/kubeconform-linux-amd64.tar.gz | tar -xz -C /usr/local/bin kubeconform
+          set -e
+          for c in charts/*/; do
+            echo "::group::kubeconform $(basename "$c")"
+            helm template release-x "$c" \
+              | kubeconform -strict -summary -ignore-missing-schemas \
+                  -schema-location default \
+                  -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
+            echo "::endgroup::"
+          done
+
+  crd-sync:
+    name: CRD sync gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - id: resync
+        name: Re-vendor CRDs at each chart's committed appVersion and diff
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          for cf in charts/*/Chart.yaml; do
+            image="$(grep -oP '#\s*renovate:\s*image=\K\S+' "$cf" || true)"
+            [ -n "$image" ] || continue
+            appVersion="$(grep -oP '^appVersion:\s*"?\K[^"]+' "$cf")"
+            hack/vendor-crds.sh "$image" "$appVersion"
+          done
+          if ! git diff --exit-code -- 'charts/*/templates/crd-*.yaml'; then
+            echo "::error::A chart's vendored CRDs drifted from its appVersion source. Run hack/vendor-crds.sh <image> <appVersion> and commit."
+            exit 1
+          fi
+
+  k8s-matrix:
+    name: Compute Kubernetes matrix
+    needs: changed
+    if: needs.changed.outputs.any == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      versions: ${{ steps.compute.outputs.versions }}
+    steps:
+      - id: compute
+        name: Newest N minors of kindest/node, latest patch each
+        run: |
+          N=4
+          versions=$(
+            curl -fsSL "https://hub.docker.com/v2/repositories/kindest/node/tags?page_size=100" \
+            | jq -r '.results[].name' \
+            | grep -E '^v1\.[0-9]+\.[0-9]+$' \
+            | awk -F. '{print $1"."$2" "$0}' \
+            | sort -k1,1V -k2,2V \
+            | awk '{latest[$1]=$2} END {for (m in latest) print latest[m]}' \
+            | sort -V | tail -n "$N" \
+            | jq -R . | jq -cs .
+          )
+          echo "versions=$versions" >> "$GITHUB_OUTPUT"
+          echo "matrix: $versions"
+
+  install:
+    name: ct install (k8s ${{ matrix.k8s }})
+    needs: [changed, k8s-matrix]
+    if: needs.changed.outputs.any == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        k8s: ${{ fromJSON(needs.k8s-matrix.outputs.versions) }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: helm/chart-testing-action@v2
+      - uses: helm/kind-action@v1
+        with:
+          node_image: kindest/node:${{ matrix.k8s }}
+      - name: Install cluster prerequisites
+        # cert-manager (webhook cert-manager mode) and the Flux
+        # source-controller CRDs (ExternalArtifact, the artifact type
+        # both controllers integrate with) must exist before a chart
+        # installs cleanly.
+        run: |
+          kubectl apply -f https://github.com/cert-manager/cert-manager/releases/latest/download/cert-manager.yaml
+          kubectl -n cert-manager rollout status deploy/cert-manager-webhook --timeout=300s
+          kubectl apply -f https://github.com/fluxcd/source-controller/releases/latest/download/source-controller.crds.yaml
+      - name: ct install (changed charts)
+        run: ct install --config ct.yaml
+
+  yaml:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Lint YAML (yamllint)
+        run: pipx install yamllint && yamllint .
+  github-actions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Lint workflows (actionlint)
+        uses: reviewdog/action-actionlint@v1
+  markdown:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Lint Markdown (markdownlint)
+        uses: DavidAnson/markdownlint-cli2-action@v20
+        with:
+          globs: "**/*.md"
+  typos:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Spell check (typos)
+        uses: crate-ci/typos@v1

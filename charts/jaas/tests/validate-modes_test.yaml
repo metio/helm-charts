@@ -1,0 +1,40 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+suite: test OCI-mount vs Flux mutual exclusion
+templates:
+  - templates/validate-modes.yaml
+tests:
+  - it: allows the standalone renderer with OCI snippet/library mounts
+    set:
+      operator.enabled: false
+      snippets:
+        dashboards: ghcr.io/metio/joi-grafana-grafonnet:v11.4.0
+      additionalLibraries:
+        grafonnet: ghcr.io/metio/joi-grafana-grafonnet:v11.4.0
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: allows Flux mode with no OCI mounts
+    set:
+      operator.enabled: true
+      operator.defaultServiceAccount: default
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: rejects Flux mode combined with snippet OCI mounts
+    set:
+      operator.enabled: true
+      operator.defaultServiceAccount: default
+      snippets:
+        dashboards: ghcr.io/metio/joi-grafana-grafonnet:v11.4.0
+    asserts:
+      - failedTemplate:
+          errorMessage: "operator.enabled (Flux integration) is mutually exclusive with static OCI volume mounts. Either clear `snippets` and `additionalLibraries` (Flux mode: snippets/libraries come from CRs), or set operator.enabled=false (standalone renderer: use the OCI mounts)."
+  - it: rejects Flux mode combined with library OCI mounts
+    set:
+      operator.enabled: true
+      operator.defaultServiceAccount: default
+      additionalLibraries:
+        grafonnet: ghcr.io/metio/joi-grafana-grafonnet:v11.4.0
+    asserts:
+      - failedTemplate: {}

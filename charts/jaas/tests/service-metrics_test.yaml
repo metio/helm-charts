@@ -1,0 +1,62 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+suite: test jaas metrics service
+templates:
+  - service-metrics.yaml
+tests:
+  - it: is empty when operator is disabled
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: is empty when operator is enabled but metrics are disabled
+    set:
+      operator:
+        enabled: true
+        metrics:
+          enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders when operator and metrics are enabled
+    set:
+      operator:
+        enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Service
+      - equal:
+          path: metadata.name
+          value: jaas-metrics
+
+  - it: exposes the metrics port pointed at the named container port
+    set:
+      operator:
+        enabled: true
+      ports:
+        metrics: 9090
+    asserts:
+      - equal:
+          path: spec.ports[0].port
+          value: 9090
+      - equal:
+          path: spec.ports[0].targetPort
+          value: metrics
+      - equal:
+          path: spec.ports[0].name
+          value: metrics
+
+  - it: selects the jaas pod
+    set:
+      operator:
+        enabled: true
+    asserts:
+      - equal:
+          path: spec.selector["app.kubernetes.io/component"]
+          value: jaas
+      - notExists:
+          path: spec.selector["app.kubernetes.io/managed-by"]

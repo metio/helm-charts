@@ -1,0 +1,33 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+{{- if .Values.networkPolicy.enabled }}
+# Allows ingress to the webhook (apiserver admission), metrics (Prometheus), and
+# gate (Flagger) ports. Inert without a NetworkPolicy controller; with one,
+# anything not listed is denied.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "stageset.name" . }}
+  namespace: {{ include "stageset.namespace" . }}
+  labels:
+    {{- include "stageset.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "stageset.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        {{- if .Values.webhook.enabled }}
+        - port: webhook
+          protocol: TCP
+        {{- end }}
+        - port: metrics
+          protocol: TCP
+        {{- if .Values.gate.enabled }}
+        - port: gate
+          protocol: TCP
+        {{- end }}
+{{- end }}

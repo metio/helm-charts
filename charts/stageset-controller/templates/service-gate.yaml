@@ -1,0 +1,24 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+{{- if .Values.gate.enabled }}
+# Exposes the read-only Flagger stage-gate endpoint
+# (GET /gate/{namespace}/{stageset}/{stage}) so a Flagger Canary webhook can
+# reach it.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "stageset.name" . }}-gate
+  namespace: {{ include "stageset.namespace" . }}
+  labels:
+    {{- include "stageset.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "stageset.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: gate
+      port: {{ .Values.ports.gate }}
+      targetPort: gate
+      protocol: TCP
+{{- end }}

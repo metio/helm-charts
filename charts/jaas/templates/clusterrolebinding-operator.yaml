@@ -1,0 +1,32 @@
+{{- /*
+SPDX-FileCopyrightText: The helm-charts Authors
+SPDX-License-Identifier: 0BSD
+*/ -}}
+{{- if and .Values.operator.enabled .Values.operator.rbac.create -}}
+{{- if not .Values.operator.watchNamespaces }}
+# Cluster-wide tenants binding: rendered ONLY when
+# operator.watchNamespaces is empty (the default). When the operator
+# is scoped to a namespace list, per-namespace RoleBindings are
+# rendered instead — see rolebinding-operator-tenants.yaml.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ .Release.Name }}-operator-tenants
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/component: operator
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+    app.kubernetes.io/part-of: {{ .Chart.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ .Release.Name }}-operator-tenants
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.operator.serviceAccount.name }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}
+{{- end }}

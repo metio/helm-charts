@@ -1,0 +1,74 @@
+{{- /*
+SPDX-FileCopyrightText: The helm-charts Authors
+SPDX-License-Identifier: 0BSD
+*/ -}}
+{{- if and .Values.operator.enabled .Values.operator.webhook.enabled -}}
+{{- /* Preflight: when the webhook is enabled, the cluster needs a way
+       to trust the operator's TLS — either cert-manager injects the
+       caBundle via annotation, OR the operator runs in self-signed
+       mode and patches the VWC at boot. If neither, the rendered
+       webhook would be unreachable (no caBundle, no patcher) and the
+       apiserver would 503 every admission call. Fail-fast at render
+       time instead of letting that surface as a mysterious cluster
+       outage later. */ -}}
+{{- if and (ne .Values.operator.webhook.certMode "cert-manager") (ne .Values.operator.webhook.certMode "self-signed") -}}
+{{- fail (printf "operator.webhook.certMode must be 'cert-manager' or 'self-signed', got %q" .Values.operator.webhook.certMode) -}}
+{{- end -}}
+{{- if and (eq .Values.operator.webhook.certMode "cert-manager") (not .Values.operator.webhook.certManager.enabled) -}}
+{{- fail "operator.webhook.enabled=true with certMode=cert-manager requires operator.webhook.certManager.enabled=true (or switch to certMode=self-signed)" -}}
+{{- end -}}
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: {{ .Release.Name }}-jsonnetsnippet
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/component: webhook
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+    app.kubernetes.io/part-of: {{ .Chart.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+  {{- if and (eq .Values.operator.webhook.certMode "cert-manager") .Values.operator.webhook.certManager.enabled }}
+  # cert-manager injects the CA bundle from the named Certificate's Secret.
+  # Skipped in self-signed mode — the operator patches caBundle at boot.
+  annotations:
+    cert-manager.io/inject-ca-from: "{{ .Release.Namespace }}/{{ .Release.Name }}-webhook"
+  {{- end }}
+webhooks:
+  - name: vjsonnetsnippet.jaas.metio.wtf
+    admissionReviewVersions:
+      - v1
+    sideEffects: {{ .Values.operator.webhook.sideEffects }}
+    failurePolicy: {{ .Values.operator.webhook.failurePolicy }}
+    timeoutSeconds: 10
+    clientConfig:
+      service:
+        name: jaas-webhook
+        namespace: {{ .Release.Namespace }}
+        path: /validate-jaas-metio-wtf-v1-jsonnetsnippet
+        port: 443
+    rules:
+      - apiGroups:
+          - jaas.metio.wtf
+        apiVersions:
+          - v1
+        resources:
+          - jsonnetsnippets
+        operations:
+          - CREATE
+          - UPDATE
+        scope: Namespaced
+    {{- with .Values.operator.webhook.objectSelector }}
+    objectSelector:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- with .Values.operator.webhook.namespaceSelector }}
+    namespaceSelector:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- with .Values.operator.webhook.matchConditions }}
+    matchConditions:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+{{- end }}

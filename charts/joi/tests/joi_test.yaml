@@ -1,0 +1,118 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+suite: test joi OCIRepository + JsonnetLibrary rendering
+templates:
+  - templates/ocirepository.yaml
+  - templates/jsonnetlibrary.yaml
+tests:
+  - it: renders an OCIRepository per enabled library with the oci:// url and tag
+    template: templates/ocirepository.yaml
+    documentSelector:
+      path: metadata.name
+      value: grafonnet
+    asserts:
+      - equal:
+          path: kind
+          value: OCIRepository
+      - equal:
+          path: spec.url
+          value: oci://ghcr.io/metio/joi-grafana-grafonnet
+      - equal:
+          path: spec.ref.tag
+          value: latest
+      - notExists:
+          path: spec.secretRef
+  - it: renders a JsonnetLibrary per enabled library sourcing the matching OCIRepository
+    template: templates/jsonnetlibrary.yaml
+    documentSelector:
+      path: metadata.name
+      value: xtd
+    asserts:
+      - equal:
+          path: kind
+          value: JsonnetLibrary
+      - equal:
+          path: spec.sourceRef.kind
+          value: OCIRepository
+      - equal:
+          path: spec.sourceRef.name
+          value: xtd
+      - notExists:
+          path: spec.sourceRef.path  # empty path -> whole vendor tree exposed
+  - it: sets sourceRef.path only when a library narrows it
+    template: templates/jsonnetlibrary.yaml
+    set:
+      libraries.xtd.path: github.com/jsonnet-libs/xtd
+    documentSelector:
+      path: metadata.name
+      value: xtd
+    asserts:
+      - equal:
+          path: spec.sourceRef.path
+          value: github.com/jsonnet-libs/xtd
+  - it: rewrites the registry host to the mirror when set
+    template: templates/ocirepository.yaml
+    set:
+      registryMirror: registry.internal:5000
+    documentSelector:
+      path: metadata.name
+      value: grafonnet
+    asserts:
+      - equal:
+          path: spec.url
+          value: oci://registry.internal:5000/metio/joi-grafana-grafonnet
+  - it: sets secretRef when an imagePullSecret is configured
+    template: templates/ocirepository.yaml
+    set:
+      imagePullSecret: mirror-creds
+    documentSelector:
+      path: metadata.name
+      value: docsonnet
+    asserts:
+      - equal:
+          path: spec.secretRef.name
+          value: mirror-creds
+  - it: renders only the curated default-enabled libraries
+    template: templates/ocirepository.yaml
+    asserts:
+      # grafonnet, xtd, docsonnet, k8s-libsonnet are enabled by default; the
+      # other ~97 ship disabled.
+      - hasDocuments:
+          count: 4
+  - it: renders a disabled library once it is enabled
+    template: templates/ocirepository.yaml
+    set:
+      libraries.cilium-libsonnet.enabled: true
+    documentSelector:
+      path: metadata.name
+      value: cilium-libsonnet
+    asserts:
+      - equal:
+          path: spec.url
+          value: oci://ghcr.io/metio/joi-jsonnet-libs-cilium-libsonnet
+  - it: auto-renders a library's dependency closure
+    template: templates/ocirepository.yaml
+    set:
+      # cilium (disabled by default) enabled with a dep on argo-cd (also disabled);
+      # both must render via the effective-set expansion.
+      libraries.cilium-libsonnet.enabled: true
+      libraries.cilium-libsonnet.closure:
+        - argo-cd-libsonnet
+    documentSelector:
+      path: metadata.name
+      value: argo-cd-libsonnet
+    asserts:
+      - equal:
+          path: spec.url
+          value: oci://ghcr.io/metio/joi-jsonnet-libs-argo-cd-libsonnet
+  - it: honors a namespace override on both kinds
+    template: templates/jsonnetlibrary.yaml
+    set:
+      namespace: platform
+    documentSelector:
+      path: metadata.name
+      value: docsonnet
+    asserts:
+      - equal:
+          path: metadata.namespace
+          value: platform

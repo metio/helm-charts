@@ -1,0 +1,9 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+# RWX-PVC rollback store.
+rollbackStore:
+  backend: pvc
+  pvc:
+    accessModes:
+      - ReadWriteMany
+    size: 2Gi

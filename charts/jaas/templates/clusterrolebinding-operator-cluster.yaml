@@ -1,0 +1,29 @@
+{{- /*
+SPDX-FileCopyrightText: The helm-charts Authors
+SPDX-License-Identifier: 0BSD
+*/ -}}
+{{- if and .Values.operator.enabled .Values.operator.rbac.create -}}
+# Binds the cluster-scope verbs (CRDs + optional VWC) to the operator
+# SA. Always rendered — these resources are inherently cluster-scoped
+# and cannot be granted via a per-namespace RoleBinding.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ .Release.Name }}-operator-cluster
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/component: operator
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+    app.kubernetes.io/part-of: {{ .Chart.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ .Release.Name }}-operator-cluster
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.operator.serviceAccount.name }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}

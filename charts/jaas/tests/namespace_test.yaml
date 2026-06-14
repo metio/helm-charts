@@ -1,0 +1,108 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+suite: test jaas namespace
+templates:
+  - namespace.yaml
+tests:
+  - it: is empty when namespace.create is false (default)
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders the install namespace when enabled
+    release:
+      namespace: jaas-system
+    set:
+      namespace:
+        create: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Namespace
+      - equal:
+          path: metadata.name
+          value: jaas-system
+
+  - it: defaults to PSS restricted on all three modes
+    set:
+      namespace:
+        create: true
+    asserts:
+      - equal:
+          path: metadata.labels["pod-security.kubernetes.io/enforce"]
+          value: restricted
+      - equal:
+          path: metadata.labels["pod-security.kubernetes.io/audit"]
+          value: restricted
+      - equal:
+          path: metadata.labels["pod-security.kubernetes.io/warn"]
+          value: restricted
+
+  - it: defaults the PSS version to "latest"
+    set:
+      namespace:
+        create: true
+    asserts:
+      - equal:
+          path: metadata.labels["pod-security.kubernetes.io/enforce-version"]
+          value: latest
+      - equal:
+          path: metadata.labels["pod-security.kubernetes.io/audit-version"]
+          value: latest
+      - equal:
+          path: metadata.labels["pod-security.kubernetes.io/warn-version"]
+          value: latest
+
+  - it: downgrade to baseline for older clusters
+    set:
+      namespace:
+        create: true
+        podSecurity:
+          enforce: baseline
+          enforceVersion: v1.32
+          audit: baseline
+          auditVersion: v1.32
+          warn: baseline
+          warnVersion: v1.32
+    asserts:
+      - equal:
+          path: metadata.labels["pod-security.kubernetes.io/enforce"]
+          value: baseline
+      - equal:
+          path: metadata.labels["pod-security.kubernetes.io/enforce-version"]
+          value: v1.32
+
+  - it: honors additionalLabels and annotations
+    set:
+      namespace:
+        create: true
+        additionalLabels:
+          team: platform
+        annotations:
+          owner: jaas-team
+    asserts:
+      - equal:
+          path: metadata.labels.team
+          value: platform
+      - equal:
+          path: metadata.annotations.owner
+          value: jaas-team
+
+  - it: stamps the chart's standard labels
+    release:
+      name: my-jaas
+    set:
+      namespace:
+        create: true
+    asserts:
+      - equal:
+          path: metadata.labels["app.kubernetes.io/name"]
+          value: jaas
+      - equal:
+          path: metadata.labels["app.kubernetes.io/instance"]
+          value: my-jaas
+      - equal:
+          path: metadata.labels["app.kubernetes.io/managed-by"]
+          value: Helm

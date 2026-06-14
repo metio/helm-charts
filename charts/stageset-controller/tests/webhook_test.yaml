@@ -1,0 +1,67 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+suite: test stageset webhook
+templates:
+  - templates/validatingwebhookconfiguration.yaml
+  - templates/certificate-webhook.yaml
+  - templates/service-webhook.yaml
+tests:
+  - it: renders no webhook objects when the webhook is disabled
+    set:
+      webhook.enabled: false
+    template: templates/validatingwebhookconfiguration.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: targets stagesets on CREATE and UPDATE
+    template: templates/validatingwebhookconfiguration.yaml
+    asserts:
+      - equal:
+          path: webhooks[0].rules[0].resources
+          value: [stagesets]
+      - equal:
+          path: webhooks[0].rules[0].operations
+          value: [CREATE, UPDATE]
+      - equal:
+          path: webhooks[0].clientConfig.service.path
+          value: /validate-stages-metio-wtf-v1-stageset
+  - it: does not carry a cert-manager CA-injection annotation in self-signed mode
+    template: templates/validatingwebhookconfiguration.yaml
+    asserts:
+      - notExists:
+          path: metadata.annotations["cert-manager.io/inject-ca-from"]
+  - it: adds the CA-injection annotation in cert-manager mode
+    set:
+      webhook.certMode: cert-manager
+      webhook.certManager.issuerRef.name: my-issuer
+    release:
+      namespace: stageset-system
+    template: templates/validatingwebhookconfiguration.yaml
+    asserts:
+      - equal:
+          path: metadata.annotations["cert-manager.io/inject-ca-from"]
+          value: stageset-system/stageset-controller-webhook-cert
+  - it: renders no Certificate in self-signed mode
+    template: templates/certificate-webhook.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: renders a Certificate in cert-manager mode and requires an issuer
+    set:
+      webhook.certMode: cert-manager
+      webhook.certManager.issuerRef.name: my-issuer
+    template: templates/certificate-webhook.yaml
+    asserts:
+      - equal:
+          path: spec.issuerRef.name
+          value: my-issuer
+      - equal:
+          path: spec.secretName
+          value: stageset-controller-webhook-cert
+  - it: fails in cert-manager mode without an issuer name
+    set:
+      webhook.certMode: cert-manager
+    template: templates/certificate-webhook.yaml
+    asserts:
+      - failedTemplate:
+          errorMessage: webhook.certManager.issuerRef.name is required in cert-manager mode

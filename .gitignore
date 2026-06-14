@@ -1,0 +1,15 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+# ilo dev-shell args — per-machine (local filesystem paths), never shared
+.ilo.rc
+
+# helm dependency vendoring + packaging output
+charts/*/charts/
+charts/*/Chart.lock
+*.tgz
+
+# JetBrains
+.idea/
+# JetBrains module files
+*.iml

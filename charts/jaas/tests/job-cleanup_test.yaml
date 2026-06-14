@@ -1,0 +1,229 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+suite: test jaas pre-delete cleanup hook
+templates:
+  - job-cleanup.yaml
+tests:
+  - it: is empty when operator is disabled
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders all four resources when operator is enabled (defaults on)
+    set:
+      operator:
+        enabled: true
+    asserts:
+      - hasDocuments:
+          count: 4
+
+  - it: is empty when cleanupOnDelete is disabled
+    set:
+      operator:
+        enabled: true
+        cleanupOnDelete:
+          enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: ServiceAccount carries pre-delete hook annotations
+    set:
+      operator:
+        enabled: true
+    documentSelector:
+      path: kind
+      value: ServiceAccount
+    asserts:
+      - equal:
+          path: metadata.annotations["helm.sh/hook"]
+          value: pre-delete
+      - equal:
+          path: metadata.annotations["helm.sh/hook-weight"]
+          value: "-10"
+
+  - it: ClusterRole grants only what the cleanup Job needs
+    set:
+      operator:
+        enabled: true
+    documentSelector:
+      path: kind
+      value: ClusterRole
+    asserts:
+      - equal:
+          path: rules[0].apiGroups[0]
+          value: jaas.metio.wtf
+      - equal:
+          path: rules[0].resources[0]
+          value: jsonnetsnippets
+      - contains:
+          path: rules[0].verbs
+          content: delete
+      - contains:
+          path: rules[0].verbs
+          content: patch
+
+  - it: ClusterRoleBinding ties the SA to the ClusterRole
+    set:
+      operator:
+        enabled: true
+    documentSelector:
+      path: kind
+      value: ClusterRoleBinding
+    asserts:
+      - equal:
+          path: subjects[0].kind
+          value: ServiceAccount
+      - equal:
+          path: subjects[0].name
+          value: RELEASE-NAME-cleanup
+      - equal:
+          path: roleRef.kind
+          value: ClusterRole
+      - equal:
+          path: roleRef.name
+          value: RELEASE-NAME-cleanup
+
+  - it: Job carries pre-delete annotations and the cleanup ServiceAccount
+    set:
+      operator:
+        enabled: true
+    documentSelector:
+      path: kind
+      value: Job
+    asserts:
+      - equal:
+          path: metadata.annotations["helm.sh/hook"]
+          value: pre-delete
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: RELEASE-NAME-cleanup
+
+  - it: Job command bulk-deletes JsonnetSnippets and waits for finalizers
+    set:
+      operator:
+        enabled: true
+    documentSelector:
+      path: kind
+      value: Job
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "kubectl delete jsonnetsnippets.jaas.metio.wtf --all -A"
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "--wait=true"
+
+  - it: Job command has a fallback that strips finalizers on timeout
+    set:
+      operator:
+        enabled: true
+    documentSelector:
+      path: kind
+      value: Job
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "finalizers"
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "patch"
+
+  - it: Job applies activeDeadlineSeconds + backoffLimit safety caps
+    set:
+      operator:
+        enabled: true
+    documentSelector:
+      path: kind
+      value: Job
+    asserts:
+      - equal:
+          path: spec.activeDeadlineSeconds
+          value: 600
+      - equal:
+          path: spec.backoffLimit
+          value: 2
+
+  - it: honors a custom kubectl image
+    set:
+      operator:
+        enabled: true
+        cleanupOnDelete:
+          image:
+            registry: quay.io
+            repository: my-org/kubectl
+            tag: v1.32.0
+            pullPolicy: Always
+    documentSelector:
+      path: kind
+      value: Job
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: quay.io/my-org/kubectl:v1.32.0
+      - equal:
+          path: spec.template.spec.containers[0].imagePullPolicy
+          value: Always
+
+  - it: honors a custom timeout
+    set:
+      operator:
+        enabled: true
+        cleanupOnDelete:
+          kubectlTimeout: 5m
+    documentSelector:
+      path: kind
+      value: Job
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "--timeout=5m"
+
+  - it: pod-level securityContext is PSS-restricted compliant
+    set:
+      operator:
+        enabled: true
+    documentSelector:
+      path: kind
+      value: Job
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: RuntimeDefault
+
+  - it: container runs as non-root with read-only rootfs
+    set:
+      operator:
+        enabled: true
+    documentSelector:
+      path: kind
+      value: Job
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+
+  - it: forwards imagePullSecrets when set globally
+    set:
+      operator:
+        enabled: true
+      imagePullSecrets:
+        - name: my-registry-pull
+    documentSelector:
+      path: kind
+      value: Job
+    asserts:
+      - contains:
+          path: spec.template.spec.imagePullSecrets
+          content:
+            name: my-registry-pull

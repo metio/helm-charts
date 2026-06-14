@@ -1,0 +1,188 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "stageset.name" . }}
+  namespace: {{ include "stageset.namespace" . }}
+  labels:
+    {{- include "stageset.labels" . | nindent 4 }}
+    {{- with .Values.deployment.additionalLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  annotations:
+    # kube-score ignores for design-deliberate choices:
+    #   container-image-pull-policy — IfNotPresent is correct for tagged release
+    #     images; mutable-tag operators flip to Always via image.pullPolicy.
+    #   pod-networkpolicy — the chart's NetworkPolicy is opt-in via
+    #     networkPolicy.enabled (inert without a NetworkPolicy controller).
+    #   deployment-has-host-podantiaffinity — spreading is via
+    #     topologySpreadConstraints, not host podAntiAffinity.
+    #   deployment-replicas — single replica is the safe default; scale via
+    #     replicas.min.
+    #   deployment-has-poddisruptionbudget — the PDB renders only when
+    #     replicas.max > replicas.min.
+    kube-score/ignore: container-image-pull-policy,pod-networkpolicy,deployment-has-host-podantiaffinity,deployment-replicas,deployment-has-poddisruptionbudget
+spec:
+  {{- /* spec.replicas is intentionally omitted: when scaling (replicas.max >
+         replicas.min) the HPA owns the count from replicas.min; otherwise the
+         Deployment defaults to a single replica. */}}
+  revisionHistoryLimit: {{ .Values.deployment.revisionHistoryLimit }}
+  selector:
+    matchLabels:
+      {{- include "stageset.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "stageset.labels" . | nindent 8 }}
+        {{- with .Values.pod.additionalLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "stageset.name" . }}
+      terminationGracePeriodSeconds: 60
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: manager
+          image: {{ include "stageset.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - --metrics-bind-address=:{{ .Values.ports.metrics }}
+            - --health-probe-bind-address=:{{ .Values.ports.health }}
+            {{- if .Values.controller.leaderElect }}
+            - --leader-elect
+            {{- end }}
+            - --inventory-mode={{ .Values.controller.inventoryMode }}
+            - --inventory-shard-cap={{ .Values.controller.inventoryShardCap }}
+            {{- range .Values.controller.allowedActionHosts }}
+            - --allowed-action-hosts={{ . }}
+            {{- end }}
+            {{- if .Values.controller.noCrossNamespaceRefs }}
+            - --no-cross-namespace-refs
+            {{- end }}
+            {{- if .Values.controller.runbookBaseURL }}
+            - --runbook-base-url={{ .Values.controller.runbookBaseURL }}
+            {{- end }}
+            {{- if .Values.gate.enabled }}
+            - --gate-bind-address=:{{ .Values.ports.gate }}
+            {{- else }}
+            - --gate-bind-address=
+            {{- end }}
+            - --enable-webhook={{ .Values.webhook.enabled }}
+            {{- if .Values.webhook.enabled }}
+            - --webhook-cert-mode={{ .Values.webhook.certMode }}
+            - --webhook-cert-dir=/etc/webhook/certs
+            - --webhook-port={{ .Values.ports.webhook }}
+            {{- if eq .Values.webhook.certMode "self-signed" }}
+            - --webhook-cert-validity={{ .Values.webhook.certValidity }}
+            - --webhook-service-name={{ include "stageset.name" . }}-webhook
+            - --webhook-service-namespace={{ include "stageset.namespace" . }}
+            - --webhook-validating-config-name={{ include "stageset.name" . }}-{{ include "stageset.namespace" . }}
+            {{- end }}
+            {{- end }}
+            {{- if eq .Values.rollbackStore.backend "pvc" }}
+            - --rollback-store-path={{ .Values.rollbackStore.pvc.mountPath }}
+            {{- else if eq .Values.rollbackStore.backend "s3" }}
+            - --rollback-store-s3-endpoint={{ .Values.rollbackStore.s3.endpoint }}
+            - --rollback-store-s3-bucket={{ .Values.rollbackStore.s3.bucket }}
+            {{- with .Values.rollbackStore.s3.prefix }}
+            - --rollback-store-s3-prefix={{ . }}
+            {{- end }}
+            {{- with .Values.rollbackStore.s3.region }}
+            - --rollback-store-s3-region={{ . }}
+            {{- end }}
+            - --rollback-store-s3-use-ssl={{ .Values.rollbackStore.s3.useSSL }}
+            - --rollback-store-s3-anonymous={{ .Values.rollbackStore.s3.anonymous }}
+            {{- end }}
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.ports.metrics }}
+            - name: health
+              containerPort: {{ .Values.ports.health }}
+            {{- if .Values.gate.enabled }}
+            - name: gate
+              containerPort: {{ .Values.ports.gate }}
+            {{- end }}
+            {{- if .Values.webhook.enabled }}
+            - name: webhook
+              containerPort: {{ .Values.ports.webhook }}
+            {{- end }}
+          {{- if and (eq .Values.rollbackStore.backend "s3") .Values.rollbackStore.s3.existingSecret }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.rollbackStore.s3.existingSecret }}
+          {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: {{ .Values.ports.health }}
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: {{ .Values.ports.health }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            requests:
+              cpu: {{ .Values.resources.cpu }}
+              memory: {{ .Values.resources.memory }}
+              ephemeral-storage: {{ .Values.resources.ephemeralStorage }}
+            limits:
+              cpu: {{ .Values.resources.cpu }}
+              memory: {{ .Values.resources.memory }}
+              ephemeral-storage: {{ .Values.resources.ephemeralStorage }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            {{- if .Values.webhook.enabled }}
+            - name: webhook-certs
+              mountPath: /etc/webhook/certs
+              readOnly: {{ eq .Values.webhook.certMode "cert-manager" }}
+            {{- end }}
+            {{- if eq .Values.rollbackStore.backend "pvc" }}
+            - name: rollback-store
+              mountPath: {{ .Values.rollbackStore.pvc.mountPath }}
+            {{- end }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        {{- if .Values.webhook.enabled }}
+        - name: webhook-certs
+          {{- if eq .Values.webhook.certMode "cert-manager" }}
+          secret:
+            secretName: {{ include "stageset.name" . }}-webhook-cert
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        {{- end }}
+        {{- if eq .Values.rollbackStore.backend "pvc" }}
+        - name: rollback-store
+          persistentVolumeClaim:
+            claimName: {{ include "stageset.name" . }}-rollback
+        {{- end }}

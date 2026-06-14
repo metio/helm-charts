@@ -1,0 +1,31 @@
+{{- /*
+SPDX-FileCopyrightText: The helm-charts Authors
+SPDX-License-Identifier: 0BSD
+
+One Flux OCIRepository per enabled JOI image. No layerSelector is needed: each
+JOI image is a single filesystem layer (enforced by the jsonnet-oci-images CI),
+so source-controller's default "extract the first layer" yields the whole
+jsonnet tree.
+*/ -}}
+{{- range $name := splitList " " (include "joi.effectiveNames" .) }}
+{{- if $name }}
+{{- $lib := index $.Values.libraries $name }}
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: OCIRepository
+metadata:
+  name: {{ $name }}
+  namespace: {{ include "joi.namespace" $ }}
+  labels:
+    {{- include "joi.labels" $ | nindent 4 }}
+spec:
+  interval: {{ $lib.interval | default $.Values.interval }}
+  url: oci://{{ include "joi.image" (dict "image" (required (printf "libraries.%s.image is required" $name) $lib.image) "mirror" $.Values.registryMirror) }}
+  ref:
+    tag: {{ required (printf "libraries.%s.tag is required" $name) $lib.tag | quote }}
+  {{- with $.Values.imagePullSecret }}
+  secretRef:
+    name: {{ . }}
+  {{- end }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,59 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+suite: test stageset RBAC
+templates:
+  - templates/clusterrole.yaml
+  - templates/clusterrolebinding.yaml
+  - templates/role-leader-election.yaml
+  - templates/serviceaccount.yaml
+tests:
+  - it: grants impersonate, events, stagesets, and externalartifacts
+    template: templates/clusterrole.yaml
+    asserts:
+      - contains:
+          path: rules
+          content:
+            apiGroups: [""]
+            resources: [serviceaccounts]
+            verbs: [impersonate]
+      - contains:
+          path: rules
+          content:
+            apiGroups: [""]
+            resources: [events]
+            verbs: [create, patch]
+      - contains:
+          path: rules
+          content:
+            apiGroups: [source.toolkit.fluxcd.io]
+            resources: [externalartifacts]
+            verbs: [get, list, watch]
+  - it: does not grant blanket write access (apply is impersonated)
+    template: templates/clusterrole.yaml
+    asserts:
+      - notContains:
+          path: rules
+          content:
+            apiGroups: ["*"]
+            resources: ["*"]
+            verbs: ["*"]
+  - it: renders the leader-election Role only when leader election is on
+    template: templates/role-leader-election.yaml
+    set:
+      controller.leaderElect: false
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: leader-election Role grants leases in the install namespace
+    template: templates/role-leader-election.yaml
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: kind
+          value: Role
+      - contains:
+          path: rules
+          content:
+            apiGroups: [coordination.k8s.io]
+            resources: [leases]
+            verbs: [get, list, watch, create, update, patch, delete]

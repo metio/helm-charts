@@ -1,0 +1,30 @@
+{{- /*
+SPDX-FileCopyrightText: The helm-charts Authors
+SPDX-License-Identifier: 0BSD
+*/ -}}
+{{- if and .Values.operator.enabled .Values.operator.webhook.enabled (eq .Values.operator.webhook.certMode "cert-manager") .Values.operator.webhook.certManager.enabled -}}
+{{- if not .Values.operator.webhook.certManager.issuerRef.name -}}
+{{- fail "operator.webhook.certManager.issuerRef.name must be set when certMode=cert-manager" -}}
+{{- end -}}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ .Release.Name }}-webhook
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/component: webhook
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+    app.kubernetes.io/part-of: {{ .Chart.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+spec:
+  secretName: {{ .Values.operator.webhook.secretName }}
+  dnsNames:
+    - jaas-webhook.{{ .Release.Namespace }}.svc
+    - jaas-webhook.{{ .Release.Namespace }}.svc.cluster.local
+  issuerRef:
+    kind: {{ .Values.operator.webhook.certManager.issuerRef.kind }}
+    name: {{ .Values.operator.webhook.certManager.issuerRef.name }}
+{{- end }}

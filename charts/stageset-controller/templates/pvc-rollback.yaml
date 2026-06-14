@@ -1,0 +1,23 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+{{- if eq .Values.rollbackStore.backend "pvc" }}
+# Bit-exact, GC-independent rollback storage. Use an RWX access mode for HA
+# replicas (every replica reads it; the leader writes).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "stageset.name" . }}-rollback
+  namespace: {{ include "stageset.namespace" . }}
+  labels:
+    {{- include "stageset.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    {{- toYaml .Values.rollbackStore.pvc.accessModes | nindent 4 }}
+  resources:
+    requests:
+      storage: {{ .Values.rollbackStore.pvc.size }}
+  {{- with .Values.rollbackStore.pvc.storageClass }}
+  storageClassName: {{ . }}
+  {{- end }}
+{{- end }}

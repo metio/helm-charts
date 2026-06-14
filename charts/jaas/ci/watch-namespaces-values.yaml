@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+# Operator mode scoped to an explicit namespace list (RBAC pivots to
+# per-namespace RoleBindings).
+operator:
+  enabled: true
+  defaultServiceAccount: default
+  watchNamespaces:
+    - team-a
+    - team-b

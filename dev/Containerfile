@@ -1,0 +1,77 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+# A chart-authoring toolbox: helm + the lint/test/release tooling the CI gates
+# run. No Go build toolchain — charts reference images built in the source
+# repos, they don't compile anything. Debian base keeps curl/git/jq/python
+# (for yamllint) available without extra fuss.
+FROM docker.io/library/debian:trixie-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ca-certificates curl git jq bash \
+        python3 python3-pip pipx \
+        reuse \
+    && rm -rf /var/lib/apt/lists/*
+
+# Pin tool versions so a rebuild is reproducible; bump by hand.
+ARG HELM_VERSION=3.21.0
+ARG HELM_UNITTEST_VERSION=1.0.3
+ARG CT_VERSION=3.14.0
+ARG KUBE_SCORE_VERSION=1.20.0
+ARG KUBECONFORM_VERSION=0.7.0
+ARG COSIGN_VERSION=2.6.0
+ARG GIT_CLIFF_VERSION=2.10.1
+ARG GO_HELM_SCHEMA_VERSION=0.23.4
+
+# helm + the helm-unittest plugin (per-template assertions + snapshots).
+RUN curl -fsSL https://get.helm.sh/helm-v${HELM_VERSION}-linux-amd64.tar.gz | tar -xz -C /tmp \
+    && mv /tmp/linux-amd64/helm /usr/local/bin/helm \
+    && rm -rf /tmp/linux-amd64
+ENV HELM_PLUGINS=/usr/local/share/helm/plugins
+RUN mkdir -p ${HELM_PLUGINS} \
+    && chmod -R a+rwX ${HELM_PLUGINS} \
+    && helm plugin install https://github.com/helm-unittest/helm-unittest --version v${HELM_UNITTEST_VERSION} \
+    && chmod -R a+rX ${HELM_PLUGINS}
+
+# chart-testing (ct): lint + install gate, detects changed charts via git diff.
+RUN curl -fsSL https://github.com/helm/chart-testing/releases/download/v${CT_VERSION}/chart-testing_${CT_VERSION}_linux_amd64.tar.gz | tar -xz -C /tmp \
+    && mv /tmp/ct /usr/local/bin/ct \
+    && mkdir -p /etc/ct \
+    && mv /tmp/etc/* /etc/ct/ 2>/dev/null || true
+
+# kube-score: static analysis on rendered manifests (CRITICAL fails CI).
+RUN curl -fsSL https://github.com/zegl/kube-score/releases/download/v${KUBE_SCORE_VERSION}/kube-score_${KUBE_SCORE_VERSION}_linux_amd64.tar.gz \
+    | tar -xz -C /usr/local/bin kube-score
+
+# kubeconform: validate rendered manifests (incl. CRDs) against k8s schemas.
+RUN curl -fsSL https://github.com/yannh/kubeconform/releases/download/v${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz \
+    | tar -xz -C /usr/local/bin kubeconform
+
+# cosign: keyless signing + verification of pushed OCI charts.
+RUN curl -fsSL -o /usr/local/bin/cosign https://github.com/sigstore/cosign/releases/download/v${COSIGN_VERSION}/cosign-linux-amd64 \
+    && chmod +x /usr/local/bin/cosign
+
+# git-cliff: per-chart, path-scoped release-notes generation.
+RUN curl -fsSL https://github.com/orhun/git-cliff/releases/download/v${GIT_CLIFF_VERSION}/git-cliff-${GIT_CLIFF_VERSION}-x86_64-unknown-linux-gnu.tar.gz | tar -xz -C /tmp \
+    && mv /tmp/git-cliff-${GIT_CLIFF_VERSION}/git-cliff /usr/local/bin/git-cliff \
+    && rm -rf /tmp/git-cliff-${GIT_CLIFF_VERSION}
+
+# helm-schema (dadav/helm-schema): regenerate values.schema.json from the
+# `# @schema` annotations in values.yaml. The drift gate fails on any diff.
+# Regenerate via: ilo bash -c 'helm-schema -c charts/<name> -k additionalProperties'
+# dadav/helm-schema release tags carry no `v` prefix (e.g. 0.23.4).
+RUN curl -fsSL https://github.com/dadav/helm-schema/releases/download/${GO_HELM_SCHEMA_VERSION}/helm-schema_${GO_HELM_SCHEMA_VERSION}_Linux_x86_64.tar.gz | tar -xz -C /usr/local/bin helm-schema
+
+# yamllint + yamale via pipx so they land on PATH. chart-testing shells out to
+# both during `ct lint` (yamllint on Chart.yaml/values, yamale to validate the
+# Chart.yaml schema); the hosted chart-testing-action bundles them, the dev
+# shell must provide them too.
+ENV PIPX_BIN_DIR=/usr/local/bin
+RUN pipx install --global yamllint \
+    && pipx install --global yamale
+
+# typos: spell-checker, distributed as a static binary. markdownlint runs in
+# CI via its Node action rather than bloating this image with a Node toolchain.
+ARG TYPOS_VERSION=1.30.2
+RUN curl -fsSL https://github.com/crate-ci/typos/releases/download/v${TYPOS_VERSION}/typos-v${TYPOS_VERSION}-x86_64-unknown-linux-musl.tar.gz | tar -xz -C /usr/local/bin ./typos \
+    && chmod +x /usr/local/bin/typos

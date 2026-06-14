@@ -1,0 +1,29 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+apiVersion: v2
+name: stageset-controller
+description: A Flux-compatible controller for ordered, gated, multi-stage deployments.
+type: application
+home: https://github.com/metio/flux-stageset-controller
+sources:
+  - https://github.com/metio/flux-stageset-controller
+  - https://github.com/metio/helm-charts
+keywords:
+  - flux
+  - gitops
+  - progressive-delivery
+  - deployment
+maintainers:
+  # name must be the GitHub login — chart-testing's validate-maintainers checks
+  # it against the GitHub users API.
+  - name: sebhoss
+    url: https://github.com/sebhoss
+# version is the chart's own version; the release pipeline rewrites this
+# placeholder to a calendar+time value (%Y.%-m.%-d+%H%M%S) at package time.
+version: 0.0.0
+# appVersion is the ghcr.io/metio/stageset-controller image this chart deploys;
+# Renovate bumps it (and .github/workflows/bump.yml re-vendors the matching CRDs).
+# image.tag defaults to this value.
+# renovate: image=ghcr.io/metio/stageset-controller
+appVersion: "0.0.0"

@@ -1,0 +1,412 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+suite: test jaas PrometheusRule
+templates:
+  - prometheusrule-operator.yaml
+tests:
+  - it: is empty when operator is disabled
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: is empty when PrometheusRule is disabled (default)
+    set:
+      operator:
+        enabled: true
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: is empty when metrics are off, even if PrometheusRule is on
+    set:
+      operator:
+        enabled: true
+        metrics:
+          enabled: false
+          prometheusRule:
+            enabled: true
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders when operator, metrics, and PrometheusRule are all enabled
+    set:
+      operator:
+        enabled: true
+        metrics:
+          prometheusRule:
+            enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: PrometheusRule
+      - equal:
+          path: metadata.name
+          value: jaas-operator
+
+  - it: namespace-scoped to the release namespace
+    release:
+      namespace: jaas-prod
+    set:
+      operator:
+        enabled: true
+        metrics:
+          prometheusRule:
+            enabled: true
+    asserts:
+      - equal:
+          path: metadata.namespace
+          value: jaas-prod
+
+  - it: groups carry the configured evaluation interval
+    set:
+      operator:
+        enabled: true
+        metrics:
+          prometheusRule:
+            enabled: true
+            interval: 1m
+    asserts:
+      - equal:
+          path: spec.groups[0].interval
+          value: 1m
+      - equal:
+          path: spec.groups[1].interval
+          value: 1m
+
+  - it: surfaces every alert defined by the chart
+    set:
+      operator:
+        enabled: true
+        metrics:
+          prometheusRule:
+            enabled: true
+    asserts:
+      - contains:
+          path: spec.groups[0].rules
+          content:
+            alert: JaaSSnippetReconcileErrorsHigh
+          any: true
+      - contains:
+          path: spec.groups[0].rules
+          content:
+            alert: JaaSSnippetArtifactGrowing
+          any: true
+      - contains:
+          path: spec.groups[1].rules
+          content:
+            alert: JaaSControllerWorkqueueDepthHigh
+          any: true
+      - contains:
+          path: spec.groups[1].rules
+          content:
+            alert: JaaSReconcileLatencyHigh
+          any: true
+      - contains:
+          path: spec.groups[1].rules
+          content:
+            alert: JaaSOperatorPodDown
+          any: true
+      - contains:
+          path: spec.groups[1].rules
+          content:
+            alert: JaaSStorageSweepFailures
+          any: true
+      - contains:
+          path: spec.groups[1].rules
+          content:
+            alert: JaaSEvalSaturation
+          any: true
+      - contains:
+          path: spec.groups[1].rules
+          content:
+            alert: JaaSEvalRejected
+          any: true
+      - contains:
+          path: spec.groups[1].rules
+          content:
+            alert: JaaSEvalLeakedGoroutines
+          any: true
+      - contains:
+          path: spec.groups[1].rules
+          content:
+            alert: JaaSWebhookCertRenewalFailing
+          any: true
+      - contains:
+          path: spec.groups[1].rules
+          content:
+            alert: JaaSTenantTokenMintFailing
+          any: true
+      - contains:
+          path: spec.groups[1].rules
+          content:
+            alert: JaaSCRDWatchEngagementFailing
+          any: true
+      - contains:
+          path: spec.groups[1].rules
+          content:
+            alert: JaaSForceDropsAccumulating
+          any: true
+
+  - it: reconcile-errors alert excludes happy reasons (Suspended, Pending, Synced)
+    set:
+      operator:
+        enabled: true
+        metrics:
+          prometheusRule:
+            enabled: true
+    asserts:
+      # paging on Suspended drove on-call to runbooks that read
+      # "this is normal". The reason filter must explicitly exclude
+      # the operator/reconciler.go happyReasonsNoRunbook set.
+      - matchRegex:
+          path: spec.groups[0].rules[0].expr
+          pattern: 'reason!~"Synced\|Suspended\|Pending"'
+
+  - it: eval-saturation alerts honor runbookBaseURL
+    set:
+      operator:
+        enabled: true
+        metrics:
+          prometheusRule:
+            enabled: true
+            runbookBaseURL: https://internal.example.com/runbooks/
+    asserts:
+      - matchRegex:
+          path: spec.groups[1].rules[8].annotations.runbook_url
+          pattern: 'https://internal\.example\.com/runbooks/eval-saturation\.md$'
+      - matchRegex:
+          path: spec.groups[1].rules[9].annotations.runbook_url
+          pattern: 'https://internal\.example\.com/runbooks/eval-saturation\.md$'
+
+  - it: applies extra labels and annotations to the PrometheusRule object
+    set:
+      operator:
+        enabled: true
+        metrics:
+          prometheusRule:
+            enabled: true
+            labels:
+              release: kube-prom
+            annotations:
+              owner: platform
+    asserts:
+      - equal:
+          path: metadata.labels.release
+          value: kube-prom
+      - equal:
+          path: metadata.annotations.owner
+          value: platform
+
+  - it: merges extraAlertLabels onto every alert
+    set:
+      operator:
+        enabled: true
+        metrics:
+          prometheusRule:
+            enabled: true
+            extraAlertLabels:
+              team: platform
+              tier: prod
+    asserts:
+      - equal:
+          path: spec.groups[0].rules[0].labels.team
+          value: platform
+      - equal:
+          path: spec.groups[0].rules[0].labels.tier
+          value: prod
+      - equal:
+          path: spec.groups[1].rules[2].labels.team
+          value: platform
+
+  - it: every alert carries a runbook_url annotation by default
+    set:
+      operator:
+        enabled: true
+        metrics:
+          prometheusRule:
+            enabled: true
+    asserts:
+      # The reconcile-errors alert templates its URL on $labels.reason,
+      # so the rendered annotation contains the Prometheus expansion
+      # marker rather than a fixed filename.
+      - matchRegex:
+          path: spec.groups[0].rules[0].annotations.runbook_url
+          pattern: 'docs/runbooks/\{\{ \$labels\.reason \| toLower \}\}\.md$'
+      - equal:
+          path: spec.groups[0].rules[1].annotations.runbook_url
+          value: https://github.com/metio/jaas/blob/main/docs/runbooks/artifacttoolarge.md
+      - equal:
+          path: spec.groups[1].rules[0].annotations.runbook_url
+          value: https://github.com/metio/jaas/blob/main/docs/runbooks/workqueue-saturation.md
+      - equal:
+          path: spec.groups[1].rules[1].annotations.runbook_url
+          value: https://github.com/metio/jaas/blob/main/docs/runbooks/reconcile-latency.md
+      - equal:
+          path: spec.groups[1].rules[2].annotations.runbook_url
+          value: https://github.com/metio/jaas/blob/main/docs/runbooks/operator-pod-down.md
+
+  - it: runbookBaseURL prefixes every per-alert runbook annotation
+    set:
+      operator:
+        enabled: true
+        metrics:
+          prometheusRule:
+            enabled: true
+            runbookBaseURL: https://internal.example.com/runbooks/
+    asserts:
+      - matchRegex:
+          path: spec.groups[0].rules[0].annotations.runbook_url
+          pattern: ^https://internal\.example\.com/runbooks/
+      - equal:
+          path: spec.groups[0].rules[1].annotations.runbook_url
+          value: https://internal.example.com/runbooks/artifacttoolarge.md
+      - equal:
+          path: spec.groups[1].rules[2].annotations.runbook_url
+          value: https://internal.example.com/runbooks/operator-pod-down.md
+
+  - it: runbookAnnotationKey moves the URL onto a custom annotation key
+    set:
+      operator:
+        enabled: true
+        metrics:
+          prometheusRule:
+            enabled: true
+            runbookAnnotationKey: runbook
+    asserts:
+      # The custom key carries the URL.
+      - equal:
+          path: spec.groups[0].rules[1].annotations.runbook
+          value: https://github.com/metio/jaas/blob/main/docs/runbooks/artifacttoolarge.md
+      - equal:
+          path: spec.groups[1].rules[1].annotations.runbook
+          value: https://github.com/metio/jaas/blob/main/docs/runbooks/reconcile-latency.md
+      # And the default key is gone — only one runbook annotation
+      # per alert, matching the operator's chosen convention.
+      - notExists:
+          path: spec.groups[0].rules[1].annotations.runbook_url
+      - notExists:
+          path: spec.groups[1].rules[1].annotations.runbook_url
+
+  - it: threshold knobs land in the rule expressions
+    set:
+      operator:
+        enabled: true
+        metrics:
+          prometheusRule:
+            enabled: true
+            thresholds:
+              reconcileErrorRate: 0.5
+              artifactSizeBytes: 8388608
+              workqueueDepth: 100
+              reconcileLatencySeconds: 60
+    asserts:
+      - matchRegex:
+          path: spec.groups[0].rules[0].expr
+          pattern: '> 0\.5'
+      - matchRegex:
+          path: spec.groups[0].rules[1].expr
+          pattern: '> 8388608'
+      - matchRegex:
+          path: spec.groups[1].rules[0].expr
+          pattern: '> 100'
+      - matchRegex:
+          path: spec.groups[1].rules[1].expr
+          pattern: '> 60'
+
+  - it: PodDown alert pins to the release namespace
+    release:
+      namespace: jaas-prod
+    set:
+      operator:
+        enabled: true
+        metrics:
+          prometheusRule:
+            enabled: true
+    asserts:
+      - matchRegex:
+          path: spec.groups[1].rules[2].expr
+          pattern: 'namespace="jaas-prod"'
+
+  - it: extraRules default empty — no jaas-operator-extras group rendered
+    set:
+      operator:
+        enabled: true
+        metrics:
+          prometheusRule:
+            enabled: true
+    asserts:
+      # Only the two built-in groups (health + availability) exist.
+      - lengthEqual:
+          path: spec.groups
+          count: 2
+
+  - it: extraRules appends a jaas-operator-extras group with the user rules
+    set:
+      operator:
+        enabled: true
+        metrics:
+          prometheusRule:
+            enabled: true
+            extraRules:
+              - alert: JaaSManySnippetsDown
+                expr: count(jaas_snippet_reconcile_total{status="False"}) > 10
+                for: 5m
+                labels:
+                  severity: critical
+                  team: platform
+                annotations:
+                  summary: '>10 snippets failing across all namespaces'
+    asserts:
+      - lengthEqual:
+          path: spec.groups
+          count: 3
+      - equal:
+          path: spec.groups[2].name
+          value: jaas-operator-extras
+      - equal:
+          path: spec.groups[2].rules[0].alert
+          value: JaaSManySnippetsDown
+      - equal:
+          path: spec.groups[2].rules[0].labels.severity
+          value: critical
+
+  - it: extras group honors the configured evaluation interval
+    set:
+      operator:
+        enabled: true
+        metrics:
+          prometheusRule:
+            enabled: true
+            interval: 2m
+            extraRules:
+              - alert: TestAlert
+                expr: vector(1)
+    asserts:
+      - equal:
+          path: spec.groups[2].interval
+          value: 2m
+
+  - it: durations are configurable per-alert
+    set:
+      operator:
+        enabled: true
+        metrics:
+          prometheusRule:
+            enabled: true
+            thresholds:
+              reconcileErrorDuration: 30m
+              workqueueDuration: 5m
+              podDownDuration: 2m
+    asserts:
+      - equal:
+          path: spec.groups[0].rules[0].for
+          value: 30m
+      - equal:
+          path: spec.groups[1].rules[0].for
+          value: 5m
+      - equal:
+          path: spec.groups[1].rules[2].for
+          value: 2m

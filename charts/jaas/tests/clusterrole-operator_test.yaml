@@ -1,0 +1,207 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+suite: test jaas operator tenants clusterrole
+templates:
+  - clusterrole-operator.yaml
+tests:
+  - it: is empty when operator is disabled
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders when operator is enabled
+    set:
+      operator:
+        enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ClusterRole
+
+  - it: name is prefixed with the release name and tenants suffix
+    release:
+      name: my-release
+    set:
+      operator:
+        enabled: true
+    asserts:
+      - equal:
+          path: metadata.name
+          value: my-release-operator-tenants
+
+  - it: grants read+watch+update on every JaaS CRD
+    set:
+      operator:
+        enabled: true
+    asserts:
+      - contains:
+          path: rules
+          content:
+            apiGroups: ["jaas.metio.wtf"]
+            resources:
+              - jsonnetsnippets
+              - jsonnetlibraries
+            verbs: [get, list, watch, update, patch]
+
+  - it: grants status-subresource access for every JaaS CRD
+    set:
+      operator:
+        enabled: true
+    asserts:
+      - contains:
+          path: rules
+          content:
+            apiGroups: ["jaas.metio.wtf"]
+            resources:
+              - jsonnetsnippets/status
+              - jsonnetlibraries/status
+            verbs: [get, update, patch]
+
+  - it: grants finalizer updates so the reconciler can attach the finalizer
+    set:
+      operator:
+        enabled: true
+    asserts:
+      - contains:
+          path: rules
+          content:
+            apiGroups: ["jaas.metio.wtf"]
+            resources:
+              - jsonnetsnippets/finalizers
+              - jsonnetlibraries/finalizers
+            verbs: [update]
+
+  - it: can CRUD ExternalArtifact resources
+    set:
+      operator:
+        enabled: true
+    asserts:
+      - contains:
+          path: rules
+          content:
+            apiGroups: ["source.toolkit.fluxcd.io"]
+            resources: [externalartifacts]
+            verbs: [get, list, watch, create, update, patch, delete]
+
+  - it: can read Flux source CRs
+    set:
+      operator:
+        enabled: true
+    asserts:
+      - contains:
+          path: rules
+          content:
+            apiGroups: ["source.toolkit.fluxcd.io"]
+            resources: [gitrepositories, ocirepositories, buckets]
+            verbs: [get, list, watch]
+
+  - it: can mint ServiceAccount tokens for impersonation
+    set:
+      operator:
+        enabled: true
+    asserts:
+      - contains:
+          path: rules
+          content:
+            apiGroups: [""]
+            resources: ["serviceaccounts/token"]
+            verbs: [create]
+
+  - it: does not grant the broad impersonate verb (TokenRequest is enough)
+    set:
+      operator:
+        enabled: true
+    asserts:
+      - notContains:
+          path: rules
+          content:
+            apiGroups: [""]
+            resources: [users, groups, serviceaccounts]
+            verbs: [impersonate]
+
+  - it: can emit Events (for Flux notification-controller integration)
+    set:
+      operator:
+        enabled: true
+    asserts:
+      - contains:
+          path: rules
+          content:
+            apiGroups: [""]
+            resources: [events]
+            verbs: [create, patch]
+      - contains:
+          path: rules
+          content:
+            apiGroups: [events.k8s.io]
+            resources: [events]
+            verbs: [create, patch]
+
+  - it: does not grant CRD verbs (those live on operator-cluster role)
+    set:
+      operator:
+        enabled: true
+    asserts:
+      - notContains:
+          path: rules
+          content:
+            apiGroups: [apiextensions.k8s.io]
+            resources: [customresourcedefinitions]
+            verbs: [get, list, watch]
+
+  - it: does not grant VWC verbs (those live on operator-cluster role)
+    set:
+      operator:
+        enabled: true
+        webhook:
+          enabled: true
+          certMode: self-signed
+    asserts:
+      - notContains:
+          path: rules
+          content:
+            apiGroups: [admissionregistration.k8s.io]
+            resources: [validatingwebhookconfigurations]
+            verbs: [get, patch, update]
+
+  - it: carries the operator component label
+    set:
+      operator:
+        enabled: true
+    asserts:
+      - equal:
+          path: metadata.labels["app.kubernetes.io/component"]
+          value: operator
+
+  # Fetcher drift gate: internal/operator/reconciler.go's FluxSourceKinds
+  # slice enumerates every Flux source kind the reconciler's Fetcher
+  # reads via spec.sourceRef. The chart MUST grant at least `get` on
+  # every one of those kinds or the first sourceRef-based snippet's
+  # reconcile fails with Forbidden during the tenant impersonation's
+  # source-CR lookup. A future PR that adds a new kind to the Go slice
+  # without updating the chart's ClusterRole trips one of these
+  # assertions before merge. Keep the list in sync with
+  # operator.FluxSourceKinds.
+  - it: ClusterRole drift gate — chart grants read on every Fetcher source kind
+    set:
+      operator:
+        enabled: true
+    asserts:
+      - contains:
+          path: rules
+          content:
+            apiGroups: ["source.toolkit.fluxcd.io"]
+            resources: [gitrepositories, ocirepositories, buckets]
+            verbs: [get, list, watch]
+      # ExternalArtifact lives on the CRUD rule (the operator publishes
+      # AND reads it for chained-snippet sourceRefs). The verbs subset
+      # required by the Fetcher is just [get]; the CRUD rule grants
+      # the superset, so this satisfies the drift gate.
+      - contains:
+          path: rules
+          content:
+            apiGroups: ["source.toolkit.fluxcd.io"]
+            resources: [externalartifacts]
+            verbs: [get, list, watch, create, update, patch, delete]

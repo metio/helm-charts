@@ -1,0 +1,60 @@
+{{- /*
+SPDX-FileCopyrightText: The helm-charts Authors
+SPDX-License-Identifier: 0BSD
+*/ -}}
+JaaS ({{ .Release.Name }}) installed in namespace {{ .Release.Namespace }}.
+
+{{ if .Values.operator.enabled -}}
+=== Operator mode (Flux integration) ===
+
+The operator watches JsonnetSnippet and JsonnetLibrary CRs and publishes
+evaluated results as Flux ExternalArtifact resources. To get started:
+
+  # See the operator's status:
+  kubectl -n {{ .Release.Namespace }} get deploy {{ .Release.Name }}
+
+  # Create your first snippet (run in a tenant namespace, NOT this one):
+  cat <<'EOF' | kubectl apply -f -
+  apiVersion: jaas.metio.wtf/v1
+  kind: JsonnetSnippet
+  metadata: { name: hello, namespace: <your-namespace> }
+  spec:
+    serviceAccountName: default
+    files:
+      main.jsonnet: '{ greeting: "hello from jaas" }'
+  EOF
+
+  # Watch it reconcile:
+  kubectl get jsonnetsnippet hello -w
+  kubectl get externalartifact hello
+
+The tenant SA you reference in spec.serviceAccountName needs the verbs
+documented in https://github.com/metio/jaas#tenant-serviceaccount-rbac
+— without them, the first reconcile fails with Forbidden. The operator
+itself runs as ServiceAccount/{{ .Values.operator.serviceAccount.name }} in this namespace.
+
+{{ if .Values.operator.webhook.enabled -}}
+=== Admission webhook ===
+
+The webhook is enabled in {{ .Values.operator.webhook.certMode }} mode.
+{{ if eq .Values.operator.webhook.certMode "self-signed" -}}
+The operator generates a CA + serving cert at startup and patches the
+ValidatingWebhookConfiguration's caBundle. The cert is regenerated
+every {{ .Values.operator.webhook.selfSignedValidity }} (validity / 3).
+{{- else -}}
+cert-manager handles the TLS material; renewal happens automatically
+via the {{ .Release.Name }}-webhook Certificate object.
+{{- end }}
+{{- end }}
+{{- else -}}
+=== HTTP-only mode ===
+
+The operator is OFF. JaaS runs as a stateless HTTP evaluator:
+
+  kubectl -n {{ .Release.Namespace }} port-forward svc/jaas {{ .Values.ports.http }}:{{ .Values.ports.http }}
+  curl http://localhost:{{ .Values.ports.http }}/{{ .Values.arguments.jsonnetEndpointPath }}/<snippet>
+
+Set operator.enabled=true to switch to operator mode.
+{{- end }}
+
+Full README + runbooks: https://github.com/metio/jaas

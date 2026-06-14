@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+# Opt-in NetworkPolicy + ServiceMonitor + namespace PSS labels.
+networkPolicy:
+  enabled: true
+metrics:
+  serviceMonitor:
+    enabled: true
+namespace:
+  create: true
