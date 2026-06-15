@@ -2,8 +2,12 @@
 # SPDX-License-Identifier: 0BSD
 
 # git-cliff config for per-chart release notes. The release workflow runs
-# `git-cliff --config cliff.toml --include-path "charts/<name>/**" <prev>..HEAD`
-# so only commits touching the released chart appear. The body is the GitHub
+# `git-cliff --config cliff.toml --include-path "charts/<name>/**"
+#   --tag "<name>-<version>" --tag-pattern "^<name>-" <prev>..HEAD`
+# so only commits touching the released chart appear, the header carries this
+# chart+version (via --tag), and only this chart's tags act as release
+# boundaries (via --tag-pattern, overriding the static one below) — another
+# chart's tag inside the range can't split the notes. The body is the GitHub
 # Release content; a static footer (cosign verify + MIGRATIONS link) is
 # appended by the workflow, not here.
 
@@ -42,6 +46,6 @@ commit_parsers = [
 ]
 protect_breaking_commits = false
 filter_commits = false
-tag_pattern = "*-[0-9]*"
+tag_pattern = ".*-[0-9].*"
 topo_order = false
 sort_commits = "newest"

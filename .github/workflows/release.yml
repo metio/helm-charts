@@ -109,10 +109,17 @@ jobs:
               "ghcr.io/metio/helm-charts/${name}@${digest}"
 
             # Per-chart, path-scoped release notes since this chart's last tag.
+            # --tag labels the (still uncreated) release so the cliff.toml header
+            # renders this chart+version; --tag-pattern scopes release boundaries
+            # to this chart so another chart's tag inside the range can't split the
+            # notes into multiple sections.
             prev="$(git tag --list "${name}-*" --sort=-creatordate | head -1)"
-            range="HEAD"; [ -n "$prev" ] && range="${prev}..HEAD"
-            CHART="$name" VERSION="$version" \
-              git-cliff --config cliff.toml --include-path "charts/${name}/**" "$range" > notes.md || true
+            cliff_args=(--config cliff.toml --include-path "charts/${name}/**"
+              --tag "${name}-${version}" --tag-pattern "^${name}-")
+            # A bare "HEAD" positional is rejected as a range; for the first
+            # release omit the positional so git-cliff walks full history.
+            [ -n "$prev" ] && cliff_args+=("${prev}..HEAD")
+            CHART="$name" VERSION="$version" git-cliff "${cliff_args[@]}" > notes.md
 
             # Static footer: cosign verification + migration notes link.
             hack/release-footer.sh "$name" "$oci_tag" "${{ github.repository }}" >> notes.md

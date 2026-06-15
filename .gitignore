@@ -13,3 +13,4 @@ charts/*/Chart.lock
 .idea/
 # JetBrains module files
 *.iml
+.cache/
