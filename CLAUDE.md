@@ -70,13 +70,23 @@ the same run. A chart re-releases when its templates change **or** its
 ## CRD provenance
 
 CRDs are generated in the **source** repos (`controller-gen` → `config/crd`),
-then **vendored** into the chart by `hack/vendor-crds.sh`, which fetches the
-source repo's CRDs at the released tag and injects the `helm.sh/resource-policy: keep`
-annotation. CRDs live under each chart's `templates/crd-*.yaml` (not `crds/`) so
-`helm upgrade` applies schema changes automatically. The **CRD-sync gate**
-(verify.yml) re-runs the vendoring against each chart's committed `appVersion`
-and fails on any diff — so a hand-edited or stale CRD is caught. The bump PR
-(`bump.yml`) does the re-vendoring whenever Renovate moves `appVersion`.
+then **vendored** into the chart by `hack/vendor-crds.sh <image> <appVersion>`,
+which fetches the source repo's CRDs at the released tag (resolved from the
+fully-qualified `# renovate: image=…` marker in `Chart.yaml`) and injects the
+`helm.sh/resource-policy: keep` annotation. CRDs live under each chart's
+`templates/crd-*.yaml` (not `crds/`) so `helm upgrade` applies schema changes
+automatically. The **CRD-sync gate** (`verify.yml`, per-chart) re-runs the
+vendoring against each chart's committed `appVersion` and fails on any diff — so
+a hand-edited or stale CRD is caught. A chart on the `0.0.0` placeholder is
+skipped (no released tag to vendor from yet).
+
+The re-vendoring on a Renovate `appVersion` bump is done by **`sync-joi.yml`'s
+sibling, `bump.yml`** (workflow name "Sync CRDs on appVersion bump"): it fires on
+pushes to `renovate/**` branches touching a `charts/*/Chart.yaml`, re-vendors
+every non-placeholder chart's CRDs, and commits the result back onto the Renovate
+branch — so the bump PR already carries matching CRDs and passes the sync gate.
+This is a **separate workflow because hosted Renovate cannot run the vendor
+script itself** (no `postUpgradeTasks`).
 
 ## The `common` library chart (planned, not yet extracted)
 
@@ -91,35 +101,131 @@ in as-is first; the extraction comes later, guarded by helm-unittest snapshots
 (rendered output must not change). `charts/stageset-controller` already uses a
 `_helpers.tpl` to pre-figure that shape.
 
-## CI
+## CI & test layers
 
-`verify.yml` is the PR gate (changed-charts-only): `ct lint`, `helm-unittest`,
-a **helm-schema drift gate** (regenerate `values.schema.json` from `values.yaml`
-`@schema` annotations, fail on diff), **kube-score** (default + every `ci/`
-variant, CRITICAL fails), **kubeconform** (rendered manifests incl. CRDs), the
-**CRD-sync gate**, and **`ct install`** in kind across a **dynamically computed**
-k8s matrix (a setup job queries kindest/node tags and takes the latest patch of
-the newest N minors — Renovate can freshen existing entries but cannot grow a
-list, so the matrix is generated at runtime). Separate jobs run yamllint,
-actionlint, markdownlint, typos, and REUSE.
+### Per-chart isolation (the guiding principle)
 
-`operator-smoke.yml` is **angle 2 of the two-angle operator e2e** (see jaas's
-CLAUDE.md): the **dev chart** (this PR's `charts/jaas`) deploys the **released
-binary** (the chart's `appVersion`) and runs the *shared* operator scenarios —
-the `hack/smoke/*.sh` scripts checked out from `metio/jaas` at the released tag.
-It skips (green) until `appVersion` advances past `0.0.0`. The companion angle
-(dev binary × released chart) lives in the jaas repo.
+`verify.yml` is the PR gate and operates **only on charts changed in the PR** — a
+`changed` job runs `ct list-changed` and emits the chart set as a JSON array. The
+**static gates** (`ct lint`, helm-unittest, helm-schema drift, kube-score,
+kubeconform) and the **CRD-sync gate** then run as a **per-chart matrix** — one
+independent job per changed chart, `fail-fast: false`. The point is isolation: a
+stale `values.schema.json` or a drifted CRD in one chart can never block an
+unrelated chart's PR.
+
+The **one exception** is `ct install`: it is a single job matrixed over
+*Kubernetes versions* (not charts), running `ct install` once per k8s version for
+all installable changed charts at once. It also gates on `installable_any` — a
+chart still on the `0.0.0` `appVersion` placeholder has no released image to pull,
+so it's added to an `--excluded-charts` list (and the whole install job skips if
+nothing installable is left).
+
+Every `verify.yml` leg (incl. the chart and k8s matrices) rolls up into a single
+stably-named **`Verify — all checks passed`** aggregate job. That aggregate is the
+*only* check to mark required in branch protection — matrix leg names change with
+the discovered chart set / k8s versions, so they can't be enumerated as required
+checks individually. The aggregate passes only if every dependency succeeded or
+was intentionally skipped.
+
+### Test layers
+
+A chart's verification has these distinct layers, in roughly increasing cost:
+
+- **`ct lint`** — `Chart.yaml` validity, maintainer login, version-bump-on-change.
+- **helm-unittest** — per-template assertions + rendered snapshots. Tests live in
+  `charts/<name>/tests/*_test.yaml` with snapshots under
+  `charts/<name>/tests/__snapshot__/`; the job runs `helm unittest charts/<name>/`
+  only when that `tests/` dir exists. One test file per template family (Deployment,
+  RBAC, webhook, services, HPA/PDB, NetworkPolicy, metrics, …) asserting the
+  rendered shape; the joi chart's test pins `spec.url` of the `OCIRepository`
+  **exactly** (a regex would hide a `docker:pinDigests`-style breakage — see the
+  Renovate note below). The plugin is installed with `--verify=false` (helm v4
+  verifies plugin provenance and helm-unittest ships none).
+- **helm-schema drift gate** — regenerate `values.schema.json` from `values.yaml`
+  `# @schema` annotations and fail on any diff, so the committed schema can't rot.
+- **kube-score** — render the chart with **defaults plus every
+  `charts/<name>/ci/*-values.yaml` variant** and fail on a CRITICAL. The same
+  `ci/` value files double as the `ct install` install variants, so one set of
+  representative value combinations (operator / webhook-self-signed / persistence /
+  networkpolicy / watch-namespaces / HA / rollback-store …) feeds both gates.
+- **kubeconform** — validate the rendered manifests (including the chart's CRDs)
+  against Kubernetes + the CRD catalog.
+- **CRD-sync gate** — vendored CRDs match the source repo's tag for `appVersion`
+  (see *CRD provenance*).
+- **`ct install`** — spin up kind, install cluster prereqs (cert-manager, the Flux
+  source-controller CRDs for `ExternalArtifact`, the Prometheus-Operator CRDs for
+  ServiceMonitor/PrometheusRule, a self-signed `ClusterIssuer`, and the
+  `team-a`/`team-b` namespaces the watch-namespaces variant binds into), apply
+  every chart's CRDs once (the `ci/` values install with `crds.create=false`
+  because a kept cluster-scoped CRD owned by one release can't be re-adopted by the
+  next), then `ct install` the changed charts and wait for Ready. This is where a
+  bad `appVersion` image bump is caught.
+
+The **dynamically computed k8s matrix** (a `k8s-matrix` job) queries the
+`kindest/node` Docker tags and takes the latest patch of the newest N minors:
+Renovate can *freshen* existing entries but cannot *grow* a list, so a new minor
+would never be auto-added — generating the matrix at runtime fixes that, at the
+cost of an unreviewed matrix change. `kindest/node` is the datasource (not
+`kubernetes/kubernetes`) because kind is what constrains which versions are
+installable.
+
+The text linters live in **separate, always-running jobs** (not per-chart):
+`yamllint`, `actionlint`, `markdownlint`, `typos`, and **REUSE** (the latter in
+its own `reuse.yml`). They mirror the configs the source repos use so charts lint
+the same way the code does.
+
+### Operator e2e smoke (angle 2 of the two-angle strategy)
+
+There is **one smoke workflow per controller chart**: `operator-smoke.yml` (jaas)
+and `stageset-smoke.yml` (stageset-controller). Both are **angle 2 of the
+two-angle e2e** (see the controller repos' CLAUDE.md): the **dev chart** (this
+PR's `charts/<name>`) deploys the **released binary** — the chart's own
+`appVersion`, kept current by Renovate — and runs the *shared* `hack/smoke/*.sh`
+scenarios **checked out from the controller repo at the released tag**, so the
+assertions match that binary's contract. The companion angle (dev binary ×
+released chart) lives in each controller repo. Only the deploy differs between the
+angles; the scenario scripts are shared. Because the dev chart vendors its CRDs at
+its own `appVersion`, those already match the deployed binary — no CRD overlay is
+needed here (unlike the controller-repo angle).
+
+Both smoke workflows run on **every PR with no `paths:` filter** (so the
+`all-green` aggregate always reports a status and can be required) but gate the
+expensive kind jobs internally on a `discover.relevant` git-diff output — the kind
+jobs run only when the PR touched that chart or the smoke workflow itself. They
+also **skip green until `appVersion` advances past `0.0.0`** (no released image to
+test). Both `discover` test versions at runtime: the newest installable kindest
+minor, the newest kind binary (pinned to the node image so a lagging bundled kind
+doesn't break a brand-new minor), and — for jaas — the newest Flux at/above the
+`ExternalArtifact` floor plus the k8s subset where `ImageVolume` works on kind
+(for the dedicated image-volume-library coverage). A new k8s/Flux release is
+tested automatically; if kind can't run it yet, the failure is the wanted signal.
+
+### Release
 
 `release.yml` is **event-driven** on push to `main` touching `charts/**` (+
-`workflow_dispatch`): per changed chart, `helm package` → `helm push
-oci://ghcr.io/metio/helm-charts/<name>` → cosign keyless sign → a per-chart git
-tag `<chart>-<version>` → a GitHub Release whose body is `git-cliff` notes
-path-scoped to `charts/<name>/**` plus a static footer (`hack/release-footer.sh`:
-cosign verify command + a link to the chart's `MIGRATIONS.md`).
+`workflow_dispatch` to force one or all charts). For each chart changed since its
+last release (the `common` library chart is always excluded — it's a `file://`
+dependency, never published):
 
-`sync-joi.yml` regenerates `charts/joi/values.yaml` daily from JOI's published
-`libraries.json` (`hack/gen-joi-values.sh`), so a new JOI library flows into the
-chart with zero manual work.
+1. `helm dependency build` (vendors any `file://` dep).
+2. `helm package --version "$(date +'%Y.%-m.%-d+%H%M%S')" --app-version <appVersion>`.
+3. `helm push oci://ghcr.io/metio/helm-charts` (the chart name becomes the package).
+4. **cosign keyless sign** the pushed digest (Fulcio/Rekor, OIDC — no key).
+5. per-chart git tag `<chart>-<version>` + a GitHub Release whose body is
+   **`git-cliff`** notes scoped to `charts/<name>/**` over the
+   `<chart>-<prev>..HEAD` range (`--tag-pattern "^<chart>-"` keeps another chart's
+   tag in the range from splitting the notes), plus a static footer
+   (`hack/release-footer.sh`: the `cosign verify` command + a link to the chart's
+   `MIGRATIONS.md`).
+
+A chart on the `0.0.0` placeholder is skipped (its image isn't published yet).
+
+`sync-joi.yml` regenerates `charts/joi/values.yaml` daily (and on a JOI
+`repository_dispatch`) from JOI's published `libraries.json`
+(`hack/gen-joi-values.sh`), regenerates the schema, and commits any change — so a
+new JOI library flows into the chart with zero manual work. A **shrink-guard**
+aborts the sync if a currently-shipped library would disappear (a transient JOI
+discovery failure), unless `allow_shrink` acknowledges a real upstream removal.
 
 ## Conventions & traps
 
@@ -159,6 +265,14 @@ chart with zero manual work.
   set. JOI also publishes immutable dated tags (`:<YYYY.M.D>`) a user can set on
   a library's `tag` to pin a snapshot — that's a manual user choice, still not
   Renovate's job. Don't add a Renovate manager for it.
+- **The jaas chart enforces mode mutual-exclusivity at template time.** Flux
+  operator mode (`operator.enabled=true`) and static OCI mounts (`snippets` /
+  `additionalLibraries`) cannot coexist in one release — `templates/validate-modes.yaml`
+  `fail`s if both are set, and `validate-modes_test.yaml` pins both the accepted
+  and rejected combinations. The webhook templates similarly `fail` on an invalid
+  `certMode` or a cert-manager mode missing its issuer. These render-time guards
+  turn a misconfiguration into a clear `helm template` error instead of a broken
+  deployment; keep them and their unittest assertions in lockstep.
 - **`spec.selector.matchLabels` is immutable.** Strip volatile identity labels
   (`managed-by`, `version`, `helm.sh/chart`) from it, or a `helm upgrade` that
   changes one fails with "field is immutable". **Conversely, keep** version-bound
