@@ -39,6 +39,7 @@ jobs:
       k8s_latest: ${{ steps.versions.outputs.k8s_latest }}
       flux_latest: ${{ steps.versions.outputs.flux_latest }}
       k8s_imagevolume: ${{ steps.versions.outputs.k8s_imagevolume }}
+      kind_latest: ${{ steps.versions.outputs.kind_latest }}
       relevant: ${{ steps.scope.outputs.relevant }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -103,12 +104,20 @@ jobs:
             | awk -F. '{print $1"."$2" "$0}' | sort -k1,1V -k2,2V \
             | awk '{l[$1]=$2} END{for(m in l)print l[m]}' | sort -V | tail -1)
           [ -n "$flux" ] || flux=v2.7.0
+          # Newest kind release — the pinned helm/kind-action's bundled kind can
+          # lag new node images ("unknown containerd config version: N"); pin the
+          # binary to the node image. Empty falls back to the action default.
+          kind=$(gh release list --repo kubernetes-sigs/kind --limit 30 \
+                   --json tagName,isPrerelease \
+                   --jq '.[] | select(.isPrerelease==false) | .tagName' \
+            | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)
           {
             echo "k8s_latest=$k8s"
             echo "flux_latest=$flux"
             echo "k8s_imagevolume=$k8s_iv"
+            echo "kind_latest=$kind"
           } >> "$GITHUB_OUTPUT"
-          echo "k8s_latest=$k8s  flux_latest=$flux  k8s_imagevolume=$k8s_iv"
+          echo "k8s_latest=$k8s  flux_latest=$flux  k8s_imagevolume=$k8s_iv  kind_latest=$kind"
 
   basic:
     name: basic + cert-manager webhook
@@ -127,6 +136,7 @@ jobs:
       - name: Create kind cluster
         uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1
         with:
+          version: ${{ needs.discover.outputs.kind_latest }}
           cluster_name: jaas-chart-smoke
           node_image: kindest/node:${{ needs.discover.outputs.k8s_latest }}
           wait: 180s
@@ -235,6 +245,7 @@ jobs:
       - name: Create kind cluster
         uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1
         with:
+          version: ${{ needs.discover.outputs.kind_latest }}
           cluster_name: jaas-chart-ss
           node_image: kindest/node:${{ needs.discover.outputs.k8s_latest }}
           wait: 180s
@@ -325,6 +336,7 @@ jobs:
       - name: Create kind cluster
         uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1
         with:
+          version: ${{ needs.discover.outputs.kind_latest }}
           cluster_name: jaas-chart-fields
           node_image: kindest/node:${{ needs.discover.outputs.k8s_latest }}
           wait: 180s
@@ -392,6 +404,7 @@ jobs:
       - name: Create kind cluster
         uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1
         with:
+          version: ${{ needs.discover.outputs.kind_latest }}
           cluster_name: jaas-chart-chain
           node_image: kindest/node:${{ needs.discover.outputs.k8s_latest }}
           wait: 180s
@@ -399,6 +412,32 @@ jobs:
         run: |
           jaas-src/hack/smoke/setup-flux.sh ${{ needs.discover.outputs.flux_latest }}
           jaas-src/hack/smoke/setup-minio.sh
+      - name: Open source-controller artifact port across namespaces
+        # Release-lag bridge: the released setup-flux.sh predates this policy.
+        # Flux's default NetworkPolicies admit ingress to source-controller only
+        # from flux-system (and port 8080 for scraping); the artifact server is on
+        # 9090, so the operator in jaas-system can't fetch once kindnet enforces
+        # policies. Folded into setup-flux.sh at HEAD; drop once jaas re-releases.
+        run: |
+          kubectl apply -f - <<'EOF'
+          apiVersion: networking.k8s.io/v1
+          kind: NetworkPolicy
+          metadata:
+            name: allow-artifact-fetch
+            namespace: flux-system
+          spec:
+            podSelector:
+              matchLabels:
+                app: source-controller
+            policyTypes:
+              - Ingress
+            ingress:
+              - from:
+                  - namespaceSelector: {}
+                ports:
+                  - port: 9090
+                    protocol: TCP
+          EOF
       - name: Install the dev chart (no webhook) with the released image
         run: |
           kubectl create namespace jaas-system
@@ -488,6 +527,10 @@ jobs:
           kubectl -n kube-system get ds kube-proxy -o jsonpath='{.spec.template.spec.containers[0].args}' 2>/dev/null; echo
           kubectl -n kube-system logs ds/kube-proxy --tail=40 2>/dev/null || true
           kubectl -n flux-system get pod -l app=source-controller -o wide || true
+          # Flux's default NetworkPolicies admit ingress to source-controller's
+          # artifact port (9090) only from flux-system; a drop here (not the VIP)
+          # explains a SYN timeout to a healthy, Ready pod.
+          kubectl -n flux-system get networkpolicy -o wide || true
 
   scale-smoke:
     name: scale-smoke (N=50 snippets converge)
@@ -506,6 +549,7 @@ jobs:
       - name: Create kind cluster
         uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1
         with:
+          version: ${{ needs.discover.outputs.kind_latest }}
           cluster_name: jaas-chart-scale
           node_image: kindest/node:${{ needs.discover.outputs.k8s_latest }}
           wait: 180s
@@ -589,6 +633,7 @@ jobs:
       - name: Create kind cluster
         uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1
         with:
+          version: ${{ needs.discover.outputs.kind_latest }}
           cluster_name: jaas-chart-imagevolume
           config: /tmp/kind-imagevolume.yaml
           wait: 180s

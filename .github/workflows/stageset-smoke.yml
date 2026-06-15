@@ -1,0 +1,161 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+name: stageset operator smoke
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Angle 2 of the two-angle e2e strategy: the DEV stageset chart (this PR's
+# charts/stageset-controller) deploys the LATEST RELEASED stageset binary (its
+# appVersion), and the SAME smoke scenarios as the stageset repo run against it
+# — the shared hack/smoke/*.sh scripts, checked out from metio/stageset-controller
+# at the released tag so the assertions match that binary's contract. Angle 1
+# lives in the stageset repo (kind-smoke.yml). Only the deploy differs; the
+# scenario logic is shared.
+#
+# Per-chart isolation: this workflow gates on changes to charts/stageset-controller
+# only, so a jaas-chart PR never runs (or blocks on) stageset smoke and vice
+# versa. Until the chart's appVersion advances past the 0.0.0 placeholder the
+# smoke job skips (gate stays green).
+permissions:
+  contents: read
+
+jobs:
+  discover:
+    name: Discover released stageset image + k8s version
+    runs-on: ubuntu-latest
+    outputs:
+      image_version: ${{ steps.find.outputs.version }}
+      k8s_latest: ${{ steps.versions.outputs.k8s_latest }}
+      kind_latest: ${{ steps.versions.outputs.kind_latest }}
+      relevant: ${{ steps.scope.outputs.relevant }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          fetch-depth: 0
+      - id: scope
+        name: Did this PR touch the stageset chart or this workflow?
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "relevant=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          base="${{ github.event.pull_request.base.sha }}"
+          if git diff --name-only "$base" HEAD \
+               | grep -qE '^charts/stageset-controller/|^\.github/workflows/stageset-smoke\.yml$'; then
+            echo "relevant=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "relevant=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No stageset-chart / stageset-smoke changes in this PR — kind job skips (gate stays green)."
+          fi
+      - id: find
+        name: Read charts/stageset-controller appVersion
+        run: |
+          v="$(grep -oP '^appVersion:\s*"?\K[^"]+' charts/stageset-controller/Chart.yaml || true)"
+          if [ -z "$v" ] || [ "$v" = "0.0.0" ]; then
+            echo "::notice::charts/stageset-controller appVersion is the ${v:-empty} placeholder — no released image; smoke skips until it advances."
+            v=""
+          else
+            echo "released stageset image (appVersion): $v"
+          fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+      - id: versions
+        name: Discover newest Kubernetes + kind versions to test against
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -uo pipefail
+          # Newest kindest/node minor, latest patch. A new k8s release is tested
+          # automatically; if kind can't run a brand-new minor yet, that surfaces
+          # as a failure — the signal to bump kind, not silent staleness.
+          k8s=$(curl -fsSL "https://hub.docker.com/v2/repositories/kindest/node/tags?page_size=100" \
+            | jq -r '.results[].name' | grep -E '^v1\.[0-9]+\.[0-9]+$' \
+            | awk -F. '{print $1"."$2" "$0}' | sort -k1,1V -k2,2V \
+            | awk '{l[$1]=$2} END{for(m in l)print l[m]}' | sort -V | tail -1)
+          [ -n "$k8s" ] || k8s=v1.33.1
+          # Newest kind release — the pinned helm/kind-action's bundled kind can
+          # lag new node images ("unknown containerd config version: N"); pin the
+          # binary to the node image. Empty falls back to the action default.
+          kv=$(gh release list --repo kubernetes-sigs/kind --limit 30 \
+                 --json tagName,isPrerelease \
+                 --jq '.[] | select(.isPrerelease==false) | .tagName' \
+               | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)
+          {
+            echo "k8s_latest=$k8s"
+            echo "kind_latest=$kv"
+          } >> "$GITHUB_OUTPUT"
+          echo "k8s_latest=$k8s  kind_latest=$kv"
+
+  smoke:
+    name: dev chart × released binary (k8s ${{ needs.discover.outputs.k8s_latest }})
+    needs: discover
+    if: needs.discover.outputs.image_version != '' && needs.discover.outputs.relevant == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout helm-charts (dev chart)
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - name: Checkout stageset at the released tag (shared smoke scripts)
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          repository: metio/stageset-controller
+          ref: ${{ needs.discover.outputs.image_version }}
+          path: stageset-src
+      - name: Create kind cluster
+        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1
+        with:
+          version: ${{ needs.discover.outputs.kind_latest }}
+          cluster_name: stageset-chart-smoke
+          node_image: kindest/node:${{ needs.discover.outputs.k8s_latest }}
+          wait: 180s
+      - name: Install the ExternalArtifact stub CRD
+        run: stageset-src/hack/smoke/setup-externalartifact-crd.sh
+      - name: Install the dev chart with the released image
+        run: |
+          kubectl create namespace stageset-system
+          helm dependency build charts/stageset-controller
+          # Disable the validating webhook for the smoke: the scenarios test the
+          # data plane (resolve/fetch/apply/prune/impersonate), not admission, and
+          # a webhook would add a cert + readiness race the released scripts don't
+          # arm against. Webhook admission is covered by the binary's envtest suite.
+          helm upgrade --install stageset charts/stageset-controller \
+            --namespace stageset-system \
+            --set webhook.enabled=false \
+            --wait --timeout 5m
+          # Smoke-only broad grant, mirroring angle 1: scenarios without a
+          # spec.serviceAccountName apply under the controller's own identity, so
+          # it needs to create the rendered objects and emit Events cluster-wide.
+          kubectl create clusterrolebinding stageset-smoke-admin \
+            --clusterrole=cluster-admin \
+            --serviceaccount=stageset-system:stageset-controller
+      - name: Scenario — basic apply + inventory + finalizer prune
+        run: stageset-src/hack/smoke/scenario-basic.sh
+      - name: Scenario — impersonation (spec.serviceAccountName)
+        run: stageset-src/hack/smoke/scenario-impersonation.sh
+      - name: Scenario — cross-namespace fetch under NetworkPolicy
+        run: stageset-src/hack/smoke/scenario-networkpolicy.sh
+        env:
+          CONTROLLER_NS: stageset-system
+      - name: Diagnostics on failure
+        if: failure()
+        run: |
+          kubectl -n stageset-system get all || true
+          kubectl -n stageset-system logs deploy/stageset-controller --tail=300 || true
+          kubectl get stageset -A || true
+          kubectl get stageinventories -A -o wide || true
+          kubectl get externalartifact -A || true
+          kubectl -n np-test get networkpolicy -o wide || true
+          kubectl get crd | grep -E "stages|fluxcd" || true
+
+  all-green:
+    name: Stageset smoke — all checks passed
+    needs: [discover, smoke]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify every job succeeded or skipped
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          bad=$(echo "$NEEDS" | jq -r 'to_entries[] | select(.value.result != "success" and .value.result != "skipped") | "\(.key)=\(.value.result)"')
+          [ -z "$bad" ] || { echo "::error::$bad"; exit 1; }
