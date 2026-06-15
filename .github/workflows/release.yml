@@ -9,8 +9,8 @@ on:
   workflow_dispatch:
     inputs:
       chart:
-        description: Chart to force-release (directory name under charts/)
-        required: true
+        description: Chart to force-release (directory under charts/). Leave empty to release every non-placeholder chart.
+        required: false
 permissions:
   contents: write   # create tags + GitHub Releases
   packages: write   # push OCI charts to ghcr.io
@@ -37,18 +37,28 @@ jobs:
       - id: changed
         name: Determine charts to release
         run: |
+          # All chart dirs except the never-published common library chart.
+          all_charts() { ls -d charts/*/ 2>/dev/null | awk -F/ '{print $2}' | grep -v '^common$' || true; }
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "charts=${{ github.event.inputs.chart }}" >> "$GITHUB_OUTPUT"
+            sel='${{ github.event.inputs.chart }}'
+            # Empty input releases every chart (the package loop skips any whose
+            # appVersion is still the 0.0.0 placeholder), which flushes a backlog
+            # of already-bumped charts in one run.
+            [ -n "$sel" ] || sel="$(all_charts | tr '\n' ' ')"
+            echo "charts=$sel" >> "$GITHUB_OUTPUT"
           else
             before='${{ github.event.before }}'
             # On the first push to the branch `before` is the all-zeros SHA (and
             # the commit isn't present), so the diff would fail and silently
             # release nothing. Fall back to treating every chart as changed.
             if [ -z "$before" ] || ! git rev-parse -q --verify "${before}^{commit}" >/dev/null 2>&1; then
-              changed="$(ls -d charts/*/ 2>/dev/null | awk -F/ '{print $2}' | grep -v '^common$' || true)"
+              changed="$(all_charts)"
             else
-              # chart dirs touched by this push, excluding the never-published common library chart
-              changed="$(git diff --name-only "$before" '${{ github.sha }}' -- 'charts/*/' \
+              # chart dirs touched by this push, excluding the never-published
+              # common library chart. The pathspec is `charts/` (not `charts/*/`,
+              # which a git pathspec does NOT expand like a shell glob — it
+              # matches nothing, silently releasing nothing on every push).
+              changed="$(git diff --name-only "$before" '${{ github.sha }}' -- 'charts/' \
                 | awk -F/ '{print $2}' | sort -u | grep -v '^common$' || true)"
             fi
             echo "charts=$(echo "$changed" | tr '\n' ' ')" >> "$GITHUB_OUTPUT"
