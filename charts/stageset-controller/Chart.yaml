@@ -26,4 +26,4 @@ version: 0.0.0
 # Renovate bumps it (and .github/workflows/bump.yml re-vendors the matching CRDs).
 # image.tag defaults to this value.
 # renovate: image=ghcr.io/metio/stageset-controller
-appVersion: "2026.6.14"
+appVersion: "2026.6.15"
