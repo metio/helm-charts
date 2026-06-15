@@ -33,6 +33,15 @@ jobs:
           sudo mv /tmp/git-cliff-2.10.1/git-cliff /usr/local/bin/git-cliff
       - name: Log in to GHCR (Helm OCI)
         run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
+      # cosign reads registry credentials from ~/.docker/config.json, which
+      # `helm registry login` does not populate (it writes its own config).
+      # Authenticate via docker so cosign can push signature layers to ghcr.io.
+      - name: Log in to GHCR (cosign)
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - id: changed
         name: Determine charts to release
