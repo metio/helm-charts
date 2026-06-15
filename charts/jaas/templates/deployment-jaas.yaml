@@ -240,6 +240,13 @@ spec:
                 name: {{ .Values.operator.storage.s3.credentialsSecret.name }}
           {{- end }}
           volumeMounts:
+            # Writable scratch for a read-only-root container: the operator's
+            # source fetcher streams each artifact through an os.CreateTemp
+            # tempfile under /tmp before unpacking, and go-jsonnet may spill
+            # there too. Without this mount a sourceRef fetch fails with
+            # "create tempfile: … read-only file system".
+            - name: tmp
+              mountPath: /tmp
           {{ if .Values.libraries.grafonnet.enabled }}
             - name: library-grafonnet
               mountPath: {{ .Values.paths.libraries }}/grafonnet
@@ -335,6 +342,11 @@ spec:
             seccompProfile:
               type: RuntimeDefault
       volumes:
+        - name: tmp
+          emptyDir:
+            # Holds one compressed source tarball at a time (the fetcher caps
+            # downloads well below this); decompression happens in memory.
+            sizeLimit: 256Mi
         {{ if .Values.libraries.grafonnet.enabled }}
         - name: library-grafonnet
           image:

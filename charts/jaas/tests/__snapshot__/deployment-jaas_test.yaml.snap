@@ -32,6 +32,8 @@ matches its security context snapshot:
       type: RuntimeDefault
 matches its volume mounts snapshot:
   1: |
+    - mountPath: /tmp
+      name: tmp
     - mountPath: /srv/libraries/grafonnet
       name: library-grafonnet
       readOnly: true
@@ -43,6 +45,9 @@ matches its volume mounts snapshot:
       readOnly: true
 matches its volumes snapshot:
   1: |
+    - emptyDir:
+        sizeLimit: 256Mi
+      name: tmp
     - image:
         pullPolicy: IfNotPresent
         reference: ghcr.io/metio/joi-grafana-grafonnet:latest
