@@ -229,47 +229,6 @@
           "title": "argo-rollouts-libsonnet",
           "type": "object"
         },
-        "argo-workflows-libsonnet": {
-          "properties": {
-            "closure": {
-              "description": "libraries this one imports; auto-enabled with it",
-              "items": {
-                "required": []
-              },
-              "title": "closure",
-              "type": "array"
-            },
-            "enabled": {
-              "default": false,
-              "title": "enabled",
-              "type": "boolean"
-            },
-            "image": {
-              "default": "ghcr.io/metio/joi-jsonnet-libs-argo-workflows-libsonnet",
-              "title": "image",
-              "type": "string"
-            },
-            "path": {
-              "default": "",
-              "title": "path",
-              "type": "string"
-            },
-            "tag": {
-              "default": "latest",
-              "title": "tag",
-              "type": "string"
-            }
-          },
-          "required": [
-            "enabled",
-            "image",
-            "tag",
-            "path",
-            "closure"
-          ],
-          "title": "argo-workflows-libsonnet",
-          "type": "object"
-        },
         "argocd-operator-libsonnet": {
           "properties": {
             "closure": {
@@ -926,47 +885,6 @@
           "title": "cluster-api-provider-tinkerbell-libsonnet",
           "type": "object"
         },
-        "cnrm-libsonnet": {
-          "properties": {
-            "closure": {
-              "description": "libraries this one imports; auto-enabled with it",
-              "items": {
-                "required": []
-              },
-              "title": "closure",
-              "type": "array"
-            },
-            "enabled": {
-              "default": false,
-              "title": "enabled",
-              "type": "boolean"
-            },
-            "image": {
-              "default": "ghcr.io/metio/joi-jsonnet-libs-cnrm-libsonnet",
-              "title": "image",
-              "type": "string"
-            },
-            "path": {
-              "default": "",
-              "title": "path",
-              "type": "string"
-            },
-            "tag": {
-              "default": "latest",
-              "title": "tag",
-              "type": "string"
-            }
-          },
-          "required": [
-            "enabled",
-            "image",
-            "tag",
-            "path",
-            "closure"
-          ],
-          "title": "cnrm-libsonnet",
-          "type": "object"
-        },
         "composable-libsonnet": {
           "properties": {
             "closure": {
@@ -1131,170 +1049,6 @@
           "title": "crossplane-core-libsonnet",
           "type": "object"
         },
-        "crossplane-libsonnet": {
-          "properties": {
-            "closure": {
-              "description": "libraries this one imports; auto-enabled with it",
-              "items": {
-                "required": []
-              },
-              "title": "closure",
-              "type": "array"
-            },
-            "enabled": {
-              "default": false,
-              "title": "enabled",
-              "type": "boolean"
-            },
-            "image": {
-              "default": "ghcr.io/metio/joi-jsonnet-libs-crossplane-libsonnet",
-              "title": "image",
-              "type": "string"
-            },
-            "path": {
-              "default": "",
-              "title": "path",
-              "type": "string"
-            },
-            "tag": {
-              "default": "latest",
-              "title": "tag",
-              "type": "string"
-            }
-          },
-          "required": [
-            "enabled",
-            "image",
-            "tag",
-            "path",
-            "closure"
-          ],
-          "title": "crossplane-libsonnet",
-          "type": "object"
-        },
-        "crossplane-provider-grafana-libsonnet": {
-          "properties": {
-            "closure": {
-              "description": "libraries this one imports; auto-enabled with it",
-              "items": {
-                "required": []
-              },
-              "title": "closure",
-              "type": "array"
-            },
-            "enabled": {
-              "default": false,
-              "title": "enabled",
-              "type": "boolean"
-            },
-            "image": {
-              "default": "ghcr.io/metio/joi-jsonnet-libs-crossplane-provider-grafana-libsonnet",
-              "title": "image",
-              "type": "string"
-            },
-            "path": {
-              "default": "",
-              "title": "path",
-              "type": "string"
-            },
-            "tag": {
-              "default": "latest",
-              "title": "tag",
-              "type": "string"
-            }
-          },
-          "required": [
-            "enabled",
-            "image",
-            "tag",
-            "path",
-            "closure"
-          ],
-          "title": "crossplane-provider-grafana-libsonnet",
-          "type": "object"
-        },
-        "crossplane-provider-upjet-aws-libsonnet": {
-          "properties": {
-            "closure": {
-              "description": "libraries this one imports; auto-enabled with it",
-              "items": {
-                "required": []
-              },
-              "title": "closure",
-              "type": "array"
-            },
-            "enabled": {
-              "default": false,
-              "title": "enabled",
-              "type": "boolean"
-            },
-            "image": {
-              "default": "ghcr.io/metio/joi-jsonnet-libs-crossplane-provider-upjet-aws-libsonnet",
-              "title": "image",
-              "type": "string"
-            },
-            "path": {
-              "default": "",
-              "title": "path",
-              "type": "string"
-            },
-            "tag": {
-              "default": "latest",
-              "title": "tag",
-              "type": "string"
-            }
-          },
-          "required": [
-            "enabled",
-            "image",
-            "tag",
-            "path",
-            "closure"
-          ],
-          "title": "crossplane-provider-upjet-aws-libsonnet",
-          "type": "object"
-        },
-        "crossplane-provider-upjet-azure-libsonnet": {
-          "properties": {
-            "closure": {
-              "description": "libraries this one imports; auto-enabled with it",
-              "items": {
-                "required": []
-              },
-              "title": "closure",
-              "type": "array"
-            },
-            "enabled": {
-              "default": false,
-              "title": "enabled",
-              "type": "boolean"
-            },
-            "image": {
-              "default": "ghcr.io/metio/joi-jsonnet-libs-crossplane-provider-upjet-azure-libsonnet",
-              "title": "image",
-              "type": "string"
-            },
-            "path": {
-              "default": "",
-              "title": "path",
-              "type": "string"
-            },
-            "tag": {
-              "default": "latest",
-              "title": "tag",
-              "type": "string"
-            }
-          },
-          "required": [
-            "enabled",
-            "image",
-            "tag",
-            "path",
-            "closure"
-          ],
-          "title": "crossplane-provider-upjet-azure-libsonnet",
-          "type": "object"
-        },
         "crossplane-provider-upjet-azuread-libsonnet": {
           "properties": {
             "closure": {
@@ -1334,47 +1088,6 @@
             "closure"
           ],
           "title": "crossplane-provider-upjet-azuread-libsonnet",
-          "type": "object"
-        },
-        "crossplane-provider-upjet-gcp-libsonnet": {
-          "properties": {
-            "closure": {
-              "description": "libraries this one imports; auto-enabled with it",
-              "items": {
-                "required": []
-              },
-              "title": "closure",
-              "type": "array"
-            },
-            "enabled": {
-              "default": false,
-              "title": "enabled",
-              "type": "boolean"
-            },
-            "image": {
-              "default": "ghcr.io/metio/joi-jsonnet-libs-crossplane-provider-upjet-gcp-libsonnet",
-              "title": "image",
-              "type": "string"
-            },
-            "path": {
-              "default": "",
-              "title": "path",
-              "type": "string"
-            },
-            "tag": {
-              "default": "latest",
-              "title": "tag",
-              "type": "string"
-            }
-          },
-          "required": [
-            "enabled",
-            "image",
-            "tag",
-            "path",
-            "closure"
-          ],
-          "title": "crossplane-provider-upjet-gcp-libsonnet",
           "type": "object"
         },
         "crossplane-provider-upjet-github-libsonnet": {
@@ -1869,47 +1582,6 @@
           "title": "flagger-libsonnet",
           "type": "object"
         },
-        "fluxcd-libsonnet": {
-          "properties": {
-            "closure": {
-              "description": "libraries this one imports; auto-enabled with it",
-              "items": {
-                "required": []
-              },
-              "title": "closure",
-              "type": "array"
-            },
-            "enabled": {
-              "default": false,
-              "title": "enabled",
-              "type": "boolean"
-            },
-            "image": {
-              "default": "ghcr.io/metio/joi-jsonnet-libs-fluxcd-libsonnet",
-              "title": "image",
-              "type": "string"
-            },
-            "path": {
-              "default": "",
-              "title": "path",
-              "type": "string"
-            },
-            "tag": {
-              "default": "latest",
-              "title": "tag",
-              "type": "string"
-            }
-          },
-          "required": [
-            "enabled",
-            "image",
-            "tag",
-            "path",
-            "closure"
-          ],
-          "title": "fluxcd-libsonnet",
-          "type": "object"
-        },
         "gatekeeper-libsonnet": {
           "properties": {
             "closure": {
@@ -2161,6 +1833,17 @@
             "closure": {
               "description": "libraries this one imports; auto-enabled with it",
               "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ],
                 "required": []
               },
               "title": "closure",
@@ -2318,47 +2001,6 @@
             "closure"
           ],
           "title": "istio-libsonnet",
-          "type": "object"
-        },
-        "k8s-libsonnet": {
-          "properties": {
-            "closure": {
-              "description": "libraries this one imports; auto-enabled with it",
-              "items": {
-                "required": []
-              },
-              "title": "closure",
-              "type": "array"
-            },
-            "enabled": {
-              "default": true,
-              "title": "enabled",
-              "type": "boolean"
-            },
-            "image": {
-              "default": "ghcr.io/metio/joi-jsonnet-libs-k8s-libsonnet",
-              "title": "image",
-              "type": "string"
-            },
-            "path": {
-              "default": "",
-              "title": "path",
-              "type": "string"
-            },
-            "tag": {
-              "default": "latest",
-              "title": "tag",
-              "type": "string"
-            }
-          },
-          "required": [
-            "enabled",
-            "image",
-            "tag",
-            "path",
-            "closure"
-          ],
-          "title": "k8s-libsonnet",
           "type": "object"
         },
         "kargo-libsonnet": {
@@ -3222,47 +2864,6 @@
           "title": "node-feature-discovery-libsonnet",
           "type": "object"
         },
-        "openshift-libsonnet": {
-          "properties": {
-            "closure": {
-              "description": "libraries this one imports; auto-enabled with it",
-              "items": {
-                "required": []
-              },
-              "title": "closure",
-              "type": "array"
-            },
-            "enabled": {
-              "default": false,
-              "title": "enabled",
-              "type": "boolean"
-            },
-            "image": {
-              "default": "ghcr.io/metio/joi-jsonnet-libs-openshift-libsonnet",
-              "title": "image",
-              "type": "string"
-            },
-            "path": {
-              "default": "",
-              "title": "path",
-              "type": "string"
-            },
-            "tag": {
-              "default": "latest",
-              "title": "tag",
-              "type": "string"
-            }
-          },
-          "required": [
-            "enabled",
-            "image",
-            "tag",
-            "path",
-            "closure"
-          ],
-          "title": "openshift-libsonnet",
-          "type": "object"
-        },
         "prometheus-operator-libsonnet": {
           "properties": {
             "closure": {
@@ -3719,6 +3320,14 @@
             "closure": {
               "description": "libraries this one imports; auto-enabled with it",
               "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ],
                 "required": []
               },
               "title": "closure",
@@ -4088,6 +3697,14 @@
             "closure": {
               "description": "libraries this one imports; auto-enabled with it",
               "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ],
                 "required": []
               },
               "title": "closure",
@@ -4172,7 +3789,6 @@
         "amazon-vpc-resource-controller-libsonnet",
         "argo-cd-libsonnet",
         "argo-rollouts-libsonnet",
-        "argo-workflows-libsonnet",
         "argocd-operator-libsonnet",
         "aws-load-balancer-controller-libsonnet",
         "aws-rds-controller-libsonnet",
@@ -4189,17 +3805,11 @@
         "cluster-api-operator-libsonnet",
         "cluster-api-provider-aws-libsonnet",
         "cluster-api-provider-tinkerbell-libsonnet",
-        "cnrm-libsonnet",
         "composable-libsonnet",
         "consul-libsonnet",
         "contour-libsonnet",
         "crossplane-core-libsonnet",
-        "crossplane-libsonnet",
-        "crossplane-provider-grafana-libsonnet",
-        "crossplane-provider-upjet-aws-libsonnet",
-        "crossplane-provider-upjet-azure-libsonnet",
         "crossplane-provider-upjet-azuread-libsonnet",
-        "crossplane-provider-upjet-gcp-libsonnet",
         "crossplane-provider-upjet-github-libsonnet",
         "dapr-libsonnet",
         "datadog-operator-libsonnet",
@@ -4212,7 +3822,6 @@
         "external-dns-libsonnet",
         "external-secrets-libsonnet",
         "flagger-libsonnet",
-        "fluxcd-libsonnet",
         "gatekeeper-libsonnet",
         "gateway-api-libsonnet",
         "google-cloud-sql-proxy-operator-libsonnet",
@@ -4223,7 +3832,6 @@
         "harbor-operator-libsonnet",
         "hcp-terraform-operator-libsonnet",
         "istio-libsonnet",
-        "k8s-libsonnet",
         "kargo-libsonnet",
         "karpenter-libsonnet",
         "keda-libsonnet",
@@ -4245,7 +3853,6 @@
         "mysql-operator-libsonnet",
         "nats-libsonnet",
         "node-feature-discovery-libsonnet",
-        "openshift-libsonnet",
         "prometheus-operator-libsonnet",
         "pyrra-libsonnet",
         "rabbitmq-libsonnet",

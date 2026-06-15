@@ -66,13 +66,6 @@ libraries:
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
-  argo-workflows-libsonnet:
-    enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-argo-workflows-libsonnet
-    tag: latest
-    path: ""
-    # libraries this one imports; auto-enabled with it
-    closure: []
   argocd-operator-libsonnet:
     enabled: false
     image: ghcr.io/metio/joi-jsonnet-libs-argocd-operator-libsonnet
@@ -185,13 +178,6 @@ libraries:
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
-  cnrm-libsonnet:
-    enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-cnrm-libsonnet
-    tag: latest
-    path: ""
-    # libraries this one imports; auto-enabled with it
-    closure: []
   composable-libsonnet:
     enabled: false
     image: ghcr.io/metio/joi-jsonnet-libs-composable-libsonnet
@@ -220,44 +206,9 @@ libraries:
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
-  crossplane-libsonnet:
-    enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-crossplane-libsonnet
-    tag: latest
-    path: ""
-    # libraries this one imports; auto-enabled with it
-    closure: []
-  crossplane-provider-grafana-libsonnet:
-    enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-crossplane-provider-grafana-libsonnet
-    tag: latest
-    path: ""
-    # libraries this one imports; auto-enabled with it
-    closure: []
-  crossplane-provider-upjet-aws-libsonnet:
-    enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-crossplane-provider-upjet-aws-libsonnet
-    tag: latest
-    path: ""
-    # libraries this one imports; auto-enabled with it
-    closure: []
-  crossplane-provider-upjet-azure-libsonnet:
-    enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-crossplane-provider-upjet-azure-libsonnet
-    tag: latest
-    path: ""
-    # libraries this one imports; auto-enabled with it
-    closure: []
   crossplane-provider-upjet-azuread-libsonnet:
     enabled: false
     image: ghcr.io/metio/joi-jsonnet-libs-crossplane-provider-upjet-azuread-libsonnet
-    tag: latest
-    path: ""
-    # libraries this one imports; auto-enabled with it
-    closure: []
-  crossplane-provider-upjet-gcp-libsonnet:
-    enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-crossplane-provider-upjet-gcp-libsonnet
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
@@ -346,13 +297,6 @@ libraries:
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
-  fluxcd-libsonnet:
-    enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-fluxcd-libsonnet
-    tag: latest
-    path: ""
-    # libraries this one imports; auto-enabled with it
-    closure: []
   gatekeeper-libsonnet:
     enabled: false
     image: ghcr.io/metio/joi-jsonnet-libs-gatekeeper-libsonnet
@@ -401,7 +345,7 @@ libraries:
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
-    closure: []
+    closure: [docsonnet, testonnet, xtd]
   harbor-operator-libsonnet:
     enabled: false
     image: ghcr.io/metio/joi-jsonnet-libs-harbor-operator-libsonnet
@@ -419,13 +363,6 @@ libraries:
   istio-libsonnet:
     enabled: false
     image: ghcr.io/metio/joi-jsonnet-libs-istio-libsonnet
-    tag: latest
-    path: ""
-    # libraries this one imports; auto-enabled with it
-    closure: []
-  k8s-libsonnet:
-    enabled: true
-    image: ghcr.io/metio/joi-jsonnet-libs-k8s-libsonnet
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
@@ -577,13 +514,6 @@ libraries:
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
-  openshift-libsonnet:
-    enabled: false
-    image: ghcr.io/metio/joi-jsonnet-libs-openshift-libsonnet
-    tag: latest
-    path: ""
-    # libraries this one imports; auto-enabled with it
-    closure: []
   prometheus-operator-libsonnet:
     enabled: false
     image: ghcr.io/metio/joi-jsonnet-libs-prometheus-operator-libsonnet
@@ -667,7 +597,7 @@ libraries:
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
-    closure: []
+    closure: [docsonnet, xtd]
   tinkerbell-libsonnet:
     enabled: false
     image: ghcr.io/metio/joi-jsonnet-libs-tinkerbell-libsonnet
@@ -730,7 +660,7 @@ libraries:
     tag: latest
     path: ""
     # libraries this one imports; auto-enabled with it
-    closure: []
+    closure: [docsonnet, testonnet]
   zalando-postgres-operator-libsonnet:
     enabled: false
     image: ghcr.io/metio/joi-jsonnet-libs-zalando-postgres-operator-libsonnet
