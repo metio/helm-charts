@@ -13,6 +13,11 @@ on:
   repository_dispatch:
     types: [joi-manifest-updated]
   workflow_dispatch:
+    inputs:
+      allow_shrink:
+        description: Permit the sync to drop libraries present in the committed chart (set only when libraries were genuinely removed from the JOI manifest upstream)
+        type: boolean
+        default: false
 permissions:
   contents: write
 jobs:
@@ -24,12 +29,31 @@ jobs:
         with:
           version: v4.2.0
       - name: Regenerate charts/joi from the JOI manifest
+        env:
+          ALLOW_SHRINK: ${{ github.event.inputs.allow_shrink }}
         run: |
-          if ! curl -fsSL https://raw.githubusercontent.com/metio/jsonnet-oci-images/main/libraries.json -o /tmp/libraries.json; then
+          if ! curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 https://raw.githubusercontent.com/metio/jsonnet-oci-images/main/libraries.json -o /tmp/libraries.json; then
             echo "JOI manifest not published yet — nothing to sync"; exit 0
           fi
+          # Library names currently shipped by the chart (2-space keys under
+          # `libraries:`), captured before the file is overwritten.
+          libnames() { awk '/^libraries:/{f=1;next} f && /^  [A-Za-z0-9]/{sub(/:[[:space:]]*$/,"");gsub(/^[[:space:]]+/,"");print}' "$1" | sort; }
+          libnames charts/joi/values.yaml > /tmp/old-libs.txt
           bash hack/gen-joi-values.sh /tmp/libraries.json > charts/joi/values.yaml
-          curl -fsSL https://github.com/dadav/helm-schema/releases/download/0.23.4/helm-schema_0.23.4_Linux_x86_64.tar.gz | tar -xz -C /usr/local/bin helm-schema
+          # Shrink-guard: a transient discovery failure upstream can leave the
+          # JOI manifest missing healthy libraries; mirroring it would silently
+          # drop them from the chart. Abort if any currently-shipped library
+          # disappears, unless allow_shrink acknowledges a real upstream removal.
+          libnames charts/joi/values.yaml > /tmp/new-libs.txt
+          dropped="$(comm -23 /tmp/old-libs.txt /tmp/new-libs.txt)"
+          if [ -n "$dropped" ] && [ "$ALLOW_SHRINK" != "true" ]; then
+            echo "::error::sync would drop libraries the chart currently ships:"
+            echo "$dropped" | sed 's/^/::error::  - /'
+            echo "::error::if these were genuinely removed from the JOI manifest, re-run with allow_shrink=true; otherwise this is a transient upstream discovery failure — fix JOI and re-run."
+            git checkout -- charts/joi/values.yaml
+            exit 1
+          fi
+          curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 https://github.com/dadav/helm-schema/releases/download/0.23.4/helm-schema_0.23.4_Linux_x86_64.tar.gz | tar -xz -C /usr/local/bin helm-schema
           helm-schema -c charts/joi -k additionalProperties >/dev/null
       - name: Commit if the library set changed
         run: |
