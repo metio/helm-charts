@@ -24,6 +24,8 @@ maintainers:
 version: 0.0.0
 # appVersion is the ghcr.io/metio/stageset-controller image this chart deploys;
 # Renovate bumps it (and .github/workflows/bump.yml re-vendors the matching CRDs).
-# image.tag defaults to this value.
-# renovate: image=ghcr.io/metio/stageset-controller
+# image.tag defaults to this value. Tracked via the source repo's GitHub releases
+# (not the ghcr image) so the bump only fires once the release/tag exists — see
+# renovate.json.
+# renovate: datasource=github-releases depName=metio/stageset-controller
 appVersion: "2026.6.14"

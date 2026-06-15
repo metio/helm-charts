@@ -23,6 +23,7 @@ maintainers:
 version: 0.0.0
 # appVersion is the metio/jaas image this chart deploys; Renovate bumps it (and
 # .github/workflows/bump.yml re-vendors the matching CRDs). image.tag defaults
-# to this value.
-# renovate: image=ghcr.io/metio/jaas
+# to this value. Tracked via the source repo's GitHub releases (not the ghcr
+# image) so the bump only fires once the release/tag exists — see renovate.json.
+# renovate: datasource=github-releases depName=metio/jaas
 appVersion: "2026.6.15"

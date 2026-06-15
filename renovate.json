@@ -6,25 +6,23 @@
   },
   "packageRules": [
     {
-      "description": "Group each controller image bump with its CRD re-vendor. semver versioning so the metio calendar tags (YYYY.M.D = three integers) order correctly; the default docker versioning does not. maxMajorIncrement: 0 disables Renovate's default 500-major cap — under semver the calendar tag's year reads as the major (e.g. 2026), so the first bump from the 0.0.0 bootstrap is a +2026 major jump that the cap would otherwise silently skip.",
-      "matchDatasources": ["docker"],
-      "matchPackageNames": ["ghcr.io/metio/jaas", "ghcr.io/metio/stageset-controller"],
+      "description": "Group each controller release bump with its CRD re-vendor. semver versioning so the metio calendar tags (YYYY.M.D = three integers) order correctly; the default versioning does not. maxMajorIncrement: 0 disables Renovate's default 500-major cap — under semver the calendar tag's year reads as the major (e.g. 2026), so the first bump from the 0.0.0 bootstrap is a +2026 major jump that the cap would otherwise silently skip.",
+      "matchDatasources": ["github-releases"],
+      "matchPackageNames": ["metio/jaas", "metio/stageset-controller"],
       "versioning": "semver",
       "maxMajorIncrement": 0,
-      "pinDigests": false,
-      "commitMessageTopic": "{{depName}} image (chart appVersion)",
+      "commitMessageTopic": "{{depName}} release (chart appVersion)",
       "groupName": "{{depName}} appVersion"
     }
   ],
   "customManagers": [
     {
-      "description": "Bump each controller chart's committed appVersion from the image it deploys. The fully-qualified image is named in a `# renovate: image=...` comment directly above the appVersion key (must match a packageRule matchPackageNames entry). CRD re-vendoring is handled by .github/workflows/bump.yml on the resulting PR (hosted Renovate cannot run postUpgradeTasks). NOTE: the joi chart is deliberately NOT managed here — its per-library JOI image tags default to `latest` (the version is selected in the import path), refreshed by the jsonnet-oci-images pipeline + the OCIRepository re-pull interval + sync-joi.yml, so Renovate has no role for it.",
+      "description": "Bump each controller chart's committed appVersion from the source repo's GitHub releases. A `# renovate: datasource=github-releases depName=metio/<repo>` comment sits directly above the appVersion key (depName must match a packageRule matchPackageNames entry). Tracking the GitHub release rather than the ghcr image is deliberate: the controller release pipeline pushes the image before it creates the git tag/release, so an image tag can briefly exist with no matching git tag — and vendor-crds.sh plus the dev-chart smoke both resolve that tag, not the image. The release job needs the container job, so a release implies its image exists too, making the bump consistent (tag => image => CRDs). CRD re-vendoring is handled by .github/workflows/bump.yml on the resulting PR (hosted Renovate cannot run postUpgradeTasks). NOTE: the joi chart is deliberately NOT managed here — its per-library JOI image tags default to `latest` (the version is selected in the import path), refreshed by the jsonnet-oci-images pipeline + the OCIRepository re-pull interval + sync-joi.yml, so Renovate has no role for it.",
       "customType": "regex",
       "managerFilePatterns": ["/^charts/[^/]+/Chart\\.yaml$/"],
       "matchStrings": [
-        "#\\s*renovate:\\s*image=(?<depName>\\S+)\\s*\\n\\s*appVersion:\\s*\"?(?<currentValue>[^\"\\n]+)\"?"
-      ],
-      "datasourceTemplate": "docker"
+        "#\\s*renovate:\\s*datasource=(?<datasource>\\S+)\\s+depName=(?<depName>\\S+)\\s*\\n\\s*appVersion:\\s*\"?(?<currentValue>[^\"\\n]+)\"?"
+      ]
     }
   ]
 }
