@@ -78,11 +78,8 @@ tests:
               - namespaceSelector:
                   matchLabels:
                     kubernetes.io/metadata.name: flux-system
-                podSelector:
-                  matchLabels:
-                    app: source-controller
 
-  - it: restricts the storage port to source-controller in flux-system when operator is enabled
+  - it: restricts the storage port to flux-system consumers when operator is enabled
     set:
       networkPolicy:
         enabled: true
@@ -99,9 +96,6 @@ tests:
               - namespaceSelector:
                   matchLabels:
                     kubernetes.io/metadata.name: flux-system
-                podSelector:
-                  matchLabels:
-                    app: source-controller
 
   - it: honors a custom storage.from selector
     set:

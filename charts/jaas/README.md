@@ -80,6 +80,49 @@ operator:
 
 The operator opens a storage HTTP server (default port 8082) that downstream Flux consumers (`kustomize-controller`, `helm-controller`) dereference to fetch the published tarballs. The chart provisions a `Service` named `jaas-storage` for in-cluster routing; override `operator.storage.baseURL` if you front it with an Ingress.
 
+### Consuming Flux sources (`spec.sourceRef`)
+
+A `JsonnetSnippet` can render from a Flux source (`GitRepository`, `OCIRepository`, `Bucket`) instead of inline `spec.files`. The operator then fetches the artifact from source-controller's HTTP server (port `9090`, fronted by the `source-controller` Service on port `80`) in `flux-system`.
+
+Flux installs a default `allow-egress` NetworkPolicy that admits ingress to its controllers **only from pods inside `flux-system`** (the companion `allow-scraping` policy opens just the metrics port, `8080`). On a cluster whose CNI enforces NetworkPolicies (Calico, Cilium, recent kindnet), the operator — running in its own namespace — is therefore blocked from the artifact port, and snippets that use `spec.sourceRef` stall with `SourceFetchFailed` / `context deadline exceeded while awaiting headers`. (Without an enforcing CNI the policies are inert and chaining works untouched.)
+
+Open the artifact port to the operator's namespace the Flux-native way — a kustomize patch on the Flux-managed policy, so the rule stays owned by the same GitOps that manages Flux. With a `flux bootstrap` install, add a `patches` entry to `flux-system/kustomization.yaml`:
+
+```yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - gotk-components.yaml
+  - gotk-sync.yaml
+patches:
+  - target:
+      kind: NetworkPolicy
+      name: allow-egress
+    patch: |
+      - op: add
+        path: /spec/ingress/-
+        value:
+          from:
+            - namespaceSelector:
+                matchLabels:
+                  kubernetes.io/metadata.name: jaas-system   # the operator's namespace
+          ports:
+            - protocol: TCP
+              port: 9090
+```
+
+This appends one ingress rule allowing the operator's namespace to reach the artifact port. Because `allow-egress` selects every `flux-system` pod, the rule technically opens `9090` across the namespace, but only source-controller listens there. To scope it to source-controller alone, add a dedicated `NetworkPolicy` (selecting `app: source-controller`) under `resources` instead of patching `allow-egress`. If you run Flux from a plain `flux install` (no GitOps kustomization to patch), apply that standalone policy directly into `flux-system`.
+
+#### Why not just run the operator in `flux-system`?
+
+It's a tempting shortcut: Flux's `allow-egress` admits ingress `from: [{podSelector: {}}]` — any pod **in the same namespace** — so an operator living in `flux-system` reaches source-controller with no patch at all. The catch is that the same policy selects *every* pod in the namespace (`podSelector: {}`), so it would now govern the operator's **own** ingress too, and it's built for Flux's controllers, not for a webhook-serving, externally-probed app:
+
+- **kubelet probes** (management port) come from the node IP, not a `flux-system` pod — `allow-scraping` only opens the metrics port — so readiness/liveness traffic is dropped and the pod may never go Ready.
+- **The validating webhook** is dialed by kube-apiserver, which isn't a `flux-system` pod either. Flux ships a *separate* `allow-webhooks` policy precisely because apiserver traffic needs an explicit allow; the operator gets no such grant here.
+- **The jsonnet HTTP endpoint** is only reachable by coincidence (the metrics-port allow), and any non-default port is blocked.
+
+So co-locating fixes the fetch direction by subjecting the operator to a policy regime designed for Flux itself — you'd have to add policies to re-open probes, the webhook, and the HTTP path (more YAML than the single patch above), and the operator would live inside the GitOps-managed, high-privilege system namespace. Keep it in its own namespace and add the one allow-rule.
+
 ## Validating admission webhook
 
 Setting `operator.webhook.enabled: true` boots a validating webhook that rejects `JsonnetSnippet`s whose `spec.externalVariables` collide with the operator's `extVars`. The chart provisions a `Service` (`jaas-webhook`), a `ValidatingWebhookConfiguration`, and — when `operator.webhook.certManager.enabled: true` — a cert-manager `Certificate` that issues TLS material into the Secret the Deployment mounts.

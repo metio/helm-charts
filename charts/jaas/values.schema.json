@@ -435,7 +435,7 @@
         },
         "enabled": {
           "default": false,
-          "description": "Opt-in. When enabled, a NetworkPolicy targets the jaas pod and locks\nthe storage HTTP port down to the configured source-controller selector\n(defaults to flux-system/app=source-controller). Other ports stay open\nso kubelet probes, the jsonnet HTTP path, and the webhook traffic from\nkube-apiserver continue to work. Leave OFF on initial install if the\ncluster has no NetworkPolicy controller (Calico/Cilium/etc.) — without\none, the policy is silently inert; with one, default-deny semantics\napply to everything not listed here.",
+          "description": "Opt-in. When enabled, a NetworkPolicy targets the jaas pod and locks\nthe storage HTTP port down to the configured consumer selector (defaults\nto any pod in flux-system — kustomize-controller / helm-controller).\nOther ports stay open so kubelet probes, the jsonnet HTTP path, and the\nwebhook traffic from kube-apiserver continue to work. Leave OFF on initial\ninstall if the cluster has no NetworkPolicy controller (Calico/Cilium/etc.)\n— without one, the policy is silently inert; with one, default-deny\nsemantics apply to everything not listed here.",
           "title": "enabled",
           "type": "boolean"
         },
@@ -474,7 +474,7 @@
           "type": "object"
         },
         "storage": {
-          "description": "Sources allowed to read tarballs from the storage HTTP port. Defaults\nto Flux's source-controller in flux-system.",
+          "description": "Sources allowed to read published ExternalArtifact tarballs from the\nstorage HTTP port. The consumers are the Flux controllers that dereference\nExternalArtifact.status.artifact.url — kustomize-controller and\nhelm-controller (both in flux-system) — NOT source-controller, which only\nproduces its own typed artifacts. Defaults to any pod in flux-system so the\nstock Flux consumers work out of the box. Add an entry per extra consumer\nnamespace (e.g. stageset-controller in stageset-system):\n  - namespaceSelector:\n      matchLabels:\n        kubernetes.io/metadata.name: stageset-system",
           "properties": {
             "from": {
               "items": {
@@ -503,34 +503,10 @@
                         ],
                         "title": "namespaceSelector",
                         "type": "object"
-                      },
-                      "podSelector": {
-                        "properties": {
-                          "matchLabels": {
-                            "properties": {
-                              "app": {
-                                "default": "source-controller",
-                                "title": "app",
-                                "type": "string"
-                              }
-                            },
-                            "required": [
-                              "app"
-                            ],
-                            "title": "matchLabels",
-                            "type": "object"
-                          }
-                        },
-                        "required": [
-                          "matchLabels"
-                        ],
-                        "title": "podSelector",
-                        "type": "object"
                       }
                     },
                     "required": [
-                      "namespaceSelector",
-                      "podSelector"
+                      "namespaceSelector"
                     ],
                     "type": "object"
                   }

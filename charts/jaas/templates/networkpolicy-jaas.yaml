@@ -47,9 +47,11 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
     {{- if .Values.operator.enabled }}
-    # Storage HTTP server — serves the published ExternalArtifact tarballs.
-    # Default scope is Flux's source-controller in flux-system; override
-    # .Values.networkPolicy.storage.from for custom topologies.
+    # Storage HTTP server — serves the published ExternalArtifact tarballs to
+    # the Flux controllers that dereference them (kustomize-controller,
+    # helm-controller, and any custom consumer such as stageset-controller).
+    # Default scope is flux-system; override .Values.networkPolicy.storage.from
+    # to add other consumer namespaces.
     - ports:
         - protocol: TCP
           port: {{ .Values.ports.storage }}
