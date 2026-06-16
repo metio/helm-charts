@@ -5,7 +5,7 @@ apiVersion: v2
 name: jaas
 description: Jsonnet-as-a-Service (JaaS) is a webservice that evaluates Jsonnet snippets on the fly.
 type: application
-home: https://github.com/metio/jaas
+home: https://jaas.projects.metio.wtf/
 sources:
   - https://github.com/metio/jaas
   - https://github.com/metio/helm-charts

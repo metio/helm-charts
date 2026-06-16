@@ -1,0 +1,214 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+suite: test stageset Istio AuthorizationPolicy
+templates:
+  - istio-authorizationpolicy.yaml
+tests:
+  - it: is empty when serviceMesh is disabled (default)
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: is empty for the linkerd engine
+    set:
+      serviceMesh:
+        enabled: true
+        engine: linkerd
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders an AuthorizationPolicy for the istio engine
+    set:
+      serviceMesh:
+        enabled: true
+        engine: istio
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: AuthorizationPolicy
+      - equal:
+          path: apiVersion
+          value: security.istio.io/v1
+      - equal:
+          path: spec.action
+          value: ALLOW
+
+  - it: selects only the controller pod
+    set:
+      serviceMesh:
+        enabled: true
+    release:
+      name: prod-stageset
+    asserts:
+      - equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/name"]
+          value: stageset-controller
+      - equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/instance"]
+          value: prod-stageset
+      - notExists:
+          path: spec.selector.matchLabels["app.kubernetes.io/managed-by"]
+
+  - it: allows the gate port from any source by default
+    set:
+      serviceMesh:
+        enabled: true
+    asserts:
+      - contains:
+          path: spec.rules
+          content:
+            to:
+              - operation:
+                  ports:
+                    - "8082"
+
+  - it: allows the metrics port from any source by default
+    set:
+      serviceMesh:
+        enabled: true
+    asserts:
+      - contains:
+          path: spec.rules
+          content:
+            to:
+              - operation:
+                  ports:
+                    - "8080"
+
+  - it: opens the health port from any source (kubelet carve-out)
+    set:
+      serviceMesh:
+        enabled: true
+      webhook:
+        enabled: false
+    asserts:
+      - contains:
+          path: spec.rules
+          content:
+            to:
+              - operation:
+                  ports:
+                    - "8081"
+
+  - it: adds the webhook port to the carve-out only when the webhook is enabled
+    set:
+      serviceMesh:
+        enabled: true
+      webhook:
+        enabled: true
+    asserts:
+      - contains:
+          path: spec.rules
+          content:
+            to:
+              - operation:
+                  ports:
+                    - "8081"
+                    - "9443"
+
+  - it: keeps the webhook port out of the carve-out when the webhook is disabled
+    set:
+      serviceMesh:
+        enabled: true
+      webhook:
+        enabled: false
+    asserts:
+      - notContains:
+          path: spec.rules
+          content:
+            to:
+              - operation:
+                  ports:
+                    - "8081"
+                    - "9443"
+
+  - it: omits the gate rule when gate is disabled
+    set:
+      serviceMesh:
+        enabled: true
+      gate:
+        enabled: false
+    asserts:
+      - notContains:
+          path: spec.rules
+          content:
+            to:
+              - operation:
+                  ports:
+                    - "8082"
+
+  - it: restricts the gate port to the configured mesh identities
+    set:
+      serviceMesh:
+        enabled: true
+        gate:
+          from:
+            - principals:
+                - cluster.local/ns/flagger-system/sa/flagger
+              namespaces:
+                - flagger-system
+    asserts:
+      - contains:
+          path: spec.rules
+          content:
+            to:
+              - operation:
+                  ports:
+                    - "8082"
+            from:
+              - source:
+                  principals:
+                    - cluster.local/ns/flagger-system/sa/flagger
+                  namespaces:
+                    - flagger-system
+
+  - it: emits a principals-only source when no namespaces are given
+    set:
+      serviceMesh:
+        enabled: true
+        gate:
+          from:
+            - principals:
+                - cluster.local/ns/flagger-system/sa/flagger
+    asserts:
+      - contains:
+          path: spec.rules
+          content:
+            to:
+              - operation:
+                  ports:
+                    - "8082"
+            from:
+              - source:
+                  principals:
+                    - cluster.local/ns/flagger-system/sa/flagger
+
+  - it: merges istio.rules passthrough verbatim
+    set:
+      serviceMesh:
+        enabled: true
+        istio:
+          rules:
+            - to:
+                - operation:
+                    paths:
+                      - /healthz
+              when:
+                - key: request.auth.claims[iss]
+                  values:
+                    - https://accounts.example.com
+    asserts:
+      - contains:
+          path: spec.rules
+          content:
+            to:
+              - operation:
+                  paths:
+                    - /healthz
+            when:
+              - key: request.auth.claims[iss]
+                values:
+                  - https://accounts.example.com

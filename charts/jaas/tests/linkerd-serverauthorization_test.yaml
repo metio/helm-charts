@@ -1,0 +1,205 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+suite: test jaas Linkerd Server / AuthorizationPolicy / MeshTLSAuthentication
+templates:
+  - linkerd-serverauthorization.yaml
+tests:
+  - it: is empty when serviceMesh is disabled (default)
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: is empty for the istio engine
+    set:
+      serviceMesh:
+        enabled: true
+        engine: istio
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders only the http triple when operator is disabled
+    set:
+      serviceMesh:
+        enabled: true
+        engine: linkerd
+    asserts:
+      # http Server + MeshTLSAuthentication + AuthorizationPolicy = 3 docs.
+      - hasDocuments:
+          count: 3
+
+  - it: renders a Server for the http port only, not the management/webhook ports
+    set:
+      serviceMesh:
+        enabled: true
+        engine: linkerd
+    documentSelector:
+      path: kind
+      value: Server
+    asserts:
+      - equal:
+          path: apiVersion
+          value: policy.linkerd.io/v1beta3
+      - equal:
+          path: spec.port
+          value: 8080
+      - equal:
+          path: spec.podSelector.matchLabels["app.kubernetes.io/name"]
+          value: jaas
+
+  - it: creates no Server for the management port (kubelet rides default-inbound-policy)
+    set:
+      serviceMesh:
+        enabled: true
+        engine: linkerd
+    documentSelector:
+      path: kind
+      value: Server
+    asserts:
+      # operator off => the only Server is on the http port. No jaas-management
+      # Server holds 8081, so kubelet probes ride the namespace
+      # default-inbound-policy. The "renders only the http triple" test above
+      # pins the total document count to 3, proving no extra Server exists.
+      - equal:
+          path: spec.port
+          value: 8080
+
+  - it: creates no Server for the webhook port (apiserver is non-mesh)
+    set:
+      serviceMesh:
+        enabled: true
+        engine: linkerd
+      operator:
+        enabled: true
+        webhook:
+          enabled: true
+          certManager:
+            issuerRef:
+              name: jaas-ca
+    asserts:
+      # Enabling the webhook adds no Server — http + storage + metrics only.
+      # A jaas-webhook Server (port 9443) would push this to 12.
+      - hasDocuments:
+          count: 9
+
+  - it: renders the storage and metrics triples when operator and metrics are enabled
+    set:
+      serviceMesh:
+        enabled: true
+        engine: linkerd
+      operator:
+        enabled: true
+        metrics:
+          enabled: true
+    asserts:
+      # http + storage + metrics = 3 ports x 3 objects = 9 docs.
+      - hasDocuments:
+          count: 9
+
+  - it: omits the metrics triple when metrics is disabled
+    set:
+      serviceMesh:
+        enabled: true
+        engine: linkerd
+      operator:
+        enabled: true
+        metrics:
+          enabled: false
+    asserts:
+      # http + storage = 2 ports x 3 objects = 6 docs.
+      - hasDocuments:
+          count: 6
+
+  - it: authorizes any meshed identity by default
+    set:
+      serviceMesh:
+        enabled: true
+        engine: linkerd
+    documentSelector:
+      path: kind
+      value: MeshTLSAuthentication
+    asserts:
+      - equal:
+          path: spec.identities
+          value:
+            - "*"
+
+  - it: restricts a port to the configured principals
+    # The storage MeshTLSAuthentication is the only document whose
+    # spec.identities[0] is the configured flux principal — select it directly.
+    set:
+      serviceMesh:
+        enabled: true
+        engine: linkerd
+        storage:
+          from:
+            - principals:
+                - flux.flux-system.serviceaccount.identity.linkerd.cluster.local
+      operator:
+        enabled: true
+    documentSelector:
+      path: spec.identities[0]
+      value: flux.flux-system.serviceaccount.identity.linkerd.cluster.local
+    asserts:
+      - equal:
+          path: kind
+          value: MeshTLSAuthentication
+      - equal:
+          path: metadata.name
+          value: jaas-storage
+      - equal:
+          path: spec.identities
+          value:
+            - flux.flux-system.serviceaccount.identity.linkerd.cluster.local
+
+  - it: links each AuthorizationPolicy to its Server and MeshTLSAuthentication
+    set:
+      serviceMesh:
+        enabled: true
+        engine: linkerd
+    documentSelector:
+      path: kind
+      value: AuthorizationPolicy
+    asserts:
+      - equal:
+          path: spec.targetRef.kind
+          value: Server
+      - equal:
+          path: spec.targetRef.name
+          value: jaas-http
+      - equal:
+          path: spec.requiredAuthenticationRefs[0].kind
+          value: MeshTLSAuthentication
+      - equal:
+          path: spec.requiredAuthenticationRefs[0].name
+          value: jaas-http
+
+  - it: appends linkerd.authorizations passthrough verbatim
+    set:
+      serviceMesh:
+        enabled: true
+        engine: linkerd
+        linkerd:
+          authorizations:
+            - apiVersion: policy.linkerd.io/v1alpha1
+              kind: AuthorizationPolicy
+              metadata:
+                name: extra-auth
+              spec:
+                targetRef:
+                  group: policy.linkerd.io
+                  kind: Server
+                  name: jaas-http
+                requiredAuthenticationRefs:
+                  - group: policy.linkerd.io
+                    kind: NetworkAuthentication
+                    name: cluster-net
+    asserts:
+      # http triple (3) + 1 passthrough = 4 docs.
+      - hasDocuments:
+          count: 4
+      - documentIndex: 3
+        equal:
+          path: metadata.name
+          value: extra-auth

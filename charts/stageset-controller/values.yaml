@@ -343,6 +343,91 @@ networkPolicy:
     # so it must be an ipBlock here.
     to: []
 
+# -- Opt-in service-mesh L7 authorization + mTLS for the controller pod.
+# Complementary to networkPolicy, NOT a replacement: networkPolicy is L3/L4
+# (which pods/IPs may open a connection), serviceMesh is L7/identity (which mesh
+# identities may call which port). Both can be enabled at once and stack
+# additively. Authorizes only the mesh-reachable ports — gate (Flagger) and
+# metrics (Prometheus). The webhook (kube-apiserver) and health/probe (kubelet)
+# ports are deliberately left out: those callers speak plain TLS / no mesh
+# identity, and locking them to mesh principals would break admission and health
+# probing.
+serviceMesh:
+  # -- Opt-in. When enabled, the chart renders the selected engine's
+  # authorization + mTLS objects for the controller pod. Inert unless that mesh
+  # (Istio or Linkerd) is actually installed and the pod is injected.
+  enabled: false
+  # @schema
+  # type: string
+  # enum:
+  #   - istio
+  #   - linkerd
+  # @schema
+  # -- Mesh engine to render for. istio emits security.istio.io
+  # AuthorizationPolicy (+ optional PeerAuthentication). linkerd emits
+  # policy.linkerd.io Server / AuthorizationPolicy / MeshTLSAuthentication
+  # objects.
+  engine: istio
+  # @schema
+  # type: string
+  # enum:
+  #   - ""
+  #   - permissive
+  #   - strict
+  # @schema
+  # -- mTLS posture (Istio engine only). Empty defers to the mesh's own default
+  # (mesh-wide PeerAuthentication / MeshConfig). permissive renders a
+  # PeerAuthentication accepting both mTLS and plaintext. strict requires mTLS on
+  # the workload's ports EXCEPT the webhook + health ports, which get a
+  # port-level PERMISSIVE carve-out so the non-mesh kube-apiserver and kubelet
+  # still connect. Linkerd negotiates mTLS automatically between meshed pods, so
+  # this knob does not apply to the linkerd engine.
+  mtls: ""
+  # Per-port allowed mesh identities. Each `from` entry is a source matcher:
+  #   - principals: SPIFFE/mesh identities (Istio source.principals, e.g.
+  #       cluster.local/ns/<ns>/sa/<sa>). For Linkerd these map to
+  #       MeshTLSAuthentication identities (the proxy identity string, e.g.
+  #       <sa>.<ns>.serviceaccount.identity.linkerd.cluster.local, or "*").
+  #   - namespaces: source namespaces (Istio source.namespaces). ISTIO-ONLY —
+  #       Linkerd authenticates by workload identity, not by namespace, so this
+  #       field is ignored on the linkerd engine.
+  # An EMPTY `from` list on a port means OPEN (allow any caller), mirroring
+  # networkPolicy's empty-`from`=open semantics. On Istio that is a port rule
+  # with no `from`; on Linkerd it is a MeshTLSAuthentication of identities: ["*"]
+  # (any authenticated meshed client).
+  # -- Mesh identities allowed to poll the Flagger stage-gate endpoint
+  # (ports.gate). Rendered only when gate.enabled. Empty = open.
+  gate:
+    from: []
+  # -- Mesh identities allowed to scrape the controller metrics port
+  # (ports.metrics). Empty = open.
+  metrics:
+    from: []
+  # -- Istio engine raw passthrough. Entries are merged verbatim into the
+  # AuthorizationPolicy's spec.rules (security.istio.io/v1 rule schema). Use this
+  # to add rules the per-port `from` knobs above can't express — path/method
+  # matchers, `when` JWT-claim conditions, ipBlocks, etc.
+  istio:
+    rules: []
+  # -- Linkerd engine raw passthrough. Entries are appended verbatim as
+  # additional documents after the rendered Server / AuthorizationPolicy /
+  # MeshTLSAuthentication set — each entry must be a complete object
+  # (policy.linkerd.io AuthorizationPolicy, HTTPRoute, etc.).
+  linkerd:
+    authorizations: []
+  # -- Render a namespace-wide default-deny so every pod in the install namespace
+  # rejects unauthorized mesh traffic and the per-workload allows above are the
+  # only exceptions (zero-trust namespace). Istio renders an empty-spec
+  # AuthorizationPolicy (deny-all) scoped to the whole namespace, which sits at
+  # lower precedence than the workload ALLOW. Linkerd has no per-object deny-all;
+  # the namespace default is set via the config.linkerd.io/default-inbound-policy
+  # annotation, so this is stamped onto the chart-managed Namespace (requires
+  # namespace.create=true) — otherwise annotate the namespace out-of-band. Enable
+  # only when the controller owns its namespace; it also denies co-located
+  # workloads.
+  defaultDeny:
+    enabled: false
+
 # -- Install namespace with Pod-Security labels. The chart installs into
 # .Release.Namespace; set create to render it with PSS labels.
 namespace:

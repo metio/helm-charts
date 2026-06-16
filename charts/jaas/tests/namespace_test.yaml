@@ -106,3 +106,43 @@ tests:
       - equal:
           path: metadata.labels["app.kubernetes.io/managed-by"]
           value: Helm
+
+  - it: stamps the linkerd default-inbound-policy when serviceMesh defaultDeny is on for linkerd
+    set:
+      namespace:
+        create: true
+      serviceMesh:
+        enabled: true
+        engine: linkerd
+        defaultDeny:
+          enabled: true
+    asserts:
+      - equal:
+          path: metadata.annotations["config.linkerd.io/default-inbound-policy"]
+          value: deny
+
+  - it: does not stamp the linkerd annotation for the istio engine
+    set:
+      namespace:
+        create: true
+      serviceMesh:
+        enabled: true
+        engine: istio
+        defaultDeny:
+          enabled: true
+    asserts:
+      - notExists:
+          path: metadata.annotations["config.linkerd.io/default-inbound-policy"]
+
+  - it: does not stamp the linkerd annotation when defaultDeny is off
+    set:
+      namespace:
+        create: true
+      serviceMesh:
+        enabled: true
+        engine: linkerd
+        defaultDeny:
+          enabled: false
+    asserts:
+      - notExists:
+          path: metadata.annotations

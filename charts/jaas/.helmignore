@@ -8,3 +8,6 @@ README.md.gotmpl
 # the source tree by ct / helm unittest, never from the package.
 ci/
 tests/
+# Artifact Hub repository metadata is pushed to the registry under the
+# :artifacthub.io tag (hack/push-artifacthub-metadata.sh), not shipped in the chart.
+artifacthub-repo.yml

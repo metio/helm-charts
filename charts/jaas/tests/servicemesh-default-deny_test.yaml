@@ -1,0 +1,57 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+suite: test jaas service-mesh default-deny
+templates:
+  - servicemesh-default-deny.yaml
+tests:
+  - it: is empty when serviceMesh is disabled (default)
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: is empty when defaultDeny is disabled
+    set:
+      serviceMesh:
+        enabled: true
+        engine: istio
+        defaultDeny:
+          enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders a namespace-wide deny-all AuthorizationPolicy for the istio engine
+    set:
+      serviceMesh:
+        enabled: true
+        engine: istio
+        defaultDeny:
+          enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: AuthorizationPolicy
+      - equal:
+          path: apiVersion
+          value: security.istio.io/v1
+      # ALLOW with no rules matches nothing => deny-all for the namespace.
+      - equal:
+          path: spec.action
+          value: ALLOW
+      - notExists:
+          path: spec.rules
+      - notExists:
+          path: spec.selector
+
+  - it: renders nothing here for the linkerd engine (set via namespace annotation)
+    set:
+      serviceMesh:
+        enabled: true
+        engine: linkerd
+        defaultDeny:
+          enabled: true
+    asserts:
+      - hasDocuments:
+          count: 0

@@ -5,7 +5,7 @@ apiVersion: v2
 name: joi
 description: Jsonnet-OCI-Images (JOI) as Flux OCIRepository + JaaS JsonnetLibrary pairs for in-cluster use.
 type: application
-home: https://github.com/metio/jsonnet-oci-images
+home: https://jaas.projects.metio.wtf/usage/joi-images/
 sources:
   - https://github.com/metio/jsonnet-oci-images
   - https://github.com/metio/helm-charts

@@ -1,0 +1,43 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+#
+# git-cliff config that renders the SAME per-chart commit range as cliff.toml,
+# but formatted as an Artifact Hub `artifacthub.io/changes` annotation value — a
+# YAML list of {kind, description}. The release workflow injects the output into
+# the chart's Chart.yaml before `helm package`, so Artifact Hub shows a Changelog
+# tab on the package page. The [git] section MIRRORS cliff.toml — keep the
+# commit_parsers in sync between the two files.
+
+[changelog]
+header = ""
+# Map cliff's conventional-commit groups onto Artifact Hub's change kinds
+# (added | changed | fixed | …). json_encode quotes/escapes each description so
+# a colon or quote in a commit subject can't break the emitted YAML.
+body = """{% for commit in commits %}- kind: {% if commit.group == "Added" %}added{% elif commit.group == "Fixed" %}fixed{% else %}changed{% endif %}
+  description: {{ commit.message | split(pat="\n") | first | trim | json_encode }}
+{% endfor %}"""
+# trim=false so the two-space indent on `description` survives (it makes each
+# pair a single YAML list item); git-cliff's trim would otherwise strip it.
+trim = false
+footer = ""
+
+[git]
+conventional_commits = true
+filter_unconventional = false
+split_commits = false
+commit_parsers = [
+    { message = "^feat", group = "Added" },
+    { message = "^fix", group = "Fixed" },
+    { message = "^doc", group = "Documentation" },
+    { message = "^perf", group = "Performance" },
+    { message = "^refactor", group = "Changed" },
+    { message = "^chore\\(deps\\)", group = "Dependencies" },
+    { message = "^chore", group = "Changed" },
+    { message = "^revert", group = "Reverted" },
+    { message = ".*", group = "Changed" },
+]
+protect_breaking_commits = false
+filter_commits = false
+tag_pattern = ".*-[0-9].*"
+topo_order = false
+sort_commits = "newest"

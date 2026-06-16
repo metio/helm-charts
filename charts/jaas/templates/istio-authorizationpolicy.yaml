@@ -1,0 +1,112 @@
+{{- /*
+SPDX-FileCopyrightText: The helm-charts Authors
+SPDX-License-Identifier: 0BSD
+*/ -}}
+{{- if and .Values.serviceMesh.enabled (eq .Values.serviceMesh.engine "istio") -}}
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: jaas
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/component: jaas
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+    app.kubernetes.io/part-of: {{ .Chart.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Chart.Name }}
+      app.kubernetes.io/component: jaas
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/part-of: {{ .Chart.Name }}
+  # An ALLOW policy turns the selected workload into default-deny for everything
+  # NOT matched by a rule below. So every mesh-reachable port needs an explicit
+  # allow, AND the non-mesh webhook + management ports need a from-any carve-out
+  # or the apiserver/kubelet are locked out.
+  action: ALLOW
+  rules:
+    # Jsonnet HTTP endpoint. Empty serviceMesh.http.from => no `from` => any
+    # source may reach this port.
+    - to:
+        - operation:
+            ports:
+              - {{ .Values.ports.http | quote }}
+      {{- with .Values.serviceMesh.http.from }}
+      from:
+        {{- range . }}
+        - source:
+            {{- with .principals }}
+            principals:
+              {{- toYaml . | nindent 14 }}
+            {{- end }}
+            {{- with .namespaces }}
+            namespaces:
+              {{- toYaml . | nindent 14 }}
+            {{- end }}
+        {{- end }}
+      {{- end }}
+    {{- if .Values.operator.enabled }}
+    # Storage HTTP server — published ExternalArtifact tarballs. Operator mode
+    # only. Empty serviceMesh.storage.from => any source.
+    - to:
+        - operation:
+            ports:
+              - {{ .Values.ports.storage | quote }}
+      {{- with .Values.serviceMesh.storage.from }}
+      from:
+        {{- range . }}
+        - source:
+            {{- with .principals }}
+            principals:
+              {{- toYaml . | nindent 14 }}
+            {{- end }}
+            {{- with .namespaces }}
+            namespaces:
+              {{- toYaml . | nindent 14 }}
+            {{- end }}
+        {{- end }}
+      {{- end }}
+    {{- end }}
+    {{- if and .Values.operator.enabled .Values.operator.metrics.enabled }}
+    # Metrics endpoint — controller-runtime Prometheus server. Operator mode +
+    # metrics only. Empty serviceMesh.metrics.from => any source.
+    - to:
+        - operation:
+            ports:
+              - {{ .Values.ports.metrics | quote }}
+      {{- with .Values.serviceMesh.metrics.from }}
+      from:
+        {{- range . }}
+        - source:
+            {{- with .principals }}
+            principals:
+              {{- toYaml . | nindent 14 }}
+            {{- end }}
+            {{- with .namespaces }}
+            namespaces:
+              {{- toYaml . | nindent 14 }}
+            {{- end }}
+        {{- end }}
+      {{- end }}
+    {{- end }}
+    # Non-mesh inbound carve-out. The kube-apiserver dials the webhook and the
+    # kubelet hits the management/probe port; neither speaks mesh mTLS or carries
+    # a mesh identity. Because this ALLOW policy default-denies every unlisted
+    # port, these ports MUST be allowed from any source or admission + health
+    # probing break. mTLS posture (when strict) carves the same ports back to
+    # PERMISSIVE in the PeerAuthentication.
+    - to:
+        - operation:
+            ports:
+              - {{ .Values.ports.management | quote }}
+              {{- if and .Values.operator.enabled .Values.operator.webhook.enabled }}
+              - {{ .Values.ports.webhook | quote }}
+              {{- end }}
+    {{- with .Values.serviceMesh.istio.rules }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+{{- end }}

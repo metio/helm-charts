@@ -1,0 +1,76 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+{{- if and .Values.serviceMesh.enabled (eq .Values.serviceMesh.engine "linkerd") }}
+{{- $root := . -}}
+{{- /*
+Build the mesh-reachable port set: name -> {port, from}. metrics is always
+present; gate is gated on gate.enabled, matching networkpolicy.yaml. The webhook
+(apiserver) and health (kubelet) ports get NO Server — a Server makes its port
+default-deny, which would lock out the non-mesh apiserver/kubelet. They are left
+to Linkerd's namespace default-inbound-policy, which auto-admits kubelet probes.
+*/ -}}
+{{- $ports := list -}}
+{{- if .Values.gate.enabled -}}
+{{- $ports = append $ports (dict "name" "gate" "port" .Values.ports.gate "from" .Values.serviceMesh.gate.from) -}}
+{{- end -}}
+{{- $ports = append $ports (dict "name" "metrics" "port" .Values.ports.metrics "from" .Values.serviceMesh.metrics.from) -}}
+{{- range $ports }}
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: {{ include "stageset.name" $root }}-{{ .name }}
+  namespace: {{ include "stageset.namespace" $root }}
+  labels:
+    {{- include "stageset.labels" $root | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "stageset.selectorLabels" $root | nindent 6 }}
+  port: {{ .port }}
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: {{ include "stageset.name" $root }}-{{ .name }}
+  namespace: {{ include "stageset.namespace" $root }}
+  labels:
+    {{- include "stageset.labels" $root | nindent 4 }}
+spec:
+  identities:
+    {{- if .from }}
+    {{- range .from }}
+    {{- with .principals }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- end }}
+    {{- else }}
+    # Empty serviceMesh.<port>.from => any authenticated meshed client.
+    - "*"
+    {{- end }}
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: {{ include "stageset.name" $root }}-{{ .name }}
+  namespace: {{ include "stageset.namespace" $root }}
+  labels:
+    {{- include "stageset.labels" $root | nindent 4 }}
+spec:
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: {{ include "stageset.name" $root }}-{{ .name }}
+  requiredAuthenticationRefs:
+    - group: policy.linkerd.io
+      kind: MeshTLSAuthentication
+      name: {{ include "stageset.name" $root }}-{{ .name }}
+{{- end }}
+{{- with .Values.serviceMesh.linkerd.authorizations }}
+{{- range . }}
+---
+{{ toYaml . }}
+{{- end }}
+{{- end }}
+{{- end }}

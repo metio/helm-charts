@@ -1,0 +1,25 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+{{- if and .Values.serviceMesh.enabled .Values.serviceMesh.defaultDeny.enabled }}
+{{- if eq .Values.serviceMesh.engine "istio" }}
+# Namespace-wide deny-all. An AuthorizationPolicy with action ALLOW and no rules
+# matches nothing, so every request the workload's own ALLOW policy does not
+# admit is denied. No selector => the whole namespace. The workload's
+# AuthorizationPolicy is more specific (it carries a selector), and Istio's
+# ALLOW evaluation admits a request matched by ANY ALLOW policy, so the
+# per-workload allows for the controller still win while every other pod is
+# denied. Enable only when the controller owns its namespace — this denies
+# co-located workloads too.
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: {{ include "stageset.name" . }}-default-deny
+  namespace: {{ include "stageset.namespace" . }}
+  labels:
+    {{- include "stageset.labels" . | nindent 4 }}
+spec:
+  # An ALLOW policy with no rules admits nothing => deny-all for the namespace.
+  action: ALLOW
+{{- end }}
+{{- end }}

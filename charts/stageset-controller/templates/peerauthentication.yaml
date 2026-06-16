@@ -1,0 +1,35 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+{{- if and .Values.serviceMesh.enabled (eq .Values.serviceMesh.engine "istio") .Values.serviceMesh.mtls }}
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: {{ include "stageset.name" . }}
+  namespace: {{ include "stageset.namespace" . }}
+  labels:
+    {{- include "stageset.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "stageset.selectorLabels" . | nindent 6 }}
+  {{- if eq .Values.serviceMesh.mtls "strict" }}
+  mtls:
+    mode: STRICT
+  # Port-level carve-out. STRICT would reject the plaintext / non-mesh
+  # connections the kube-apiserver (webhook) and kubelet (health/probe) open,
+  # since neither presents a mesh client cert. PERMISSIVE on exactly those ports
+  # keeps them reachable while every other port stays mTLS-only. portLevelMtls
+  # keys are workload (container) ports, not Service ports.
+  portLevelMtls:
+    {{ .Values.ports.health | int }}:
+      mode: PERMISSIVE
+    {{- if .Values.webhook.enabled }}
+    {{ .Values.ports.webhook | int }}:
+      mode: PERMISSIVE
+    {{- end }}
+  {{- else }}
+  mtls:
+    mode: PERMISSIVE
+  {{- end }}
+{{- end }}

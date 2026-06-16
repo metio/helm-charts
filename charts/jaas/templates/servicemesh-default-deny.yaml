@@ -1,0 +1,31 @@
+{{- /*
+SPDX-FileCopyrightText: The helm-charts Authors
+SPDX-License-Identifier: 0BSD
+*/ -}}
+{{- if and .Values.serviceMesh.enabled .Values.serviceMesh.defaultDeny.enabled -}}
+{{- if eq .Values.serviceMesh.engine "istio" -}}
+# Namespace-wide deny-all. An AuthorizationPolicy with action ALLOW and no rules
+# matches nothing, so every request the workload's own ALLOW policy does not
+# admit is denied. No selector => the whole namespace. The workload's
+# AuthorizationPolicy is more specific (it carries a selector), and Istio's
+# ALLOW evaluation admits a request matched by ANY ALLOW policy, so the
+# per-workload allows for jaas still win while every other pod is denied. Enable
+# only when jaas owns its namespace — this denies co-located workloads too.
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: jaas-default-deny
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/component: jaas
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+    app.kubernetes.io/part-of: {{ .Chart.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+spec:
+  # An ALLOW policy with no rules admits nothing => deny-all for the namespace.
+  action: ALLOW
+{{- end }}
+{{- end }}

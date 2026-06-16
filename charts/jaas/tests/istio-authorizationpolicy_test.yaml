@@ -1,0 +1,245 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+suite: test jaas Istio AuthorizationPolicy
+templates:
+  - istio-authorizationpolicy.yaml
+tests:
+  - it: is empty when serviceMesh is disabled (default)
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: is empty for the linkerd engine
+    set:
+      serviceMesh:
+        enabled: true
+        engine: linkerd
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders an AuthorizationPolicy for the istio engine
+    set:
+      serviceMesh:
+        enabled: true
+        engine: istio
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: AuthorizationPolicy
+      - equal:
+          path: apiVersion
+          value: security.istio.io/v1
+      - equal:
+          path: spec.action
+          value: ALLOW
+
+  - it: selects only the jaas pod
+    set:
+      serviceMesh:
+        enabled: true
+    release:
+      name: prod-jaas
+    asserts:
+      - equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/name"]
+          value: jaas
+      - equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/instance"]
+          value: prod-jaas
+      - notExists:
+          path: spec.selector.matchLabels["app.kubernetes.io/managed-by"]
+
+  - it: allows the http port from any source by default
+    set:
+      serviceMesh:
+        enabled: true
+    asserts:
+      - contains:
+          path: spec.rules
+          content:
+            to:
+              - operation:
+                  ports:
+                    - "8080"
+
+  - it: opens the management port from any source (kubelet carve-out)
+    set:
+      serviceMesh:
+        enabled: true
+    asserts:
+      - contains:
+          path: spec.rules
+          content:
+            to:
+              - operation:
+                  ports:
+                    - "8081"
+
+  - it: adds the webhook port to the carve-out only when the webhook is enabled
+    set:
+      serviceMesh:
+        enabled: true
+      operator:
+        enabled: true
+        webhook:
+          enabled: true
+          certManager:
+            issuerRef:
+              name: jaas-ca
+    asserts:
+      - contains:
+          path: spec.rules
+          content:
+            to:
+              - operation:
+                  ports:
+                    - "8081"
+                    - "9443"
+
+  - it: keeps the webhook port out of the carve-out when the webhook is disabled
+    set:
+      serviceMesh:
+        enabled: true
+    asserts:
+      - notContains:
+          path: spec.rules
+          content:
+            to:
+              - operation:
+                  ports:
+                    - "8081"
+                    - "9443"
+
+  - it: omits the storage rule when operator is disabled
+    set:
+      serviceMesh:
+        enabled: true
+    asserts:
+      - notContains:
+          path: spec.rules
+          content:
+            to:
+              - operation:
+                  ports:
+                    - "8082"
+
+  - it: allows the storage port when operator is enabled
+    set:
+      serviceMesh:
+        enabled: true
+      operator:
+        enabled: true
+    asserts:
+      - contains:
+          path: spec.rules
+          content:
+            to:
+              - operation:
+                  ports:
+                    - "8082"
+
+  - it: allows the metrics port when operator and metrics are enabled
+    set:
+      serviceMesh:
+        enabled: true
+      operator:
+        enabled: true
+        metrics:
+          enabled: true
+    asserts:
+      - contains:
+          path: spec.rules
+          content:
+            to:
+              - operation:
+                  ports:
+                    - "8083"
+
+  - it: omits the metrics port when operator is disabled
+    set:
+      serviceMesh:
+        enabled: true
+    asserts:
+      - notContains:
+          path: spec.rules
+          content:
+            to:
+              - operation:
+                  ports:
+                    - "8083"
+
+  - it: restricts the http port to the configured mesh identities
+    set:
+      serviceMesh:
+        enabled: true
+        http:
+          from:
+            - principals:
+                - cluster.local/ns/edge/sa/gateway
+              namespaces:
+                - edge
+    asserts:
+      - contains:
+          path: spec.rules
+          content:
+            to:
+              - operation:
+                  ports:
+                    - "8080"
+            from:
+              - source:
+                  principals:
+                    - cluster.local/ns/edge/sa/gateway
+                  namespaces:
+                    - edge
+
+  - it: emits a principals-only source when no namespaces are given
+    set:
+      serviceMesh:
+        enabled: true
+        http:
+          from:
+            - principals:
+                - cluster.local/ns/edge/sa/gateway
+    asserts:
+      - contains:
+          path: spec.rules
+          content:
+            to:
+              - operation:
+                  ports:
+                    - "8080"
+            from:
+              - source:
+                  principals:
+                    - cluster.local/ns/edge/sa/gateway
+
+  - it: merges istio.rules passthrough verbatim
+    set:
+      serviceMesh:
+        enabled: true
+        istio:
+          rules:
+            - to:
+                - operation:
+                    paths:
+                      - /healthz
+              when:
+                - key: request.auth.claims[iss]
+                  values:
+                    - https://accounts.example.com
+    asserts:
+      - contains:
+          path: spec.rules
+          content:
+            to:
+              - operation:
+                  paths:
+                    - /healthz
+            when:
+              - key: request.auth.claims[iss]
+                values:
+                  - https://accounts.example.com

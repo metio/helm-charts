@@ -1,0 +1,80 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+{{- if and .Values.serviceMesh.enabled (eq .Values.serviceMesh.engine "istio") }}
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: {{ include "stageset.name" . }}
+  namespace: {{ include "stageset.namespace" . }}
+  labels:
+    {{- include "stageset.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "stageset.selectorLabels" . | nindent 6 }}
+  # An ALLOW policy turns the selected workload into default-deny for everything
+  # NOT matched by a rule below. So every mesh-reachable port needs an explicit
+  # allow, AND the non-mesh webhook + health ports need a from-any carve-out or
+  # the apiserver/kubelet are locked out.
+  action: ALLOW
+  rules:
+    {{- if .Values.gate.enabled }}
+    # Stage-gate endpoint — polled by Flagger to read the StageSet promotion
+    # verdict. Empty serviceMesh.gate.from => no `from` => any source.
+    - to:
+        - operation:
+            ports:
+              - {{ .Values.ports.gate | quote }}
+      {{- with .Values.serviceMesh.gate.from }}
+      from:
+        {{- range . }}
+        - source:
+            {{- with .principals }}
+            principals:
+              {{- toYaml . | nindent 14 }}
+            {{- end }}
+            {{- with .namespaces }}
+            namespaces:
+              {{- toYaml . | nindent 14 }}
+            {{- end }}
+        {{- end }}
+      {{- end }}
+    {{- end }}
+    # Metrics endpoint — controller-runtime Prometheus server. Empty
+    # serviceMesh.metrics.from => any source.
+    - to:
+        - operation:
+            ports:
+              - {{ .Values.ports.metrics | quote }}
+      {{- with .Values.serviceMesh.metrics.from }}
+      from:
+        {{- range . }}
+        - source:
+            {{- with .principals }}
+            principals:
+              {{- toYaml . | nindent 14 }}
+            {{- end }}
+            {{- with .namespaces }}
+            namespaces:
+              {{- toYaml . | nindent 14 }}
+            {{- end }}
+        {{- end }}
+      {{- end }}
+    # Non-mesh inbound carve-out. The kube-apiserver dials the webhook and the
+    # kubelet hits the health/probe port; neither speaks mesh mTLS or carries a
+    # mesh identity. Because this ALLOW policy default-denies every unlisted
+    # port, these ports MUST be allowed from any source or admission + health
+    # probing break. mTLS posture (when strict) carves the same ports back to
+    # PERMISSIVE in the PeerAuthentication.
+    - to:
+        - operation:
+            ports:
+              - {{ .Values.ports.health | quote }}
+              {{- if .Values.webhook.enabled }}
+              - {{ .Values.ports.webhook | quote }}
+              {{- end }}
+    {{- with .Values.serviceMesh.istio.rules }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+{{- end }}

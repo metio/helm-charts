@@ -1,0 +1,171 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+suite: test stageset Linkerd Server / AuthorizationPolicy / MeshTLSAuthentication
+templates:
+  - linkerd-serverauthorization.yaml
+tests:
+  - it: is empty when serviceMesh is disabled (default)
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: is empty for the istio engine
+    set:
+      serviceMesh:
+        enabled: true
+        engine: istio
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders the gate and metrics triples by default
+    set:
+      serviceMesh:
+        enabled: true
+        engine: linkerd
+    asserts:
+      # gate + metrics = 2 ports x 3 objects = 6 docs.
+      - hasDocuments:
+          count: 6
+
+  - it: renders only the metrics triple when gate is disabled
+    set:
+      serviceMesh:
+        enabled: true
+        engine: linkerd
+      gate:
+        enabled: false
+    asserts:
+      # gate off => only the metrics triple remains.
+      - hasDocuments:
+          count: 3
+
+  - it: renders a Server for the metrics port, not the health/webhook ports
+    set:
+      serviceMesh:
+        enabled: true
+        engine: linkerd
+      gate:
+        enabled: false
+    documentSelector:
+      path: kind
+      value: Server
+    asserts:
+      - equal:
+          path: apiVersion
+          value: policy.linkerd.io/v1beta3
+      - equal:
+          path: spec.port
+          value: 8080
+      - equal:
+          path: spec.podSelector.matchLabels["app.kubernetes.io/name"]
+          value: stageset-controller
+
+  - it: creates no Server for the webhook port (apiserver is non-mesh)
+    set:
+      serviceMesh:
+        enabled: true
+        engine: linkerd
+      webhook:
+        enabled: true
+    asserts:
+      # Enabling the webhook adds no Server — gate + metrics only.
+      # A stageset-controller-webhook Server (port 9443) would push this to 9.
+      - hasDocuments:
+          count: 6
+
+  - it: authorizes any meshed identity by default
+    set:
+      serviceMesh:
+        enabled: true
+        engine: linkerd
+      gate:
+        enabled: false
+    documentSelector:
+      path: kind
+      value: MeshTLSAuthentication
+    asserts:
+      - equal:
+          path: spec.identities
+          value:
+            - "*"
+
+  - it: restricts a port to the configured principals
+    # The gate MeshTLSAuthentication is the only document whose
+    # spec.identities[0] is the configured Flagger principal — select it directly.
+    set:
+      serviceMesh:
+        enabled: true
+        engine: linkerd
+        gate:
+          from:
+            - principals:
+                - flagger.flagger-system.serviceaccount.identity.linkerd.cluster.local
+    documentSelector:
+      path: spec.identities[0]
+      value: flagger.flagger-system.serviceaccount.identity.linkerd.cluster.local
+    asserts:
+      - equal:
+          path: kind
+          value: MeshTLSAuthentication
+      - equal:
+          path: metadata.name
+          value: stageset-controller-gate
+      - equal:
+          path: spec.identities
+          value:
+            - flagger.flagger-system.serviceaccount.identity.linkerd.cluster.local
+
+  - it: links each AuthorizationPolicy to its Server and MeshTLSAuthentication
+    set:
+      serviceMesh:
+        enabled: true
+        engine: linkerd
+      gate:
+        enabled: false
+    documentSelector:
+      path: kind
+      value: AuthorizationPolicy
+    asserts:
+      - equal:
+          path: spec.targetRef.kind
+          value: Server
+      - equal:
+          path: spec.targetRef.name
+          value: stageset-controller-metrics
+      - equal:
+          path: spec.requiredAuthenticationRefs[0].kind
+          value: MeshTLSAuthentication
+      - equal:
+          path: spec.requiredAuthenticationRefs[0].name
+          value: stageset-controller-metrics
+
+  - it: appends linkerd.authorizations passthrough verbatim
+    set:
+      serviceMesh:
+        enabled: true
+        engine: linkerd
+        linkerd:
+          authorizations:
+            - apiVersion: policy.linkerd.io/v1alpha1
+              kind: AuthorizationPolicy
+              metadata:
+                name: extra-auth
+              spec:
+                targetRef:
+                  group: policy.linkerd.io
+                  kind: Server
+                  name: stageset-controller-metrics
+                requiredAuthenticationRefs:
+                  - group: policy.linkerd.io
+                    kind: NetworkAuthentication
+                    name: cluster-net
+    asserts:
+      # gate + metrics triples (6) + 1 passthrough = 7 docs.
+      - hasDocuments:
+          count: 7
+      - documentIndex: 6
+        equal:
+          path: metadata.name
+          value: extra-auth

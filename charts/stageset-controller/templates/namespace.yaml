@@ -11,4 +11,13 @@ metadata:
     pod-security.kubernetes.io/enforce: {{ .Values.namespace.pssLevel }}
     pod-security.kubernetes.io/audit: {{ .Values.namespace.pssLevel }}
     pod-security.kubernetes.io/warn: {{ .Values.namespace.pssLevel }}
+  {{- if and .Values.serviceMesh.enabled .Values.serviceMesh.defaultDeny.enabled (eq .Values.serviceMesh.engine "linkerd") }}
+  annotations:
+    # Linkerd has no per-object deny-all; the namespace default-inbound-policy is
+    # the deny knob. Every Server/AuthorizationPolicy the chart renders then
+    # carves the mesh ports back open for authorized identities. Requires
+    # namespace.create=true; otherwise set this annotation on the namespace
+    # out-of-band.
+    config.linkerd.io/default-inbound-policy: deny
+  {{- end }}
 {{- end }}

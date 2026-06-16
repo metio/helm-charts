@@ -1023,6 +1023,131 @@
       "title": "serviceAccount",
       "type": "object"
     },
+    "serviceMesh": {
+      "description": "Opt-in service-mesh L7 authorization + mTLS for the controller pod.\nComplementary to networkPolicy, NOT a replacement: networkPolicy is L3/L4\n(which pods/IPs may open a connection), serviceMesh is L7/identity (which mesh\nidentities may call which port). Both can be enabled at once and stack\nadditively. Authorizes only the mesh-reachable ports — gate (Flagger) and\nmetrics (Prometheus). The webhook (kube-apiserver) and health/probe (kubelet)\nports are deliberately left out: those callers speak plain TLS / no mesh\nidentity, and locking them to mesh principals would break admission and health\nprobing.",
+      "properties": {
+        "defaultDeny": {
+          "description": "Render a namespace-wide default-deny so every pod in the install namespace\nrejects unauthorized mesh traffic and the per-workload allows above are the\nonly exceptions (zero-trust namespace). Istio renders an empty-spec\nAuthorizationPolicy (deny-all) scoped to the whole namespace, which sits at\nlower precedence than the workload ALLOW. Linkerd has no per-object deny-all;\nthe namespace default is set via the config.linkerd.io/default-inbound-policy\nannotation, so this is stamped onto the chart-managed Namespace (requires\nnamespace.create=true) — otherwise annotate the namespace out-of-band. Enable\nonly when the controller owns its namespace; it also denies co-located\nworkloads.",
+          "properties": {
+            "enabled": {
+              "default": false,
+              "title": "enabled",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "enabled"
+          ],
+          "title": "defaultDeny",
+          "type": "object"
+        },
+        "enabled": {
+          "default": false,
+          "description": "Opt-in. When enabled, the chart renders the selected engine's\nauthorization + mTLS objects for the controller pod. Inert unless that mesh\n(Istio or Linkerd) is actually installed and the pod is injected.",
+          "title": "enabled",
+          "type": "boolean"
+        },
+        "engine": {
+          "default": "istio",
+          "description": "Mesh engine to render for. istio emits security.istio.io\nAuthorizationPolicy (+ optional PeerAuthentication). linkerd emits\npolicy.linkerd.io Server / AuthorizationPolicy / MeshTLSAuthentication\nobjects.",
+          "enum": [
+            "istio",
+            "linkerd"
+          ],
+          "title": "engine",
+          "type": "string"
+        },
+        "gate": {
+          "description": "Per-port allowed mesh identities. Each `from` entry is a source matcher:\n  - principals: SPIFFE/mesh identities (Istio source.principals, e.g.\n      cluster.local/ns/\u003cns\u003e/sa/\u003csa\u003e). For Linkerd these map to\n      MeshTLSAuthentication identities (the proxy identity string, e.g.\n      \u003csa\u003e.\u003cns\u003e.serviceaccount.identity.linkerd.cluster.local, or \"*\").\n  - namespaces: source namespaces (Istio source.namespaces). ISTIO-ONLY —\n      Linkerd authenticates by workload identity, not by namespace, so this\n      field is ignored on the linkerd engine.\nAn EMPTY `from` list on a port means OPEN (allow any caller), mirroring\nnetworkPolicy's empty-`from`=open semantics. On Istio that is a port rule\nwith no `from`; on Linkerd it is a MeshTLSAuthentication of identities: [\"*\"]\n(any authenticated meshed client).\nMesh identities allowed to poll the Flagger stage-gate endpoint\n(ports.gate). Rendered only when gate.enabled. Empty = open.",
+          "properties": {
+            "from": {
+              "items": {
+                "required": []
+              },
+              "title": "from",
+              "type": "array"
+            }
+          },
+          "required": [
+            "from"
+          ],
+          "title": "gate",
+          "type": "object"
+        },
+        "istio": {
+          "description": "Istio engine raw passthrough. Entries are merged verbatim into the\nAuthorizationPolicy's spec.rules (security.istio.io/v1 rule schema). Use this\nto add rules the per-port `from` knobs above can't express — path/method\nmatchers, `when` JWT-claim conditions, ipBlocks, etc.",
+          "properties": {
+            "rules": {
+              "items": {
+                "required": []
+              },
+              "title": "rules",
+              "type": "array"
+            }
+          },
+          "required": [
+            "rules"
+          ],
+          "title": "istio",
+          "type": "object"
+        },
+        "linkerd": {
+          "description": "Linkerd engine raw passthrough. Entries are appended verbatim as\nadditional documents after the rendered Server / AuthorizationPolicy /\nMeshTLSAuthentication set — each entry must be a complete object\n(policy.linkerd.io AuthorizationPolicy, HTTPRoute, etc.).",
+          "properties": {
+            "authorizations": {
+              "items": {
+                "required": []
+              },
+              "title": "authorizations",
+              "type": "array"
+            }
+          },
+          "required": [
+            "authorizations"
+          ],
+          "title": "linkerd",
+          "type": "object"
+        },
+        "metrics": {
+          "description": "Mesh identities allowed to scrape the controller metrics port\n(ports.metrics). Empty = open.",
+          "properties": {
+            "from": {
+              "items": {
+                "required": []
+              },
+              "title": "from",
+              "type": "array"
+            }
+          },
+          "required": [
+            "from"
+          ],
+          "title": "metrics",
+          "type": "object"
+        },
+        "mtls": {
+          "default": "",
+          "description": "mTLS posture (Istio engine only). Empty defers to the mesh's own default\n(mesh-wide PeerAuthentication / MeshConfig). permissive renders a\nPeerAuthentication accepting both mTLS and plaintext. strict requires mTLS on\nthe workload's ports EXCEPT the webhook + health ports, which get a\nport-level PERMISSIVE carve-out so the non-mesh kube-apiserver and kubelet\nstill connect. Linkerd negotiates mTLS automatically between meshed pods, so\nthis knob does not apply to the linkerd engine.",
+          "enum": [
+            "",
+            "permissive",
+            "strict"
+          ],
+          "title": "mtls",
+          "type": "string"
+        }
+      },
+      "required": [
+        "enabled",
+        "gate",
+        "metrics",
+        "istio",
+        "linkerd",
+        "defaultDeny"
+      ],
+      "title": "serviceMesh",
+      "type": "object"
+    },
     "tolerations": {
       "description": "Tolerations for scheduling.",
       "items": {
@@ -1120,6 +1245,7 @@
     "rollbackStore",
     "metrics",
     "networkPolicy",
+    "serviceMesh",
     "namespace",
     "resources",
     "podSecurityContext",

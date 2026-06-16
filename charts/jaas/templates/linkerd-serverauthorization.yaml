@@ -1,0 +1,93 @@
+{{- /*
+SPDX-FileCopyrightText: The helm-charts Authors
+SPDX-License-Identifier: 0BSD
+*/ -}}
+{{- if and .Values.serviceMesh.enabled (eq .Values.serviceMesh.engine "linkerd") -}}
+{{- $root := . -}}
+{{- $labels := dict
+  "app.kubernetes.io/name" .Chart.Name
+  "app.kubernetes.io/component" "jaas"
+  "app.kubernetes.io/instance" .Release.Name
+  "app.kubernetes.io/version" .Chart.AppVersion
+  "app.kubernetes.io/part-of" .Chart.Name
+  "app.kubernetes.io/managed-by" .Release.Service
+  "helm.sh/chart" (printf "%s-%s" .Chart.Name (.Chart.Version | replace "+" "_")) -}}
+{{- $selector := dict
+  "app.kubernetes.io/name" .Chart.Name
+  "app.kubernetes.io/component" "jaas"
+  "app.kubernetes.io/instance" .Release.Name
+  "app.kubernetes.io/part-of" .Chart.Name -}}
+{{- /*
+Build the mesh-reachable port set: name -> {port, from}. Only http is always
+present; storage + metrics are operator-gated, matching networkpolicy-jaas.yaml.
+The webhook (apiserver) and management (kubelet) ports get NO Server — a Server
+makes its port default-deny, which would lock out the non-mesh apiserver/kubelet.
+They are left to Linkerd's namespace default-inbound-policy, which auto-admits
+kubelet probes.
+*/ -}}
+{{- $ports := list (dict "name" "http" "port" .Values.ports.http "from" .Values.serviceMesh.http.from) -}}
+{{- if .Values.operator.enabled -}}
+{{- $ports = append $ports (dict "name" "storage" "port" .Values.ports.storage "from" .Values.serviceMesh.storage.from) -}}
+{{- if .Values.operator.metrics.enabled -}}
+{{- $ports = append $ports (dict "name" "metrics" "port" .Values.ports.metrics "from" .Values.serviceMesh.metrics.from) -}}
+{{- end -}}
+{{- end -}}
+{{- range $ports }}
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: jaas-{{ .name }}
+  namespace: {{ $root.Release.Namespace }}
+  labels:
+    {{- toYaml $labels | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- toYaml $selector | nindent 6 }}
+  port: {{ .port }}
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: MeshTLSAuthentication
+metadata:
+  name: jaas-{{ .name }}
+  namespace: {{ $root.Release.Namespace }}
+  labels:
+    {{- toYaml $labels | nindent 4 }}
+spec:
+  identities:
+    {{- if .from }}
+    {{- range .from }}
+    {{- with .principals }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- end }}
+    {{- else }}
+    # Empty serviceMesh.<port>.from => any authenticated meshed client.
+    - "*"
+    {{- end }}
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: jaas-{{ .name }}
+  namespace: {{ $root.Release.Namespace }}
+  labels:
+    {{- toYaml $labels | nindent 4 }}
+spec:
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: jaas-{{ .name }}
+  requiredAuthenticationRefs:
+    - group: policy.linkerd.io
+      kind: MeshTLSAuthentication
+      name: jaas-{{ .name }}
+{{- end }}
+{{- with .Values.serviceMesh.linkerd.authorizations }}
+{{- range . }}
+---
+{{ toYaml . }}
+{{- end }}
+{{- end }}
+{{- end }}

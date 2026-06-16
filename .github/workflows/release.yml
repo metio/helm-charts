@@ -39,6 +39,10 @@ jobs:
       - name: Install helm-docs
         run: |
           curl -fsSL https://github.com/norwoodj/helm-docs/releases/download/v1.14.2/helm-docs_1.14.2_Linux_x86_64.tar.gz | tar -xz -C /usr/local/bin helm-docs
+      - name: Install yq
+        run: |
+          curl -fsSL -o /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v4.45.1/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
       - name: Log in to GHCR (Helm OCI)
         run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
       # cosign reads registry credentials from ~/.docker/config.json, which
@@ -89,6 +93,10 @@ jobs:
         if: steps.changed.outputs.charts != ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # git-cliff reads GITHUB_TOKEN (not GH_TOKEN) for its remote API calls;
+          # without it the calls are unauthenticated (60/hr) and rate-limit out,
+          # so release notes render without their PR/contributor enrichment.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           version="$(date +'%Y.%-m.%-d+%H%M%S')"
@@ -113,6 +121,22 @@ jobs:
             if [ -f "$chart/README.md.gotmpl" ]; then
               helm-docs --chart-search-root "$chart"
             fi
+
+            # This chart's last tag bounds both the Artifact Hub changelog and the
+            # GitHub release notes below — compute it once. Empty on a first release.
+            prev="$(git tag --list "${name}-*" --sort=-creatordate | head -1)"
+
+            # Inject an Artifact Hub `artifacthub.io/changes` annotation, computed by
+            # git-cliff over this chart's commit range (the same range the release
+            # notes use). cliff-artifacthub.toml renders a YAML list of {kind,
+            # description}; the edit is to the ephemeral CI checkout's Chart.yaml only
+            # (never committed) so the annotation ships inside the packaged .tgz. An
+            # empty range (no new commits) yields no annotation, which is correct.
+            changes="$(CHART="$name" VERSION="$version" git-cliff --config cliff-artifacthub.toml --include-path "charts/${name}/**" --tag-pattern "^${name}-" ${prev:+"${prev}..HEAD"} 2>/dev/null | sed '/^[[:space:]]*$/d')"
+            if [ -n "$changes" ]; then
+              CHANGES="$changes" yq -i '.annotations."artifacthub.io/changes" = strenv(CHANGES)' "$chart/Chart.yaml"
+            fi
+
             helm package "$chart" --version "$version" --app-version "$appVersion"
             pkg="${name}-${version}.tgz"
 
@@ -126,12 +150,11 @@ jobs:
               --annotations "chart=$name" \
               "ghcr.io/metio/helm-charts/${name}@${digest}"
 
-            # Per-chart, path-scoped release notes since this chart's last tag.
-            # --tag labels the (still uncreated) release so the cliff.toml header
-            # renders this chart+version; --tag-pattern scopes release boundaries
-            # to this chart so another chart's tag inside the range can't split the
-            # notes into multiple sections.
-            prev="$(git tag --list "${name}-*" --sort=-creatordate | head -1)"
+            # Per-chart, path-scoped release notes since this chart's last tag
+            # ($prev, computed above). --tag labels the (still uncreated) release so
+            # the cliff.toml header renders this chart+version; --tag-pattern scopes
+            # release boundaries to this chart so another chart's tag inside the range
+            # can't split the notes into multiple sections.
             cliff_args=(--config cliff.toml --include-path "charts/${name}/**"
               --tag "${name}-${version}" --tag-pattern "^${name}-")
             # A bare "HEAD" positional is rejected as a range; for the first

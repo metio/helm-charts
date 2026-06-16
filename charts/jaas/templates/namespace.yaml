@@ -33,8 +33,19 @@ metadata:
     {{- with .Values.namespace.additionalLabels }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
-  {{- with .Values.namespace.annotations }}
+  {{- $linkerdDeny := and .Values.serviceMesh.enabled .Values.serviceMesh.defaultDeny.enabled (eq .Values.serviceMesh.engine "linkerd") }}
+  {{- if or .Values.namespace.annotations $linkerdDeny }}
   annotations:
+    {{- with .Values.namespace.annotations }}
     {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- if $linkerdDeny }}
+    # Linkerd has no per-object deny-all; the namespace default-inbound-policy is
+    # the deny knob. Every Server/AuthorizationPolicy the chart renders then
+    # carves the mesh ports back open for authorized identities. Requires
+    # namespace.create=true; otherwise set this annotation on the namespace
+    # out-of-band.
+    config.linkerd.io/default-inbound-policy: deny
+    {{- end }}
   {{- end }}
 {{- end }}

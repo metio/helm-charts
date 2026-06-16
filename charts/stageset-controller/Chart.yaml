@@ -5,7 +5,7 @@ apiVersion: v2
 name: stageset-controller
 description: A Flux-compatible controller for ordered, gated, multi-stage deployments.
 type: application
-home: https://github.com/metio/stageset-controller
+home: https://stageset.projects.metio.wtf/
 sources:
   - https://github.com/metio/stageset-controller
   - https://github.com/metio/helm-charts

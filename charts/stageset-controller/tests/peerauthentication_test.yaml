@@ -1,0 +1,103 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+suite: test stageset Istio PeerAuthentication
+templates:
+  - peerauthentication.yaml
+tests:
+  - it: is empty when serviceMesh is disabled (default)
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: is empty when mtls is unset (mesh default)
+    set:
+      serviceMesh:
+        enabled: true
+        engine: istio
+        mtls: ""
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: is empty for the linkerd engine even with mtls set
+    set:
+      serviceMesh:
+        enabled: true
+        engine: linkerd
+        mtls: strict
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders PERMISSIVE mode without port-level carve-outs
+    set:
+      serviceMesh:
+        enabled: true
+        engine: istio
+        mtls: permissive
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: PeerAuthentication
+      - equal:
+          path: apiVersion
+          value: security.istio.io/v1
+      - equal:
+          path: spec.mtls.mode
+          value: PERMISSIVE
+      - notExists:
+          path: spec.portLevelMtls
+
+  - it: selects only the controller pod
+    set:
+      serviceMesh:
+        enabled: true
+        mtls: strict
+    release:
+      name: prod-stageset
+    asserts:
+      - equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/name"]
+          value: stageset-controller
+      - equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/instance"]
+          value: prod-stageset
+
+  - it: renders STRICT mode with a PERMISSIVE carve-out for the health port
+    set:
+      serviceMesh:
+        enabled: true
+        engine: istio
+        mtls: strict
+      webhook:
+        enabled: false
+    asserts:
+      - equal:
+          path: spec.mtls.mode
+          value: STRICT
+      - equal:
+          path: spec.portLevelMtls.8081.mode
+          value: PERMISSIVE
+      - notExists:
+          path: spec.portLevelMtls.9443
+
+  - it: adds the webhook port to the carve-out under STRICT when the webhook is enabled
+    set:
+      serviceMesh:
+        enabled: true
+        engine: istio
+        mtls: strict
+      webhook:
+        enabled: true
+    asserts:
+      - equal:
+          path: spec.mtls.mode
+          value: STRICT
+      - equal:
+          path: spec.portLevelMtls.8081.mode
+          value: PERMISSIVE
+      - equal:
+          path: spec.portLevelMtls.9443.mode
+          value: PERMISSIVE
