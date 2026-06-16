@@ -1,20 +1,17 @@
 # SPDX-FileCopyrightText: The helm-charts Authors
 # SPDX-License-Identifier: 0BSD
 
-{{- if not .Values.controller.watchNamespaces }}
-# Cluster-wide tenant binding: rendered only when controller.watchNamespaces is
-# empty (the default). When the controller is scoped to a namespace list,
-# per-namespace RoleBindings are rendered instead — see rolebinding-tenants.yaml.
+{{- if and .Values.webhook.enabled (eq .Values.webhook.certMode "self-signed") }}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: {{ include "stageset.name" . }}
+  name: {{ include "stageset.name" . }}-cluster
   labels:
     {{- include "stageset.labels" . | nindent 4 }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: {{ include "stageset.name" . }}
+  name: {{ include "stageset.name" . }}-cluster
 subjects:
   - kind: ServiceAccount
     name: {{ include "stageset.name" . }}

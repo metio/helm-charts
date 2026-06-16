@@ -1,0 +1,133 @@
+{{- /*
+SPDX-FileCopyrightText: The helm-charts Authors
+SPDX-License-Identifier: 0BSD
+*/ -}}
+{{- if .Values.metrics.prometheusRule.enabled -}}
+{{- $rbKey := .Values.metrics.prometheusRule.runbookAnnotationKey -}}
+{{- $rbBase := .Values.metrics.prometheusRule.runbookBaseURL | trimSuffix "/" -}}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "stageset.name" . }}-alerts
+  namespace: {{ include "stageset.namespace" . }}
+  labels:
+    {{- include "stageset.labels" . | nindent 4 }}
+    {{- with .Values.metrics.prometheusRule.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .Values.metrics.prometheusRule.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  groups:
+    - name: stageset-health
+      interval: {{ .Values.metrics.prometheusRule.interval }}
+      rules:
+
+        - alert: StageSetReconcileErrorsHigh
+          # stageset_reconcile_total is labelled by terminal Ready reason; the
+          # happy reasons (Succeeded, Suspended — happyReasonsNoRunbook in the
+          # controller) are excluded so intentional/steady states never page.
+          expr: |
+            sum by (namespace, name, reason) (
+              rate(stageset_reconcile_total{reason!~"Succeeded|Suspended"}[5m])
+            ) > {{ .Values.metrics.prometheusRule.thresholds.reconcileErrorRate }}
+          for: {{ .Values.metrics.prometheusRule.thresholds.reconcileErrorDuration }}
+          labels:
+            severity: warning
+            {{- with .Values.metrics.prometheusRule.extraAlertLabels }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          annotations:
+            summary: 'StageSet {{ "{{" }} $labels.namespace {{ "}}" }}/{{ "{{" }} $labels.name {{ "}}" }} failing (reason: {{ "{{" }} $labels.reason {{ "}}" }})'
+            description: |
+              The StageSet has been settling to Ready=False for the alert window.
+              Each Ready reason has a runbook page; the URL is templated on
+              $labels.reason and lands in the {{ $rbKey }} annotation.
+            {{ $rbKey }}: {{ printf "%s/{{ $labels.reason | toLower }}/" $rbBase | quote }}
+
+    - name: stageset-availability
+      interval: {{ .Values.metrics.prometheusRule.interval }}
+      rules:
+
+        - alert: StageSetControllerWorkqueueDepthHigh
+          expr: |
+            workqueue_depth{controller="stageset"} > {{ .Values.metrics.prometheusRule.thresholds.workqueueDepth }}
+          for: {{ .Values.metrics.prometheusRule.thresholds.workqueueDuration }}
+          labels:
+            severity: warning
+            {{- with .Values.metrics.prometheusRule.extraAlertLabels }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          annotations:
+            summary: 'StageSet controller workqueue saturated'
+            description: |
+              The controller cannot drain its reconcile queue. Likely apiserver
+              slowness, a slow source/artifact fetch, or a stuck stage action.
+            {{ $rbKey }}: {{ printf "%s/workqueue-saturation/" $rbBase | quote }}
+
+        - alert: StageSetReconcileLatencyHigh
+          expr: |
+            histogram_quantile(0.99,
+              sum by (le, controller) (
+                rate(controller_runtime_reconcile_time_seconds_bucket{controller="stageset"}[10m])
+              )
+            ) > {{ .Values.metrics.prometheusRule.thresholds.reconcileLatencySeconds }}
+          for: {{ .Values.metrics.prometheusRule.thresholds.reconcileLatencyDuration }}
+          labels:
+            severity: warning
+            {{- with .Values.metrics.prometheusRule.extraAlertLabels }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          annotations:
+            summary: 'StageSet reconcile p99 latency high'
+            description: |
+              Reconcile p99 latency for the StageSet controller exceeded the
+              threshold — large artifacts, many objects per stage, or slow actions.
+            {{ $rbKey }}: {{ printf "%s/reconcile-latency/" $rbBase | quote }}
+
+        - alert: StageSetControllerPodDown
+          expr: |
+            kube_pod_status_ready{namespace="{{ include "stageset.namespace" . }}",condition="true",pod=~"{{ .Chart.Name }}.*"} == 0
+          for: {{ .Values.metrics.prometheusRule.thresholds.podDownDuration }}
+          labels:
+            severity: critical
+            {{- with .Values.metrics.prometheusRule.extraAlertLabels }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          annotations:
+            summary: 'StageSet controller pod not ready'
+            description: |
+              A controller pod in {{ include "stageset.namespace" . }} has been
+              NotReady for the alert window; StageSets are not reconciled until a
+              replica recovers.
+            {{ $rbKey }}: {{ printf "%s/controller-pod-down/" $rbBase | quote }}
+
+        - alert: StageSetWebhookCertRenewalFailing
+          # Only meaningful in self-signed webhook mode. The current cert keeps
+          # working until natural expiry, so the signal must fire well before that
+          # — cluster-wide admission breaks at expiry.
+          expr: |
+            increase(stageset_webhook_cert_renewal_failures_total[1h]) > {{ .Values.metrics.prometheusRule.thresholds.webhookCertRenewalFailuresPerHour }}
+          for: {{ .Values.metrics.prometheusRule.thresholds.webhookCertRenewalFailuresDuration }}
+          labels:
+            severity: critical
+            {{- with .Values.metrics.prometheusRule.extraAlertLabels }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          annotations:
+            summary: 'StageSet self-signed webhook cert rotation is failing'
+            description: |
+              stageset_webhook_cert_renewal_failures_total has been increasing. The
+              renewer cannot refresh the self-signed serving cert; the current cert
+              works until its natural expiry, which is the deadline.
+            {{ $rbKey }}: {{ printf "%s/webhook-cert-renewal/" $rbBase | quote }}
+
+    {{- with .Values.metrics.prometheusRule.extraRules }}
+    - name: stageset-extras
+      interval: {{ $.Values.metrics.prometheusRule.interval }}
+      rules:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+{{- end }}

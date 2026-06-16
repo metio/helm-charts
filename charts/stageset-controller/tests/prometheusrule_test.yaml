@@ -1,0 +1,134 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+suite: test stageset PrometheusRule
+templates:
+  - templates/prometheusrule.yaml
+tests:
+  - it: is not rendered by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders a PrometheusRule when enabled
+    set:
+      metrics.prometheusRule.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: PrometheusRule
+      - isAPIVersion:
+          of: monitoring.coreos.com/v1
+      - matchRegex:
+          path: metadata.name
+          pattern: -alerts$
+
+  - it: ships the health and availability groups with the expected alerts
+    set:
+      metrics.prometheusRule.enabled: true
+    asserts:
+      - equal:
+          path: spec.groups[0].name
+          value: stageset-health
+      - equal:
+          path: spec.groups[0].rules[0].alert
+          value: StageSetReconcileErrorsHigh
+      - equal:
+          path: spec.groups[1].name
+          value: stageset-availability
+      - equal:
+          path: spec.groups[1].rules[0].alert
+          value: StageSetControllerWorkqueueDepthHigh
+      - equal:
+          path: spec.groups[1].rules[1].alert
+          value: StageSetReconcileLatencyHigh
+      - equal:
+          path: spec.groups[1].rules[2].alert
+          value: StageSetControllerPodDown
+      - equal:
+          path: spec.groups[1].rules[3].alert
+          value: StageSetWebhookCertRenewalFailing
+
+  - it: templates the per-reason runbook URL on the documentation site
+    set:
+      metrics.prometheusRule.enabled: true
+    asserts:
+      - equal:
+          path: spec.groups[0].rules[0].annotations.runbook_url
+          value: "https://stageset.projects.metio.wtf/runbooks/{{ $labels.reason | toLower }}/"
+
+  - it: links fixed alerts to their cross-cutting runbook pages
+    set:
+      metrics.prometheusRule.enabled: true
+    asserts:
+      - equal:
+          path: spec.groups[1].rules[0].annotations.runbook_url
+          value: "https://stageset.projects.metio.wtf/runbooks/workqueue-saturation/"
+      - equal:
+          path: spec.groups[1].rules[3].annotations.runbook_url
+          value: "https://stageset.projects.metio.wtf/runbooks/webhook-cert-renewal/"
+
+  - it: honors a custom runbook base URL and annotation key
+    set:
+      metrics.prometheusRule.enabled: true
+      metrics.prometheusRule.runbookBaseURL: https://docs.internal/ss/
+      metrics.prometheusRule.runbookAnnotationKey: runbook
+    asserts:
+      - equal:
+          path: spec.groups[1].rules[0].annotations.runbook
+          value: "https://docs.internal/ss/workqueue-saturation/"
+
+  - it: substitutes thresholds into the alert expressions
+    set:
+      metrics.prometheusRule.enabled: true
+      metrics.prometheusRule.thresholds.reconcileErrorRate: 0.42
+      metrics.prometheusRule.thresholds.workqueueDepth: 99
+    asserts:
+      - matchRegex:
+          path: spec.groups[0].rules[0].expr
+          pattern: "> 0.42"
+      - matchRegex:
+          path: spec.groups[1].rules[0].expr
+          pattern: "workqueue_depth\\{controller=\"stageset\"\\} > 99"
+
+  - it: merges extraAlertLabels onto every alert
+    set:
+      metrics.prometheusRule.enabled: true
+      metrics.prometheusRule.extraAlertLabels:
+        team: platform
+    asserts:
+      - equal:
+          path: spec.groups[0].rules[0].labels.team
+          value: platform
+      - equal:
+          path: spec.groups[1].rules[3].labels.team
+          value: platform
+
+  - it: appends extraRules as their own group
+    set:
+      metrics.prometheusRule.enabled: true
+      metrics.prometheusRule.extraRules:
+        - alert: StageSetCustom
+          expr: vector(1) > 0
+          for: 1m
+          labels:
+            severity: info
+    asserts:
+      - equal:
+          path: spec.groups[2].name
+          value: stageset-extras
+      - equal:
+          path: spec.groups[2].rules[0].alert
+          value: StageSetCustom
+
+  - it: applies the configured evaluation interval to every group
+    set:
+      metrics.prometheusRule.enabled: true
+      metrics.prometheusRule.interval: 1m
+    asserts:
+      - equal:
+          path: spec.groups[0].interval
+          value: 1m
+      - equal:
+          path: spec.groups[1].interval
+          value: 1m

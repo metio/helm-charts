@@ -3,7 +3,11 @@
 suite: test stageset RBAC
 templates:
   - templates/clusterrole.yaml
+  - templates/clusterrole-cluster.yaml
   - templates/clusterrolebinding.yaml
+  - templates/clusterrolebinding-cluster.yaml
+  - templates/clusterrolebinding-cluster-admin.yaml
+  - templates/rolebinding-tenants.yaml
   - templates/role-leader-election.yaml
   - templates/serviceaccount.yaml
 tests:
@@ -37,6 +41,112 @@ tests:
             apiGroups: ["*"]
             resources: ["*"]
             verbs: ["*"]
+      # The cluster-scoped VWC grant lives in clusterrole-cluster.yaml, not here,
+      # so the tenant role stays bindable per-namespace.
+      - notContains:
+          path: rules
+          content:
+            apiGroups: [admissionregistration.k8s.io]
+            resources: [validatingwebhookconfigurations]
+            verbs: [get, update]
+  - it: cluster-wide tenant binding is rendered by default
+    template: templates/clusterrolebinding.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: kind
+          value: ClusterRoleBinding
+      - equal:
+          path: roleRef.name
+          value: stageset-controller
+  - it: tenant binding pivots to per-namespace RoleBindings when scoped
+    set:
+      controller.watchNamespaces: [team-a, team-b]
+    asserts:
+      # The cluster-wide tenant ClusterRoleBinding disappears.
+      - hasDocuments:
+          count: 0
+        template: templates/clusterrolebinding.yaml
+      # One RoleBinding per watched namespace, each referencing the tenant role.
+      - hasDocuments:
+          count: 2
+        template: templates/rolebinding-tenants.yaml
+      - equal:
+          path: kind
+          value: RoleBinding
+        template: templates/rolebinding-tenants.yaml
+        documentIndex: 0
+      - equal:
+          path: metadata.namespace
+          value: team-a
+        template: templates/rolebinding-tenants.yaml
+        documentIndex: 0
+      - equal:
+          path: roleRef.name
+          value: stageset-controller
+        template: templates/rolebinding-tenants.yaml
+        documentIndex: 0
+      - equal:
+          path: metadata.namespace
+          value: team-b
+        template: templates/rolebinding-tenants.yaml
+        documentIndex: 1
+  - it: no per-namespace RoleBindings when watch scope is cluster-wide
+    template: templates/rolebinding-tenants.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: cluster-scope VWC role is bound cluster-wide in self-signed mode
+    set:
+      webhook.certMode: self-signed
+    asserts:
+      - hasDocuments:
+          count: 1
+        template: templates/clusterrole-cluster.yaml
+      - contains:
+          path: rules
+          content:
+            apiGroups: [admissionregistration.k8s.io]
+            resources: [validatingwebhookconfigurations]
+            resourceNames:
+              - stageset-controller-NAMESPACE
+            verbs: [get, update]
+        template: templates/clusterrole-cluster.yaml
+      - hasDocuments:
+          count: 1
+        template: templates/clusterrolebinding-cluster.yaml
+  - it: cluster-scope VWC role is omitted in cert-manager mode
+    set:
+      webhook.certMode: cert-manager
+    asserts:
+      - hasDocuments:
+          count: 0
+        template: templates/clusterrole-cluster.yaml
+      - hasDocuments:
+          count: 0
+        template: templates/clusterrolebinding-cluster.yaml
+  - it: cluster-admin binding is omitted by default
+    template: templates/clusterrolebinding-cluster-admin.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: cluster-admin binding is rendered for single-tenant mode
+    template: templates/clusterrolebinding-cluster-admin.yaml
+    set:
+      rbac.clusterAdmin: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: kind
+          value: ClusterRoleBinding
+      - equal:
+          path: roleRef.name
+          value: cluster-admin
+      - equal:
+          path: subjects[0].name
+          value: stageset-controller
   - it: renders the leader-election Role only when leader election is on
     template: templates/role-leader-election.yaml
     set:

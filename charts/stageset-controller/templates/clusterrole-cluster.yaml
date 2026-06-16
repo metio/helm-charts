@@ -1,0 +1,22 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+{{- if and .Values.webhook.enabled (eq .Values.webhook.certMode "self-signed") }}
+# Cluster-scope ClusterRole. The self-signed cert provisioner patches the
+# ValidatingWebhookConfiguration's caBundle in-pod — a cluster-scoped resource,
+# so this grant always binds cluster-wide (clusterrolebinding-cluster.yaml),
+# independent of controller.watchNamespaces. cert-manager mode injects the CA
+# itself and needs none of this.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "stageset.name" . }}-cluster
+  labels:
+    {{- include "stageset.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [admissionregistration.k8s.io]
+    resources: [validatingwebhookconfigurations]
+    resourceNames:
+      - {{ include "stageset.name" . }}-{{ include "stageset.namespace" . }}
+    verbs: [get, update]
+{{- end }}

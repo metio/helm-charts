@@ -1,0 +1,31 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+{{- if .Values.controller.watchNamespaces }}
+# Per-namespace tenant bindings. One RoleBinding per entry in
+# controller.watchNamespaces, each granting the controller SA the tenant-scope
+# verbs (defined in clusterrole.yaml) only within that namespace. The cache
+# scoping in the binary keeps the controller from observing resources outside
+# this list; these RoleBindings are defense-in-depth so the apiserver also
+# refuses out-of-scope calls.
+{{- range $i, $ns := .Values.controller.watchNamespaces }}
+{{- if $i }}
+---
+{{- end }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "stageset.name" $ }}-tenants
+  namespace: {{ $ns }}
+  labels:
+    {{- include "stageset.labels" $ | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "stageset.name" $ }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "stageset.name" $ }}
+    namespace: {{ include "stageset.namespace" $ }}
+{{- end }}
+{{- end }}

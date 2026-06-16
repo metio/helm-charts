@@ -30,6 +30,13 @@ image:
 # Image pull secrets for a private registry.
 imagePullSecrets: []
 
+# Controller ServiceAccount.
+serviceAccount:
+  # Extra annotations on the ServiceAccount — e.g. eks.amazonaws.com/role-arn for
+  # IRSA, so the controller's S3 rollback store assumes an IAM role instead of
+  # using static keys.
+  annotations: {}
+
 # Replica bounds. min is the Deployment replica count; when max > min an HPA and
 # a PodDisruptionBudget are rendered. At the default 1/1 both are omitted.
 replicas:
@@ -51,6 +58,9 @@ ports:
 controller:
   # Leader election for HA replicas. Keep on; harmless single-replica.
   leaderElect: true
+  # Reconcile cadence for StageSets that omit spec.interval. Most StageSets can
+  # leave spec.interval unset and inherit this.
+  defaultInterval: 10m
   # @schema
   # type: string
   # enum:
@@ -67,8 +77,28 @@ controller:
   allowedActionHosts: []
   # Deny cross-namespace sourceRef / dependsOn references.
   noCrossNamespaceRefs: false
-  # URL prefix appended to actionable Ready messages as (runbook: <base>/<reason>.md).
-  runbookBaseURL: ""
+  # Namespaces this controller watches. Empty (the default) means cluster-wide.
+  # When set, the manager's cache only observes StageSets and sources in these
+  # namespaces, and RBAC pivots from a cluster-wide ClusterRoleBinding to one
+  # RoleBinding per listed namespace — the multi-tenant controller-instances
+  # pattern (one release per tenant-group, disjoint watch sets).
+  watchNamespaces: []
+  # URL prefix appended to actionable Ready messages as (runbook: <base>/<reason>/).
+  # Defaults to the documentation site; override to a fork or an internal mirror,
+  # or set empty to disable the runbook links.
+  runbookBaseURL: https://stageset.projects.metio.wtf/runbooks
+
+# Controller RBAC. The default grant is deliberately minimal: the controller
+# impersonates each StageSet's spec.serviceAccountName for cluster writes, so a
+# tenant's own RBAC bounds what its StageSets can touch.
+rbac:
+  # Bind the controller ServiceAccount to the built-in cluster-admin ClusterRole.
+  # Single-tenant clusters where StageSets omit spec.serviceAccountName run the
+  # controller under its own identity; cluster-admin lets it apply any kind
+  # cluster-wide — the model Flux's helm-controller uses in its default install.
+  # Leave false for multi-tenant clusters, where every StageSet sets
+  # serviceAccountName and the controller only impersonates those scoped SAs.
+  clusterAdmin: false
 
 # Flagger stage-gate endpoint (GET /gate/{ns}/{stageset}/{stage}). Renders a
 # dedicated Service when enabled.
@@ -138,6 +168,21 @@ rollbackStore:
     region: ""
     useSSL: true
     anonymous: false
+    # @schema
+    # type: string
+    # enum:
+    #   - none
+    #   - s3
+    #   - kms
+    # @schema
+    # Server-side encryption at rest for stored objects. The rollback store holds
+    # rendered Secret data, so this defaults on. s3 = SSE-S3 (bucket-managed key);
+    # kms = SSE-KMS with sseKmsKeyId; none only for a backend that cannot honor an
+    # SSE header. A rejected SSE write is non-fatal — it warns and skips the store
+    # write, the rollout still succeeds.
+    sse: s3
+    # KMS key ARN/ID for sse: kms; empty uses the bucket's default KMS key.
+    sseKmsKeyId: ""
     # Secret holding accessKey / secretKey / sessionToken keys. Empty static
     # creds engage minio-go's IAM/IRSA discovery chain.
     existingSecret: ""
@@ -148,6 +193,52 @@ metrics:
     enabled: false
     interval: 30s
     additionalLabels: {}
+  # Opt-in PrometheusRule with a starter alert set on the custom stageset_* metrics
+  # plus controller-runtime signals. Requires the Prometheus operator CRDs.
+  prometheusRule:
+    enabled: false
+    # Evaluation interval for every rule group.
+    interval: 30s
+    # Extra labels on the PrometheusRule object (typically what your Prometheus
+    # selects on).
+    labels: {}
+    # Extra annotations on the PrometheusRule object.
+    annotations: {}
+    # Labels merged onto EVERY rendered alert — route all stageset alerts through
+    # one Alertmanager receiver (e.g. team: platform).
+    extraAlertLabels: {}
+    # Prefix for per-alert runbook page links. Defaults to the documentation site;
+    # the per-reason alert appends /<reason>/, fixed alerts append /<page>/.
+    runbookBaseURL: https://stageset.projects.metio.wtf/runbooks
+    # Annotation key the runbook URL lands under (runbook_url is the
+    # Prometheus-operator convention).
+    runbookAnnotationKey: runbook_url
+    # Extra alert rules appended under a separate "stageset-extras" group, rendered
+    # verbatim. To silence a built-in alert, raise its threshold below to an
+    # impossibly high value rather than forking the chart.
+    extraRules: []
+    # Numeric/duration thresholds in one place so operators can tune the noise
+    # floor without editing rule bodies.
+    thresholds:
+      # StageSetReconcileErrorsHigh: per-StageSet Ready=False rate (per second,
+      # 5m window). 0.1/s ≈ one failure every 10s — a stuck StageSet, not a blip.
+      reconcileErrorRate: 0.1
+      reconcileErrorDuration: 10m
+      # StageSetControllerWorkqueueDepthHigh: queued reconcile requests before
+      # alerting. 50 absorbs a normal burst, low enough to catch a real stall.
+      workqueueDepth: 50
+      workqueueDuration: 15m
+      # StageSetReconcileLatencyHigh: reconcile p99 ceiling, seconds. 30s is
+      # generous — an artifact fetch plus a multi-stage apply.
+      reconcileLatencySeconds: 30
+      reconcileLatencyDuration: 15m
+      # StageSetControllerPodDown: NotReady duration before paging. Below 5m it
+      # fires during normal pod rolls.
+      podDownDuration: 5m
+      # StageSetWebhookCertRenewalFailing: self-signed cert renewal failures per
+      # hour before paging.
+      webhookCertRenewalFailuresPerHour: 1
+      webhookCertRenewalFailuresDuration: 30m
 
 # Opt-in NetworkPolicy. Inert without a NetworkPolicy controller.
 networkPolicy:

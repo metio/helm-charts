@@ -111,3 +111,30 @@ tests:
           content:
             secretRef:
               name: rb-creds
+  - it: defaults S3 server-side encryption on (SSE-S3)
+    set:
+      rollbackStore.backend: s3
+      rollbackStore.s3.endpoint: minio:9000
+      rollbackStore.s3.bucket: rb
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --rollback-store-s3-sse=s3
+      # No KMS key flag unless sse=kms with a key set.
+      - notContains:
+          path: spec.template.spec.containers[0].args
+          content: --rollback-store-s3-sse-kms-key=
+  - it: wires SSE-KMS with a key ARN
+    set:
+      rollbackStore.backend: s3
+      rollbackStore.s3.endpoint: minio:9000
+      rollbackStore.s3.bucket: rb
+      rollbackStore.s3.sse: kms
+      rollbackStore.s3.sseKmsKeyId: arn:aws:kms:eu-west-1:111:key/abc
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --rollback-store-s3-sse=kms
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --rollback-store-s3-sse-kms-key=arn:aws:kms:eu-west-1:111:key/abc

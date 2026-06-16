@@ -32,6 +32,12 @@
           "title": "allowedActionHosts",
           "type": "array"
         },
+        "defaultInterval": {
+          "default": "10m",
+          "description": "Reconcile cadence for StageSets that omit spec.interval. Most StageSets can\nleave spec.interval unset and inherit this.",
+          "title": "defaultInterval",
+          "type": "string"
+        },
         "inventoryMode": {
           "default": "hybrid",
           "description": "Inventory strategy for tracking applied objects.",
@@ -62,17 +68,27 @@
           "type": "boolean"
         },
         "runbookBaseURL": {
-          "default": "",
-          "description": "URL prefix appended to actionable Ready messages as (runbook: \u003cbase\u003e/\u003creason\u003e.md).",
+          "default": "https://stageset.projects.metio.wtf/runbooks",
+          "description": "URL prefix appended to actionable Ready messages as (runbook: \u003cbase\u003e/\u003creason\u003e/).\nDefaults to the documentation site; override to a fork or an internal mirror,\nor set empty to disable the runbook links.",
           "title": "runbookBaseURL",
           "type": "string"
+        },
+        "watchNamespaces": {
+          "description": "Namespaces this controller watches. Empty (the default) means cluster-wide.\nWhen set, the manager's cache only observes StageSets and sources in these\nnamespaces, and RBAC pivots from a cluster-wide ClusterRoleBinding to one\nRoleBinding per listed namespace — the multi-tenant controller-instances\npattern (one release per tenant-group, disjoint watch sets).",
+          "items": {
+            "required": []
+          },
+          "title": "watchNamespaces",
+          "type": "array"
         }
       },
       "required": [
         "leaderElect",
+        "defaultInterval",
         "inventoryShardCap",
         "allowedActionHosts",
         "noCrossNamespaceRefs",
+        "watchNamespaces",
         "runbookBaseURL"
       ],
       "title": "controller",
@@ -185,6 +201,141 @@
     "metrics": {
       "description": "Prometheus integration.",
       "properties": {
+        "prometheusRule": {
+          "description": "Opt-in PrometheusRule with a starter alert set on the custom stageset_* metrics\nplus controller-runtime signals. Requires the Prometheus operator CRDs.",
+          "properties": {
+            "annotations": {
+              "description": "Extra annotations on the PrometheusRule object.",
+              "required": [],
+              "title": "annotations",
+              "type": "object"
+            },
+            "enabled": {
+              "default": false,
+              "title": "enabled",
+              "type": "boolean"
+            },
+            "extraAlertLabels": {
+              "description": "Labels merged onto EVERY rendered alert — route all stageset alerts through\none Alertmanager receiver (e.g. team: platform).",
+              "required": [],
+              "title": "extraAlertLabels",
+              "type": "object"
+            },
+            "extraRules": {
+              "description": "Extra alert rules appended under a separate \"stageset-extras\" group, rendered\nverbatim. To silence a built-in alert, raise its threshold below to an\nimpossibly high value rather than forking the chart.",
+              "items": {
+                "required": []
+              },
+              "title": "extraRules",
+              "type": "array"
+            },
+            "interval": {
+              "default": "30s",
+              "description": "Evaluation interval for every rule group.",
+              "title": "interval",
+              "type": "string"
+            },
+            "labels": {
+              "description": "Extra labels on the PrometheusRule object (typically what your Prometheus\nselects on).",
+              "required": [],
+              "title": "labels",
+              "type": "object"
+            },
+            "runbookAnnotationKey": {
+              "default": "runbook_url",
+              "description": "Annotation key the runbook URL lands under (runbook_url is the\nPrometheus-operator convention).",
+              "title": "runbookAnnotationKey",
+              "type": "string"
+            },
+            "runbookBaseURL": {
+              "default": "https://stageset.projects.metio.wtf/runbooks",
+              "description": "Prefix for per-alert runbook page links. Defaults to the documentation site;\nthe per-reason alert appends /\u003creason\u003e/, fixed alerts append /\u003cpage\u003e/.",
+              "title": "runbookBaseURL",
+              "type": "string"
+            },
+            "thresholds": {
+              "description": "Numeric/duration thresholds in one place so operators can tune the noise\nfloor without editing rule bodies.",
+              "properties": {
+                "podDownDuration": {
+                  "default": "5m",
+                  "description": "StageSetControllerPodDown: NotReady duration before paging. Below 5m it\nfires during normal pod rolls.",
+                  "title": "podDownDuration",
+                  "type": "string"
+                },
+                "reconcileErrorDuration": {
+                  "default": "10m",
+                  "title": "reconcileErrorDuration",
+                  "type": "string"
+                },
+                "reconcileErrorRate": {
+                  "default": 0.1,
+                  "description": "StageSetReconcileErrorsHigh: per-StageSet Ready=False rate (per second,\n5m window). 0.1/s ≈ one failure every 10s — a stuck StageSet, not a blip.",
+                  "title": "reconcileErrorRate",
+                  "type": "number"
+                },
+                "reconcileLatencyDuration": {
+                  "default": "15m",
+                  "title": "reconcileLatencyDuration",
+                  "type": "string"
+                },
+                "reconcileLatencySeconds": {
+                  "default": 30,
+                  "description": "StageSetReconcileLatencyHigh: reconcile p99 ceiling, seconds. 30s is\ngenerous — an artifact fetch plus a multi-stage apply.",
+                  "title": "reconcileLatencySeconds",
+                  "type": "integer"
+                },
+                "webhookCertRenewalFailuresDuration": {
+                  "default": "30m",
+                  "title": "webhookCertRenewalFailuresDuration",
+                  "type": "string"
+                },
+                "webhookCertRenewalFailuresPerHour": {
+                  "default": 1,
+                  "description": "StageSetWebhookCertRenewalFailing: self-signed cert renewal failures per\nhour before paging.",
+                  "title": "webhookCertRenewalFailuresPerHour",
+                  "type": "integer"
+                },
+                "workqueueDepth": {
+                  "default": 50,
+                  "description": "StageSetControllerWorkqueueDepthHigh: queued reconcile requests before\nalerting. 50 absorbs a normal burst, low enough to catch a real stall.",
+                  "title": "workqueueDepth",
+                  "type": "integer"
+                },
+                "workqueueDuration": {
+                  "default": "15m",
+                  "title": "workqueueDuration",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "reconcileErrorRate",
+                "reconcileErrorDuration",
+                "workqueueDepth",
+                "workqueueDuration",
+                "reconcileLatencySeconds",
+                "reconcileLatencyDuration",
+                "podDownDuration",
+                "webhookCertRenewalFailuresPerHour",
+                "webhookCertRenewalFailuresDuration"
+              ],
+              "title": "thresholds",
+              "type": "object"
+            }
+          },
+          "required": [
+            "enabled",
+            "interval",
+            "labels",
+            "annotations",
+            "extraAlertLabels",
+            "runbookBaseURL",
+            "runbookAnnotationKey",
+            "extraRules",
+            "thresholds"
+          ],
+          "title": "prometheusRule",
+          "type": "object"
+        },
         "serviceMonitor": {
           "properties": {
             "additionalLabels": {
@@ -213,7 +364,8 @@
         }
       },
       "required": [
-        "serviceMonitor"
+        "serviceMonitor",
+        "prometheusRule"
       ],
       "title": "metrics",
       "type": "object"
@@ -360,6 +512,22 @@
       "title": "ports",
       "type": "object"
     },
+    "rbac": {
+      "description": "Controller RBAC. The default grant is deliberately minimal: the controller\nimpersonates each StageSet's spec.serviceAccountName for cluster writes, so a\ntenant's own RBAC bounds what its StageSets can touch.",
+      "properties": {
+        "clusterAdmin": {
+          "default": false,
+          "description": "Bind the controller ServiceAccount to the built-in cluster-admin ClusterRole.\nSingle-tenant clusters where StageSets omit spec.serviceAccountName run the\ncontroller under its own identity; cluster-admin lets it apply any kind\ncluster-wide — the model Flux's helm-controller uses in its default install.\nLeave false for multi-tenant clusters, where every StageSet sets\nserviceAccountName and the controller only impersonates those scoped SAs.",
+          "title": "clusterAdmin",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "clusterAdmin"
+      ],
+      "title": "rbac",
+      "type": "object"
+    },
     "replicas": {
       "description": "Replica bounds. min is the Deployment replica count; when max \u003e min an HPA and\na PodDisruptionBudget are rendered. At the default 1/1 both are omitted.",
       "properties": {
@@ -488,6 +656,23 @@
               "title": "region",
               "type": "string"
             },
+            "sse": {
+              "default": "s3",
+              "description": "Server-side encryption at rest for stored objects. The rollback store holds\nrendered Secret data, so this defaults on. s3 = SSE-S3 (bucket-managed key);\nkms = SSE-KMS with sseKmsKeyId; none only for a backend that cannot honor an\nSSE header. A rejected SSE write is non-fatal — it warns and skips the store\nwrite, the rollout still succeeds.",
+              "enum": [
+                "none",
+                "s3",
+                "kms"
+              ],
+              "title": "sse",
+              "type": "string"
+            },
+            "sseKmsKeyId": {
+              "default": "",
+              "description": "KMS key ARN/ID for sse: kms; empty uses the bucket's default KMS key.",
+              "title": "sseKmsKeyId",
+              "type": "string"
+            },
             "useSSL": {
               "default": true,
               "title": "useSSL",
@@ -501,6 +686,7 @@
             "region",
             "useSSL",
             "anonymous",
+            "sseKmsKeyId",
             "existingSecret"
           ],
           "title": "s3",
@@ -590,6 +776,22 @@
       "title": "securityContext",
       "type": "object"
     },
+    "serviceAccount": {
+      "description": "Controller ServiceAccount.",
+      "properties": {
+        "annotations": {
+          "description": "Extra annotations on the ServiceAccount — e.g. eks.amazonaws.com/role-arn for\nIRSA, so the controller's S3 rollback store assumes an IAM role instead of\nusing static keys.",
+          "required": [],
+          "title": "annotations",
+          "type": "object"
+        }
+      },
+      "required": [
+        "annotations"
+      ],
+      "title": "serviceAccount",
+      "type": "object"
+    },
     "tolerations": {
       "items": {
         "required": []
@@ -675,9 +877,11 @@
     "crds",
     "image",
     "imagePullSecrets",
+    "serviceAccount",
     "replicas",
     "ports",
     "controller",
+    "rbac",
     "gate",
     "webhook",
     "rollbackStore",

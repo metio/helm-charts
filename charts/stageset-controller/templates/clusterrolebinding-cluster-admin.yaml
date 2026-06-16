@@ -1,0 +1,25 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+{{- if .Values.rbac.clusterAdmin }}
+# Single-tenant mode: bind the controller ServiceAccount to the built-in
+# cluster-admin ClusterRole. StageSets that omit spec.serviceAccountName apply
+# under the controller's own identity, so this grant is what lets them write any
+# kind cluster-wide — the model Flux's helm-controller uses in its default
+# install. Multi-tenant clusters leave rbac.clusterAdmin false and set
+# serviceAccountName on every StageSet so writes are bounded by each tenant's SA.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "stageset.name" . }}-cluster-admin
+  labels:
+    {{- include "stageset.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "stageset.name" . }}
+    namespace: {{ include "stageset.namespace" . }}
+{{- end }}

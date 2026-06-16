@@ -1,6 +1,12 @@
 # SPDX-FileCopyrightText: The helm-charts Authors
 # SPDX-License-Identifier: 0BSD
 
+# Tenant-scope ClusterRole. Every resource here is namespaced, so when
+# controller.watchNamespaces is set this role is bound per-namespace via
+# RoleBindings (rolebinding-tenants.yaml) instead of a cluster-wide
+# ClusterRoleBinding. The cluster-scoped grant (ValidatingWebhookConfiguration)
+# lives in clusterrole-cluster.yaml, which always binds cluster-wide.
+#
 # Mirrors config/rbac/role.yaml (controller-gen) from the source repo. The
 # permissions to apply the manifests a StageSet renders are deliberately NOT
 # granted here: the controller impersonates spec.serviceAccountName for cluster
@@ -20,9 +26,6 @@ rules:
   - apiGroups: [""]
     resources: [events]
     verbs: [create, patch]
-  - apiGroups: [admissionregistration.k8s.io]
-    resources: [validatingwebhookconfigurations]
-    verbs: [get, update]
   - apiGroups: [source.toolkit.fluxcd.io]
     resources: [externalartifacts]
     verbs: [get, list, watch]

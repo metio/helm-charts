@@ -118,16 +118,17 @@ jobs:
           # data plane (resolve/fetch/apply/prune/impersonate), not admission, and
           # a webhook would add a cert + readiness race the released scripts don't
           # arm against. Webhook admission is covered by the binary's envtest suite.
+          # rbac.clusterAdmin=true is the single-tenant install: the chart binds
+          # the controller SA to cluster-admin so scenarios without a
+          # spec.serviceAccountName apply under the controller's own identity. This
+          # exercises the chart's cluster-admin binding template end to end (angle
+          # 1, against the released chart, still grants it by hand since that chart
+          # predates the value).
           helm upgrade --install stageset charts/stageset-controller \
             --namespace stageset-system \
             --set webhook.enabled=false \
+            --set rbac.clusterAdmin=true \
             --wait --timeout 5m
-          # Smoke-only broad grant, mirroring angle 1: scenarios without a
-          # spec.serviceAccountName apply under the controller's own identity, so
-          # it needs to create the rendered objects and emit Events cluster-wide.
-          kubectl create clusterrolebinding stageset-smoke-admin \
-            --clusterrole=cluster-admin \
-            --serviceaccount=stageset-system:stageset-controller
       - name: Scenario — basic apply + inventory + finalizer prune
         run: stageset-src/hack/smoke/scenario-basic.sh
       - name: Scenario — impersonation (spec.serviceAccountName)

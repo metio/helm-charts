@@ -74,6 +74,7 @@ spec:
             {{- if .Values.controller.leaderElect }}
             - --leader-elect
             {{- end }}
+            - --default-interval={{ .Values.controller.defaultInterval }}
             - --inventory-mode={{ .Values.controller.inventoryMode }}
             - --inventory-shard-cap={{ .Values.controller.inventoryShardCap }}
             {{- range .Values.controller.allowedActionHosts }}
@@ -81,6 +82,9 @@ spec:
             {{- end }}
             {{- if .Values.controller.noCrossNamespaceRefs }}
             - --no-cross-namespace-refs
+            {{- end }}
+            {{- if .Values.controller.watchNamespaces }}
+            - --watch-namespaces={{ join "," .Values.controller.watchNamespaces }}
             {{- end }}
             {{- if .Values.controller.runbookBaseURL }}
             - --runbook-base-url={{ .Values.controller.runbookBaseURL }}
@@ -115,6 +119,10 @@ spec:
             {{- end }}
             - --rollback-store-s3-use-ssl={{ .Values.rollbackStore.s3.useSSL }}
             - --rollback-store-s3-anonymous={{ .Values.rollbackStore.s3.anonymous }}
+            - --rollback-store-s3-sse={{ .Values.rollbackStore.s3.sse }}
+            {{- with .Values.rollbackStore.s3.sseKmsKeyId }}
+            - --rollback-store-s3-sse-kms-key={{ . }}
+            {{- end }}
             {{- end }}
           ports:
             - name: metrics
