@@ -1582,6 +1582,47 @@
           "title": "flagger-libsonnet",
           "type": "object"
         },
+        "fluxcd-libsonnet": {
+          "properties": {
+            "closure": {
+              "description": "libraries this one imports; auto-enabled with it",
+              "items": {
+                "required": []
+              },
+              "title": "closure",
+              "type": "array"
+            },
+            "enabled": {
+              "default": false,
+              "title": "enabled",
+              "type": "boolean"
+            },
+            "image": {
+              "default": "ghcr.io/metio/joi-jsonnet-libs-fluxcd-libsonnet",
+              "title": "image",
+              "type": "string"
+            },
+            "path": {
+              "default": "",
+              "title": "path",
+              "type": "string"
+            },
+            "tag": {
+              "default": "latest",
+              "title": "tag",
+              "type": "string"
+            }
+          },
+          "required": [
+            "enabled",
+            "image",
+            "tag",
+            "path",
+            "closure"
+          ],
+          "title": "fluxcd-libsonnet",
+          "type": "object"
+        },
         "gatekeeper-libsonnet": {
           "properties": {
             "closure": {
@@ -3822,6 +3863,7 @@
         "external-dns-libsonnet",
         "external-secrets-libsonnet",
         "flagger-libsonnet",
+        "fluxcd-libsonnet",
         "gatekeeper-libsonnet",
         "gateway-api-libsonnet",
         "google-cloud-sql-proxy-operator-libsonnet",

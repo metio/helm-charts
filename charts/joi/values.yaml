@@ -297,6 +297,13 @@ libraries:
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
+  fluxcd-libsonnet:
+    enabled: false
+    image: ghcr.io/metio/joi-jsonnet-libs-fluxcd-libsonnet
+    tag: latest
+    path: ""
+    # libraries this one imports; auto-enabled with it
+    closure: []
   gatekeeper-libsonnet:
     enabled: false
     image: ghcr.io/metio/joi-jsonnet-libs-gatekeeper-libsonnet
