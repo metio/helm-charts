@@ -1,0 +1,89 @@
+{{- /*
+SPDX-FileCopyrightText: The helm-charts Authors
+SPDX-License-Identifier: 0BSD
+*/ -}}
+{{- if and .Values.networkPolicy.enabled (eq .Values.networkPolicy.engine "cilium") }}
+# Cilium-native equivalent of the vanilla NetworkPolicy. Pod-scoped: selects only
+# the jaas pods. Ingress allows the jsonnet HTTP and management ports always, plus
+# the operator-gated storage, webhook, and metrics ports, from any source (no
+# fromEndpoints = allow-all). Tighten with native passthrough lists in
+# networkPolicy.cilium.*.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: jaas
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/component: jaas
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+    app.kubernetes.io/part-of: {{ .Chart.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Chart.Name }}
+      app.kubernetes.io/component: jaas
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/part-of: {{ .Chart.Name }}
+  ingress:
+    # Jsonnet HTTP endpoint — reachable from anywhere by default.
+    - toPorts:
+        - ports:
+            - port: {{ .Values.ports.http | quote }}
+              protocol: TCP
+    # Management probes — kubelet sources from the node IP.
+    - toPorts:
+        - ports:
+            - port: {{ .Values.ports.management | quote }}
+              protocol: TCP
+    {{- if .Values.operator.enabled }}
+    # Storage HTTP server — serves published ExternalArtifact tarballs to Flux.
+    - toPorts:
+        - ports:
+            - port: {{ .Values.ports.storage | quote }}
+              protocol: TCP
+    {{- end }}
+    {{- if and .Values.operator.enabled .Values.operator.webhook.enabled }}
+    # Validating webhook — kube-apiserver dials this.
+    - toPorts:
+        - ports:
+            - port: {{ .Values.ports.webhook | quote }}
+              protocol: TCP
+    {{- end }}
+    {{- if and .Values.operator.enabled .Values.operator.metrics.enabled }}
+    # Metrics endpoint — Prometheus scrapes the controller-runtime metrics here.
+    - toPorts:
+        - ports:
+            - port: {{ .Values.ports.metrics | quote }}
+              protocol: TCP
+    {{- end }}
+    {{- with .Values.networkPolicy.cilium.ingress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- if .Values.networkPolicy.egress.enabled }}
+  egress:
+    {{- if .Values.networkPolicy.egress.dns }}
+    # Cluster DNS — resolves names via kube-dns. Without this an egress policy
+    # denies resolution, breaking every outbound connection.
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: {{ .Values.networkPolicy.egress.dnsNamespace }}
+            k8s:k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+          rules:
+            dns:
+              - matchPattern: "*"
+    {{- end }}
+    {{- with .Values.networkPolicy.cilium.egress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+{{- end }}

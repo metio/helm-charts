@@ -1,9 +1,13 @@
 <!--
 SPDX-FileCopyrightText: The helm-charts Authors
 SPDX-License-Identifier: 0BSD
--->
+ -->
 
-# stageset-controller
+{{ template "chart.header" . }}
+
+{{ template "chart.deprecationWarning" . }}
+
+{{ template "chart.description" . }}
 
 Deploys the [stageset-controller](https://github.com/metio/stageset-controller)
 — a Flux-compatible controller for **ordered, gated, multi-stage deployments**.
@@ -26,16 +30,7 @@ helm upgrade --install stageset-controller oci://ghcr.io/metio/helm-charts/stage
 - a metrics `Service` (+ opt-in `ServiceMonitor`) and the Flagger stage-gate
   `Service`.
 
-## Key values
-
-| Key | Default | Purpose |
-|---|---|---|
-| `webhook.certMode` | `self-signed` | `self-signed` (in-pod CA, no prerequisite) or `cert-manager` (needs an issuer). |
-| `gate.enabled` | `true` | Expose the Flagger stage-gate endpoint. |
-| `rollbackStore.backend` | `none` | `none`, `pvc` (RWX for HA), or `s3` for bit-exact rollbacks. |
-| `controller.inventoryMode` | `hybrid` | `entries`, `hybrid`, or `applyset`. |
-| `controller.noCrossNamespaceRefs` | `false` | Deny cross-namespace `sourceRef`/`dependsOn`. |
-| `replicas.max` (> `min`) | `1` | Renders an HPA + PDB for HA standby replicas. |
+## Webhook TLS
 
 The webhook defaults to `self-signed` so the chart installs without cert-manager;
 switch to `cert-manager` by setting `webhook.certMode=cert-manager` and
@@ -44,3 +39,5 @@ switch to `cert-manager` by setting `webhook.certMode=cert-manager` and
 All keys are validated against `values.schema.json` at install time. See the
 [controller docs](https://github.com/metio/stageset-controller) for the
 full behaviour behind each flag.
+
+{{ template "chart.valuesSection" . }}

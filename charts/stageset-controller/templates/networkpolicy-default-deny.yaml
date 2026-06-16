@@ -1,0 +1,94 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+{{- if and .Values.networkPolicy.enabled .Values.networkPolicy.defaultDeny.enabled }}
+{{- if or (not .Values.networkPolicy.engine) (eq .Values.networkPolicy.engine "kubernetes") }}
+# Namespace-wide default-deny: selects EVERY pod in the namespace (empty
+# podSelector) and lists Ingress + Egress in policyTypes with no rules, so all
+# traffic is denied. The per-workload allowlist NetworkPolicy is additive — a
+# pod allowed by it wins, because NetworkPolicy rules across policies are a
+# union of allows. Turns the namespace zero-trust; the allowlists are the only
+# exceptions.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "stageset.name" . }}-default-deny
+  namespace: {{ include "stageset.namespace" . }}
+  labels:
+    {{- include "stageset.labels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+{{- else if eq .Values.networkPolicy.engine "cilium" }}
+# Namespace-wide default-deny in Cilium's dialect: an empty endpointSelector
+# selects every endpoint in the namespace. The presence of an ingress (resp.
+# egress) section switches that direction into default deny-mode; empty sections
+# (no rule entries) admit nothing, so all traffic is denied. An empty rule ENTRY
+# (- {}) would instead match all peers and ALLOW everything, so the sections are
+# kept empty deliberately. The per-workload CiliumNetworkPolicy is additive —
+# Cilium unions allows across policies, so an allowed flow wins.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "stageset.name" . }}-default-deny
+  namespace: {{ include "stageset.namespace" . }}
+  labels:
+    {{- include "stageset.labels" . | nindent 4 }}
+spec:
+  endpointSelector: {}
+  ingress: []
+  egress: []
+{{- else if eq .Values.networkPolicy.engine "calico" }}
+# Namespace-wide default-deny in Calico's dialect: selector all() matches every
+# pod in the namespace, types Ingress + Egress with no Allow rules denies all.
+# order ranks it AFTER the allowlist policy (Calico evaluates lower order first;
+# the allowlist carries no order = lowest precedence), so a flow the allowlist
+# Allows is decided there and never reaches this deny.
+apiVersion: projectcalico.org/v3
+kind: NetworkPolicy
+metadata:
+  name: {{ include "stageset.name" . }}-default-deny
+  namespace: {{ include "stageset.namespace" . }}
+  labels:
+    {{- include "stageset.labels" . | nindent 4 }}
+spec:
+  order: {{ .Values.networkPolicy.defaultDeny.order }}
+  selector: all()
+  types:
+    - Ingress
+    - Egress
+{{- else if eq .Values.networkPolicy.engine "clusterNetworkPolicy" }}
+# Namespace-wide default-deny in the Network Policy API dialect. Baseline tier
+# yields to any developer NetworkPolicy; the subject pins every pod in this
+# namespace. A catch-all Deny (from/to namespaces: {}) on both directions denies
+# all. priority ranks it AFTER the allowlist policy: lower priority numbers win,
+# and the allowlist defaults to networkPolicy.clusterNetworkPolicy.priority
+# (1000), so this defaults higher (2000) and the allowlist's Accept rules are
+# evaluated first.
+apiVersion: policy.networking.k8s.io/v1alpha2
+kind: ClusterNetworkPolicy
+metadata:
+  name: {{ include "stageset.name" . }}-default-deny-{{ include "stageset.namespace" . }}
+  labels:
+    {{- include "stageset.labels" . | nindent 4 }}
+spec:
+  tier: Baseline
+  priority: {{ .Values.networkPolicy.defaultDeny.order }}
+  subject:
+    namespaces:
+      matchLabels:
+        kubernetes.io/metadata.name: {{ include "stageset.namespace" . }}
+  ingress:
+    - name: deny-all
+      action: Deny
+      from:
+        - namespaces: {}
+  egress:
+    - name: deny-all
+      action: Deny
+      to:
+        - namespaces: {}
+{{- end }}
+{{- end }}

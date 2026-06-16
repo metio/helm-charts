@@ -1,0 +1,397 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+suite: test stageset namespace-wide default-deny NetworkPolicy
+templates:
+  - networkpolicy-default-deny.yaml
+  - networkpolicy.yaml
+  - ciliumnetworkpolicy.yaml
+  - caliconetworkpolicy.yaml
+  - clusternetworkpolicy.yaml
+tests:
+  - it: renders nothing by default
+    templates:
+      - networkpolicy-default-deny.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders nothing when networkPolicy is enabled but defaultDeny is off
+    templates:
+      - networkpolicy-default-deny.yaml
+    set:
+      networkPolicy:
+        enabled: true
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders nothing when defaultDeny is on but networkPolicy is disabled
+    templates:
+      - networkpolicy-default-deny.yaml
+    set:
+      networkPolicy:
+        enabled: false
+        defaultDeny:
+          enabled: true
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  # kubernetes engine -------------------------------------------------------
+  - it: renders a vanilla deny-all NetworkPolicy for the kubernetes engine
+    templates:
+      - networkpolicy-default-deny.yaml
+    set:
+      networkPolicy:
+        enabled: true
+        engine: kubernetes
+        defaultDeny:
+          enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: NetworkPolicy
+      - equal:
+          path: apiVersion
+          value: networking.k8s.io/v1
+      - equal:
+          path: metadata.name
+          value: stageset-controller-default-deny
+
+  - it: renders a vanilla deny-all NetworkPolicy for an unset engine
+    templates:
+      - networkpolicy-default-deny.yaml
+    set:
+      networkPolicy:
+        enabled: true
+        engine: null
+        defaultDeny:
+          enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: NetworkPolicy
+
+  - it: selects the whole namespace and denies both directions (kubernetes)
+    templates:
+      - networkpolicy-default-deny.yaml
+    set:
+      networkPolicy:
+        enabled: true
+        engine: kubernetes
+        defaultDeny:
+          enabled: true
+    asserts:
+      - equal:
+          path: spec.podSelector
+          value: {}
+      - equal:
+          path: spec.policyTypes
+          value:
+            - Ingress
+            - Egress
+      - notExists:
+          path: spec.ingress
+      - notExists:
+          path: spec.egress
+
+  # cilium engine -----------------------------------------------------------
+  - it: renders a deny-all CiliumNetworkPolicy for the cilium engine
+    templates:
+      - networkpolicy-default-deny.yaml
+    set:
+      networkPolicy:
+        enabled: true
+        engine: cilium
+        defaultDeny:
+          enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: CiliumNetworkPolicy
+      - equal:
+          path: apiVersion
+          value: cilium.io/v2
+      - equal:
+          path: metadata.name
+          value: stageset-controller-default-deny
+
+  - it: selects all endpoints and denies both directions (cilium)
+    templates:
+      - networkpolicy-default-deny.yaml
+    set:
+      networkPolicy:
+        enabled: true
+        engine: cilium
+        defaultDeny:
+          enabled: true
+    asserts:
+      - equal:
+          path: spec.endpointSelector
+          value: {}
+      # Empty ingress/egress SECTIONS trigger default deny-mode per direction
+      # while admitting nothing. An empty rule ENTRY (- {}) would instead match
+      # all peers and allow everything, so the sections must be empty lists.
+      - equal:
+          path: spec.ingress
+          value: []
+      - equal:
+          path: spec.egress
+          value: []
+      - notExists:
+          path: spec.enableDefaultDeny
+
+  # calico engine -----------------------------------------------------------
+  - it: renders a deny-all Calico NetworkPolicy for the calico engine
+    templates:
+      - networkpolicy-default-deny.yaml
+    set:
+      networkPolicy:
+        enabled: true
+        engine: calico
+        defaultDeny:
+          enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: NetworkPolicy
+      - equal:
+          path: apiVersion
+          value: projectcalico.org/v3
+      - equal:
+          path: metadata.name
+          value: stageset-controller-default-deny
+
+  - it: selects all pods, denies both directions, and sorts after the allowlist (calico)
+    templates:
+      - networkpolicy-default-deny.yaml
+    set:
+      networkPolicy:
+        enabled: true
+        engine: calico
+        defaultDeny:
+          enabled: true
+    asserts:
+      - equal:
+          path: spec.selector
+          value: all()
+      - equal:
+          path: spec.types
+          value:
+            - Ingress
+            - Egress
+      # Calico evaluates lower order first; the allowlist carries no order
+      # (lowest precedence), so the deny-all's high order ranks it last.
+      - equal:
+          path: spec.order
+          value: 2000
+      - notExists:
+          path: spec.ingress
+      - notExists:
+          path: spec.egress
+
+  - it: honours a custom order on the calico deny-all
+    templates:
+      - networkpolicy-default-deny.yaml
+    set:
+      networkPolicy:
+        enabled: true
+        engine: calico
+        defaultDeny:
+          enabled: true
+          order: 5000
+    asserts:
+      - equal:
+          path: spec.order
+          value: 5000
+
+  # clusterNetworkPolicy engine --------------------------------------------
+  - it: renders a deny-all ClusterNetworkPolicy for the clusterNetworkPolicy engine
+    templates:
+      - networkpolicy-default-deny.yaml
+    set:
+      networkPolicy:
+        enabled: true
+        engine: clusterNetworkPolicy
+        defaultDeny:
+          enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ClusterNetworkPolicy
+      - equal:
+          path: apiVersion
+          value: policy.networking.k8s.io/v1alpha2
+
+  - it: is cluster-scoped with no namespace in metadata (clusterNetworkPolicy)
+    templates:
+      - networkpolicy-default-deny.yaml
+    set:
+      networkPolicy:
+        enabled: true
+        engine: clusterNetworkPolicy
+        defaultDeny:
+          enabled: true
+    asserts:
+      - notExists:
+          path: metadata.namespace
+
+  - it: subjects the whole namespace and denies both directions (clusterNetworkPolicy)
+    templates:
+      - networkpolicy-default-deny.yaml
+    release:
+      namespace: stageset-system
+    set:
+      networkPolicy:
+        enabled: true
+        engine: clusterNetworkPolicy
+        defaultDeny:
+          enabled: true
+    asserts:
+      - equal:
+          path: spec.subject.namespaces.matchLabels["kubernetes.io/metadata.name"]
+          value: stageset-system
+      - notExists:
+          path: spec.subject.pods
+      - equal:
+          path: spec.ingress
+          value:
+            - name: deny-all
+              action: Deny
+              from:
+                - namespaces: {}
+      - equal:
+          path: spec.egress
+          value:
+            - name: deny-all
+              action: Deny
+              to:
+                - namespaces: {}
+
+  - it: ranks the deny-all after the allowlist via a higher priority number (clusterNetworkPolicy)
+    templates:
+      - networkpolicy-default-deny.yaml
+    set:
+      networkPolicy:
+        enabled: true
+        engine: clusterNetworkPolicy
+        defaultDeny:
+          enabled: true
+    asserts:
+      - equal:
+          path: spec.tier
+          value: Baseline
+      # Lower priority numbers win; the allowlist defaults to
+      # clusterNetworkPolicy.priority (1000), so the deny-all's 2000 yields.
+      - equal:
+          path: spec.priority
+          value: 2000
+
+  - it: honours a custom order as the clusterNetworkPolicy priority
+    templates:
+      - networkpolicy-default-deny.yaml
+    set:
+      networkPolicy:
+        enabled: true
+        engine: clusterNetworkPolicy
+        defaultDeny:
+          enabled: true
+          order: 9000
+    asserts:
+      - equal:
+          path: spec.priority
+          value: 9000
+
+  # co-existence: deny-all renders alongside the per-workload allowlist. Each
+  # co-existence test renders both the allowlist template and the deny-all
+  # template, then a documentSelector pins the deny-all by name and asserts its
+  # whole-namespace selector survives next to the pod-scoped allowlist.
+  - it: the kubernetes deny-all selects the whole namespace next to the allowlist
+    templates:
+      - networkpolicy.yaml
+      - networkpolicy-default-deny.yaml
+    documentSelector:
+      path: metadata.name
+      value: stageset-controller-default-deny
+      skipEmptyTemplates: true
+    set:
+      networkPolicy:
+        enabled: true
+        engine: kubernetes
+        defaultDeny:
+          enabled: true
+    asserts:
+      - equal:
+          path: spec.podSelector
+          value: {}
+
+  - it: the cilium deny-all selects all endpoints next to the allowlist
+    templates:
+      - ciliumnetworkpolicy.yaml
+      - networkpolicy-default-deny.yaml
+    documentSelector:
+      path: metadata.name
+      value: stageset-controller-default-deny
+      skipEmptyTemplates: true
+    set:
+      networkPolicy:
+        enabled: true
+        engine: cilium
+        defaultDeny:
+          enabled: true
+    asserts:
+      - equal:
+          path: spec.endpointSelector
+          value: {}
+
+  - it: the calico deny-all selects all pods next to the allowlist
+    templates:
+      - caliconetworkpolicy.yaml
+      - networkpolicy-default-deny.yaml
+    documentSelector:
+      path: metadata.name
+      value: stageset-controller-default-deny
+      skipEmptyTemplates: true
+    set:
+      networkPolicy:
+        enabled: true
+        engine: calico
+        defaultDeny:
+          enabled: true
+    asserts:
+      - equal:
+          path: spec.selector
+          value: all()
+      - equal:
+          path: spec.order
+          value: 2000
+
+  - it: the clusterNetworkPolicy deny-all subjects the namespace next to the allowlist
+    templates:
+      - clusternetworkpolicy.yaml
+      - networkpolicy-default-deny.yaml
+    release:
+      namespace: stageset-system
+    documentSelector:
+      path: metadata.name
+      value: stageset-controller-default-deny-stageset-system
+      skipEmptyTemplates: true
+    set:
+      networkPolicy:
+        enabled: true
+        engine: clusterNetworkPolicy
+        defaultDeny:
+          enabled: true
+    asserts:
+      - equal:
+          path: spec.subject.namespaces.matchLabels["kubernetes.io/metadata.name"]
+          value: stageset-system
+      - equal:
+          path: spec.priority
+          value: 2000

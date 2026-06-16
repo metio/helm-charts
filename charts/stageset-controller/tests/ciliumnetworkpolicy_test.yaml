@@ -1,0 +1,174 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+suite: test stageset CiliumNetworkPolicy
+templates:
+  - ciliumnetworkpolicy.yaml
+tests:
+  - it: is empty by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: is empty for the default kubernetes engine even when enabled
+    set:
+      networkPolicy:
+        enabled: true
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders a CiliumNetworkPolicy for the cilium engine
+    set:
+      networkPolicy:
+        enabled: true
+        engine: cilium
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: CiliumNetworkPolicy
+      - equal:
+          path: apiVersion
+          value: cilium.io/v2
+
+  - it: scopes to this chart's pods via endpointSelector
+    set:
+      networkPolicy:
+        enabled: true
+        engine: cilium
+    asserts:
+      - equal:
+          path: spec.endpointSelector.matchLabels["app.kubernetes.io/name"]
+          value: stageset-controller
+
+  - it: allows the metrics and gate ports as strings
+    set:
+      networkPolicy:
+        enabled: true
+        engine: cilium
+    asserts:
+      - contains:
+          path: spec.ingress
+          content:
+            toPorts:
+              - ports:
+                  - port: "8080"
+                    protocol: TCP
+      - contains:
+          path: spec.ingress
+          content:
+            toPorts:
+              - ports:
+                  - port: "8082"
+                    protocol: TCP
+
+  - it: includes the webhook port only when the webhook is enabled
+    set:
+      networkPolicy:
+        enabled: true
+        engine: cilium
+      webhook:
+        enabled: true
+    asserts:
+      - contains:
+          path: spec.ingress
+          content:
+            toPorts:
+              - ports:
+                  - port: "9443"
+                    protocol: TCP
+
+  - it: omits the webhook port when the webhook is disabled
+    set:
+      networkPolicy:
+        enabled: true
+        engine: cilium
+      webhook:
+        enabled: false
+    asserts:
+      - notContains:
+          path: spec.ingress
+          content:
+            toPorts:
+              - ports:
+                  - port: "9443"
+                    protocol: TCP
+
+  - it: omits the gate port when the gate is disabled
+    set:
+      networkPolicy:
+        enabled: true
+        engine: cilium
+      gate:
+        enabled: false
+    asserts:
+      - notContains:
+          path: spec.ingress
+          content:
+            toPorts:
+              - ports:
+                  - port: "8082"
+                    protocol: TCP
+
+  - it: has no egress by default
+    set:
+      networkPolicy:
+        enabled: true
+        engine: cilium
+    asserts:
+      - notExists:
+          path: spec.egress
+
+  - it: adds a DNS egress rule when egress is enabled
+    set:
+      networkPolicy:
+        enabled: true
+        engine: cilium
+        egress:
+          enabled: true
+    asserts:
+      - contains:
+          path: spec.egress
+          content:
+            toEndpoints:
+              - matchLabels:
+                  k8s:io.kubernetes.pod.namespace: kube-system
+                  k8s:k8s-app: kube-dns
+            toPorts:
+              - ports:
+                  - port: "53"
+                    protocol: UDP
+                  - port: "53"
+                    protocol: TCP
+                rules:
+                  dns:
+                    - matchPattern: "*"
+
+  - it: merges native ingress and egress passthrough lists
+    set:
+      networkPolicy:
+        enabled: true
+        engine: cilium
+        egress:
+          enabled: true
+        cilium:
+          ingress:
+            - fromEndpoints:
+                - matchLabels:
+                    app: prometheus
+          egress:
+            - toFQDNs:
+                - matchName: example.com
+    asserts:
+      - contains:
+          path: spec.ingress
+          content:
+            fromEndpoints:
+              - matchLabels:
+                  app: prometheus
+      - contains:
+          path: spec.egress
+          content:
+            toFQDNs:
+              - matchName: example.com

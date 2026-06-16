@@ -1,0 +1,296 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+suite: test stageset NetworkPolicy
+templates:
+  - networkpolicy.yaml
+tests:
+  - it: is empty when networkPolicy is disabled (default)
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders when networkPolicy is enabled
+    set:
+      networkPolicy:
+        enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: NetworkPolicy
+
+  - it: renders for the explicit kubernetes engine
+    set:
+      networkPolicy:
+        enabled: true
+        engine: kubernetes
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: NetworkPolicy
+
+  - it: is empty for the cilium engine
+    set:
+      networkPolicy:
+        enabled: true
+        engine: cilium
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: is empty for the calico engine
+    set:
+      networkPolicy:
+        enabled: true
+        engine: calico
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: is empty for the clusterNetworkPolicy engine
+    set:
+      networkPolicy:
+        enabled: true
+        engine: clusterNetworkPolicy
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: declares only the Ingress policy type by default
+    set:
+      networkPolicy:
+        enabled: true
+    asserts:
+      - equal:
+          path: spec.policyTypes
+          value:
+            - Ingress
+
+  - it: leaves the metrics and gate ports open by default
+    set:
+      networkPolicy:
+        enabled: true
+    asserts:
+      - contains:
+          path: spec.ingress
+          content:
+            ports:
+              - port: metrics
+                protocol: TCP
+      - contains:
+          path: spec.ingress
+          content:
+            ports:
+              - port: gate
+                protocol: TCP
+
+  - it: includes the webhook port only when the webhook is enabled
+    set:
+      networkPolicy:
+        enabled: true
+      webhook:
+        enabled: true
+    asserts:
+      - contains:
+          path: spec.ingress
+          content:
+            ports:
+              - port: webhook
+                protocol: TCP
+
+  - it: omits the webhook port when the webhook is disabled
+    set:
+      networkPolicy:
+        enabled: true
+      webhook:
+        enabled: false
+    asserts:
+      - notContains:
+          path: spec.ingress
+          content:
+            ports:
+              - port: webhook
+                protocol: TCP
+
+  - it: omits the gate port when the gate is disabled
+    set:
+      networkPolicy:
+        enabled: true
+      gate:
+        enabled: false
+    asserts:
+      - notContains:
+          path: spec.ingress
+          content:
+            ports:
+              - port: gate
+                protocol: TCP
+
+  - it: tightens the metrics port when metrics.from is configured
+    set:
+      networkPolicy:
+        enabled: true
+        metrics:
+          from:
+            - namespaceSelector:
+                matchLabels:
+                  kubernetes.io/metadata.name: monitoring
+    asserts:
+      - contains:
+          path: spec.ingress
+          content:
+            ports:
+              - port: metrics
+                protocol: TCP
+            from:
+              - namespaceSelector:
+                  matchLabels:
+                    kubernetes.io/metadata.name: monitoring
+
+  - it: tightens the gate port when gate.from is configured
+    set:
+      networkPolicy:
+        enabled: true
+        gate:
+          from:
+            - namespaceSelector:
+                matchLabels:
+                  kubernetes.io/metadata.name: flagger-system
+    asserts:
+      - contains:
+          path: spec.ingress
+          content:
+            ports:
+              - port: gate
+                protocol: TCP
+            from:
+              - namespaceSelector:
+                  matchLabels:
+                    kubernetes.io/metadata.name: flagger-system
+
+  - it: appends additionalIngress entries verbatim
+    set:
+      networkPolicy:
+        enabled: true
+        additionalIngress:
+          - ports:
+              - protocol: TCP
+                port: metrics
+            from:
+              - ipBlock:
+                  cidr: 10.0.0.0/8
+    asserts:
+      - contains:
+          path: spec.ingress
+          content:
+            ports:
+              - protocol: TCP
+                port: metrics
+            from:
+              - ipBlock:
+                  cidr: 10.0.0.0/8
+
+  - it: does not render egress by default
+    set:
+      networkPolicy:
+        enabled: true
+    asserts:
+      - notExists:
+          path: spec.egress
+
+  - it: adds the Egress policy type and a DNS allow rule when egress is enabled
+    set:
+      networkPolicy:
+        enabled: true
+        egress:
+          enabled: true
+    asserts:
+      - contains:
+          path: spec.policyTypes
+          content: Egress
+      - contains:
+          path: spec.egress
+          content:
+            to:
+              - namespaceSelector:
+                  matchLabels:
+                    kubernetes.io/metadata.name: kube-system
+            ports:
+              - protocol: UDP
+                port: 53
+              - protocol: TCP
+                port: 53
+
+  - it: honors a custom DNS namespace
+    set:
+      networkPolicy:
+        enabled: true
+        egress:
+          enabled: true
+          dnsNamespace: dns-system
+    asserts:
+      - contains:
+          path: spec.egress
+          content:
+            to:
+              - namespaceSelector:
+                  matchLabels:
+                    kubernetes.io/metadata.name: dns-system
+            ports:
+              - protocol: UDP
+                port: 53
+              - protocol: TCP
+                port: 53
+
+  - it: omits the DNS rule when egress.dns is false
+    set:
+      networkPolicy:
+        enabled: true
+        egress:
+          enabled: true
+          dns: false
+          to:
+            - to:
+                - ipBlock:
+                    cidr: 10.96.0.1/32
+    asserts:
+      - notContains:
+          path: spec.egress
+          content:
+            ports:
+              - protocol: UDP
+                port: 53
+              - protocol: TCP
+                port: 53
+      - contains:
+          path: spec.egress
+          content:
+            to:
+              - ipBlock:
+                  cidr: 10.96.0.1/32
+
+  - it: merges egress.to peers verbatim
+    set:
+      networkPolicy:
+        enabled: true
+        egress:
+          enabled: true
+          to:
+            - to:
+                - ipBlock:
+                    cidr: 10.96.0.1/32
+              ports:
+                - protocol: TCP
+                  port: 443
+    asserts:
+      - contains:
+          path: spec.egress
+          content:
+            to:
+              - ipBlock:
+                  cidr: 10.96.0.1/32
+            ports:
+              - protocol: TCP
+                port: 443

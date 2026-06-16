@@ -22,6 +22,7 @@ ARG KUBECONFORM_VERSION=0.7.0
 ARG COSIGN_VERSION=2.6.0
 ARG GIT_CLIFF_VERSION=2.10.1
 ARG GO_HELM_SCHEMA_VERSION=0.23.4
+ARG HELM_DOCS_VERSION=1.14.2
 
 # helm (v4) + the helm-unittest plugin (per-template assertions + snapshots).
 # helm v4 verifies plugin provenance on install; the plugin ships none, so pass
@@ -63,6 +64,12 @@ RUN curl -fsSL https://github.com/orhun/git-cliff/releases/download/v${GIT_CLIFF
 # Regenerate via: ilo bash -c 'helm-schema -c charts/<name> -k additionalProperties'
 # dadav/helm-schema release tags carry no `v` prefix (e.g. 0.23.4).
 RUN curl -fsSL https://github.com/dadav/helm-schema/releases/download/${GO_HELM_SCHEMA_VERSION}/helm-schema_${GO_HELM_SCHEMA_VERSION}_Linux_x86_64.tar.gz | tar -xz -C /usr/local/bin helm-schema
+
+# helm-docs (norwoodj/helm-docs): regenerate each chart's README.md from its
+# README.md.gotmpl + the `# --` annotations in values.yaml. The drift gate fails
+# on any diff. Regenerate via:
+#   ilo bash -c 'helm-docs --chart-search-root charts/<name>'
+RUN curl -fsSL https://github.com/norwoodj/helm-docs/releases/download/v${HELM_DOCS_VERSION}/helm-docs_${HELM_DOCS_VERSION}_Linux_x86_64.tar.gz | tar -xz -C /usr/local/bin helm-docs
 
 # yamllint + yamale via pipx so they land on PATH. chart-testing shells out to
 # both during `ct lint` (yamllint on Chart.yaml/values, yamale to validate the

@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: The helm-charts Authors
 # SPDX-License-Identifier: 0BSD
 
-# CRD lifecycle. The chart ships the controller's CRDs under templates/ so a
+# -- CRD lifecycle. The chart ships the controller's CRDs under templates/ so a
 # `helm upgrade` applies schema changes automatically. Set create=false to
 # manage them out-of-band — e.g. pre-installed cluster-wide, or in CI where the
 # same chart is installed once per values file and a kept cluster-scoped CRD
@@ -9,22 +9,24 @@
 crds:
   create: true
 
+# -- Container port assignments for the jaas pod.
 ports:
-  # Used by the /jsonnet endpoint
+  # -- Used by the /jsonnet endpoint
   http: 8080
-  # Used by startup, readiness, and liveness probes
+  # -- Used by startup, readiness, and liveness probes
   management: 8081
-  # Used by the operator's storage HTTP server (operator.enabled only)
+  # -- Used by the operator's storage HTTP server (operator.enabled only)
   storage: 8082
-  # Used by controller-runtime's Prometheus metrics endpoint
+  # -- Used by controller-runtime's Prometheus metrics endpoint
   # (operator.enabled only). Defaults to 8083 to avoid the collision
   # with controller-runtime's own :8080 default and the jsonnet HTTP
   # port. Set to 0 in operator.metrics.enabled to disable entirely.
   metrics: 8083
-  # Used by the validating admission webhook (operator.webhook.enabled only)
+  # -- Used by the validating admission webhook (operator.webhook.enabled only)
   webhook: 9443
 
-# Overwrite these in case you want to use an internal registry mirror
+# -- Container image for the jaas workload. Overwrite these in case you want to
+# use an internal registry mirror.
 image:
   registry: ghcr.io
   repository: metio/jaas
@@ -35,32 +37,35 @@ image:
   #   - IfNotPresent
   #   - Never
   # @schema
-  # Pull policy for the jaas container. IfNotPresent is the default —
+  # -- Pull policy for the jaas container. IfNotPresent is the default —
   # safe for tagged release images. Switch to Always when running off a
   # mutable tag (latest, edge, dev) so each restart re-checks the
   # registry. Never is useful when the image is preloaded into the node
   # (kind, k3d).
   pullPolicy: IfNotPresent
-  # Optional explicit tag override. Defaults to .Chart.AppVersion (the
+  # -- Optional explicit tag override. Defaults to .Chart.AppVersion (the
   # chart's released version). Useful when running a custom build:
   #   --set-string image.tag=dev-abc123
   tag: ""
 
-# Optional pull secrets in case you use a private mirror/image
+# -- Optional pull secrets in case you use a private mirror/image
 imagePullSecrets: []
 
-# It is safe to increase the number of replicas
+# -- Replica bounds for the Deployment. It is safe to increase the number of
+# replicas.
 replicas:
   min: 1
   max: 1
 
-# Smallest possible values here, increase if you have more resources to spare
+# -- Per-container resource requests/limits. Smallest possible values here,
+# increase if you have more resources to spare.
 resources:
   memory: 64Mi
   cpu: 32m
   ephemeralStorage: 10Mi
 
-# These arguments map directly to their corresponding CLI flag
+# -- CLI flags for the jaas binary. These arguments map directly to their
+# corresponding CLI flag.
 arguments:
   # @schema
   # type: string
@@ -70,19 +75,27 @@ arguments:
   #   - warn
   #   - error
   # @schema
+  # -- Log verbosity for the jaas binary (debug, info, warn, error).
   logLevel: info
+  # -- Write timeout on the jsonnet HTTP server.
   writeTimeout: 10s
+  # -- Read timeout on the jsonnet HTTP server.
   readTimeout: 10s
+  # -- Write timeout on the management (probes) HTTP server.
   managementWriteTimeout: 10s
+  # -- Read timeout on the management (probes) HTTP server.
   managementReadTimeout: 10s
+  # -- URL path segment the jsonnet handler is mounted under (GET /<path>/...).
   jsonnetEndpointPath: jsonnet
+  # -- Per-request go-jsonnet evaluation timeout. 0 disables.
   evaluationTimeout: 5s
+  # -- go-jsonnet stack-depth ceiling. Guards against unbounded recursion.
   maxStack: 500
   # @schema
   # type: integer
   # minimum: 0
   # @schema
-  # Maximum in-flight Jsonnet evaluations across both HTTP and operator
+  # -- Maximum in-flight Jsonnet evaluations across both HTTP and operator
   # paths. Excess requests return 503 (HTTP) or RequeueAfter (operator)
   # with EvalUnavailable backpressure events. Sized to bound worst-case
   # goroutine pile-up when a runaway snippet's synchronous eval outlives
@@ -90,25 +103,32 @@ arguments:
   # backpressure boundary. 0 disables the gate; the operator default
   # (process-side) is max(GOMAXPROCS*4, 16).
   maxConcurrentEvals: 32
+  # -- Grace period readiness stays false before in-flight requests are aborted
+  # on SIGTERM, so endpoint controllers can drain the pod first.
   shutdownDelay: 5s
-  # Bind address for the jsonnet HTTP and management servers. `::`
+  # -- Bind address for the jsonnet HTTP and management servers. `::`
   # listens on every IPv6 interface and — because Go opens
   # IPV6_V6ONLY=0 by default on Linux — also accepts IPv4 connections
   # via v4-mapped addresses. Use `0.0.0.0` to constrain to IPv4 on
   # clusters that don't support dual-stack pods.
   listenAddress: "::"
+  # -- Bind address for the management (probes) HTTP server. Same dual-stack
+  # semantics as listenAddress.
   managementListenAddress: "::"
 
-# Fine tune the Deployment resource
+# -- Fine tune the Deployment resource.
 deployment:
+  # -- spec.revisionHistoryLimit on the Deployment.
   revisionHistoryLimit: 1
+  # -- Extra labels merged onto the Deployment metadata.
   additionalLabels: {}
 
-# Fine tune the managed Pod resources
+# -- Fine tune the managed Pod resources.
 pod:
+  # -- Extra labels merged onto the pod template.
   additionalLabels: {}
 
-# Fine tune the Service resource
+# -- Fine tune the Service resource.
 service:
   # @schema
   # type: string
@@ -118,18 +138,18 @@ service:
   #   - PreferDualStack
   #   - RequireDualStack
   # @schema
-  # K8s Service ipFamilyPolicy. Empty leaves the cluster's default
+  # -- K8s Service ipFamilyPolicy. Empty leaves the cluster's default
   # (usually SingleStack). Set to PreferDualStack on dual-stack
   # clusters that may still have single-stack nodes, or
   # RequireDualStack to refuse single-stack clusters at admission.
   ipFamilyPolicy: ""
-  # Explicit list of IP families for the Service. Empty defers to
+  # -- Explicit list of IP families for the Service. Empty defers to
   # the cluster's default. Example for explicit IPv4+IPv6:
   #   ipFamilies: [IPv4, IPv6]
   # Order matters: the first family becomes the primary ClusterIP.
   ipFamilies: []
 
-# Fine tune the PodDisruptionBudget. Rendered only when
+# -- Fine tune the PodDisruptionBudget. Rendered only when
 # replicas.max > replicas.min.
 pdb:
   # @schema
@@ -139,6 +159,8 @@ pdb:
   #   - IfHealthyBudget
   #   - AlwaysAllow
   # @schema
+  # -- spec.unhealthyPodEvictionPolicy on the PDB. Empty defers to the
+  # cluster default.
   unhealthyPodEvictionPolicy: ""
   # Disruption budget shape. Exactly one of minAvailable / maxUnavailable
   # is rendered into the PDB spec; setting both is a config error
@@ -158,15 +180,22 @@ pdb:
   # @schema
   # type: [integer, string, "null"]
   # @schema
+  # -- PDB minAvailable. Mutually exclusive with maxUnavailable; null leaves it
+  # unset.
   minAvailable: null
   # @schema
   # type: [integer, string, "null"]
   # @schema
+  # -- PDB maxUnavailable. Default 1 caps voluntary disruptions to one pod at a
+  # time. Set to null when using minAvailable instead.
   maxUnavailable: 1
 
-# Modify the paths used, use this in case you run a custom image
+# -- Filesystem paths inside the container. Modify the paths used, use this in
+# case you run a custom image.
 paths:
+  # -- Directory snippet OCI volumes mount beneath.
   snippets: /srv/snippets
+  # -- Directory library OCI volumes mount beneath.
   libraries: /srv/libraries
 
 # @schema
@@ -174,30 +203,37 @@ paths:
 # additionalProperties:
 #   type: string
 # @schema
-# IMPORTANT!
-# Add snippet directories here. The key is the name of the directory and the value is an OCI volume that will be
+# -- Snippet OCI volumes to mount. The key is the name of the directory and the value is an OCI volume that will be
 # mounted beneath .Values.paths.snippets, e.g., the commented example below would result in all files from
 # 'ghcr.io/metio/something:latest' to be mounted at '/srv/snippets/something/' (using the default configuration)
 snippets:
 #  something: ghcr.io/metio/something:latest
 
-# Enable/disable well-known jsonnet libraries
+# -- Well-known jsonnet libraries. All OFF by default — a default install mounts no
+# OCI volumes. Enable per renderer-mode need (the standalone HTTP renderer
+# imports these from pre-baked image bundles). Each enabled library renders a
+# `-library-path` arg, a read-only volumeMount, and an OCI `image:` volume.
+# Static OCI mounts are mutually exclusive with operator.enabled (Flux mode):
+# in Flux mode libraries come from JsonnetLibrary CRs, not these image bundles.
 libraries:
+  # -- grafonnet library (Grafana dashboards). Mounts a JOI OCI bundle when enabled.
   grafonnet:
-    enabled: true
+    enabled: false
     registry: ghcr.io
     repository: metio/joi-grafana-grafonnet
-    # The JOI images are calendar-tagged (plus a moving `latest`), not tagged by
+    # -- The JOI images are calendar-tagged (plus a moving `latest`), not tagged by
     # the upstream grafonnet version — there is no `v11.4.0` tag. Match the other
     # libraries and track `latest`; pin to a dated tag (e.g. 2026.6.14) to freeze.
     version: latest
+  # -- docsonnet library. Mounts a JOI OCI bundle when enabled.
   docsonnet:
-    enabled: true
+    enabled: false
     registry: ghcr.io
     repository: metio/joi-jsonnet-libs-docsonnet
     version: latest
+  # -- xtd library. Mounts a JOI OCI bundle when enabled.
   xtd:
-    enabled: true
+    enabled: false
     registry: ghcr.io
     repository: metio/joi-jsonnet-libs-xtd
     version: latest
@@ -207,8 +243,7 @@ libraries:
 # additionalProperties:
 #   type: string
 # @schema
-# IMPORTANT!
-# Add additional libraries here. The key is the name of the directory and the value is an OCI volume that will be
+# -- Additional library OCI volumes to mount. The key is the name of the directory and the value is an OCI volume that will be
 # mounted beneath .Values.paths.libraries, e.g., the commented example below would result in all files from
 # 'ghcr.io/metio/something:latest' to be mounted at '/srv/libraries/something/' (using the default configuration)
 #
@@ -223,26 +258,28 @@ additionalLibraries:
 # additionalProperties:
 #   type: string
 # @schema
-# IMPORTANT!
-# Add external variables here. They will be added as JAAS_EXT_VAR_your_name and are available as your_name in your
+# -- External variables (std.extVar). They will be added as JAAS_EXT_VAR_your_name and are available as your_name in your
 # Jsonnet snippets.
 externalVariables:
 #  something: some-value
 
-# IMPORTANT!
-# Add external variables loaded from ConfigMaps or Secrets here. Each array expects the name of either ConfigMaps or
+# -- External variables loaded from ConfigMaps or Secrets. Each array expects the name of either ConfigMaps or
 # Secrets. Only those values in ConfigMaps and Secrets that start with JAAS_EXT_VAR will be available as external
 # variable in your Jsonnet snippets.
 externalVariablesFrom:
+  # -- ConfigMap names to source JAAS_EXT_VAR_* env vars from.
   configMaps: []
+  # -- Secret names to source JAAS_EXT_VAR_* env vars from.
   secrets: []
 
-# Opt-in install-namespace render with Pod Security Standards labels.
+# -- Opt-in install-namespace render with Pod Security Standards labels.
 # Default-off so the chart doesn't claim ownership of a pre-existing
 # namespace operators created via kubectl / Argo. Enable for fresh
 # installs that want the namespace's PSS posture baked into the chart.
 namespace:
+  # -- Whether the chart renders (and owns) its install Namespace.
   create: false
+  # -- Pod Security Standards admission labels stamped on the namespace.
   podSecurity:
     # @schema
     # type: string
@@ -251,7 +288,7 @@ namespace:
     #   - baseline
     #   - restricted
     # @schema
-    # `restricted` is the strictest PSS level. Image volumes (used by
+    # -- `restricted` is the strictest PSS level. Image volumes (used by
     # the chart for snippet/library mounts) are restricted-compliant
     # from Kubernetes 1.33 onward; clusters on 1.32 or older must drop
     # this to `baseline`.
@@ -264,6 +301,7 @@ namespace:
     #   - baseline
     #   - restricted
     # @schema
+    # -- PSS audit level.
     audit: restricted
     auditVersion: latest
     # @schema
@@ -273,23 +311,26 @@ namespace:
     #   - baseline
     #   - restricted
     # @schema
+    # -- PSS warn level.
     warn: restricted
     warnVersion: latest
+  # -- Extra labels on the rendered Namespace.
   additionalLabels: {}
+  # -- Extra annotations on the rendered Namespace.
   annotations: {}
 
-# Operator mode — opt-in. When enabled, jaas runs alongside its HTTP path as a
+# -- Operator mode — opt-in. When enabled, jaas runs alongside its HTTP path as a
 # Kubernetes operator that watches JsonnetSnippet / JsonnetLibrary CRs and
 # publishes evaluated results as Flux ExternalArtifact resources.
 operator:
   enabled: false
 
-  # ServiceAccount the operator runs as. When create is true the chart
+  # -- ServiceAccount the operator runs as. When create is true the chart
   # provisions one; otherwise the operator binds against the named SA.
   serviceAccount:
     create: true
     name: jaas
-    # Annotations to attach to the operator ServiceAccount. Common
+    # -- Annotations to attach to the operator ServiceAccount. Common
     # uses: AWS IRSA (eks.amazonaws.com/role-arn),
     # GCP Workload Identity (iam.gke.io/gcp-service-account),
     # Azure Workload Identity (azure.workload.identity/client-id).
@@ -297,7 +338,7 @@ operator:
     # access cloud resources without static credentials.
     annotations: {}
 
-  # Opt out of chart-rendered RBAC when external governance owns
+  # -- Opt out of chart-rendered RBAC when external governance owns
   # ClusterRole/RoleBinding shape (ArgoCD app-of-apps, Crossplane,
   # GitOps controller that manages RBAC separately). The operator
   # still expects the named SA to have the verbs documented in
@@ -306,16 +347,16 @@ operator:
   rbac:
     create: true
 
-  # The default ServiceAccount the operator impersonates when a snippet does
+  # -- The default ServiceAccount the operator impersonates when a snippet does
   # not specify spec.serviceAccountName. Snippets without an effective SA are
   # rejected at reconcile time.
   defaultServiceAccount: ""
 
-  # When true, the operator rejects JsonnetSnippet / library refs that point
+  # -- When true, the operator rejects JsonnetSnippet / library refs that point
   # at a SourceRef in a different namespace.
   noCrossNamespaceRefs: true
 
-  # Optional label selector that narrows which CRs the operator watches.
+  # -- Optional label selector that narrows which CRs the operator watches.
   # Leave empty to watch every CR in the cluster.
   labelSelector: ""
 
@@ -324,20 +365,20 @@ operator:
   # items:
   #   type: string
   # @schema
-  # Namespaces this operator instance scopes its cache to. Empty (the
+  # -- Namespaces this operator instance scopes its cache to. Empty (the
   # default) means cluster-wide. When set, the manager's informer
   # cache only observes CRs in these namespaces, AND the rendered
   # RBAC pivots from a single ClusterRoleBinding to one RoleBinding
   # per namespace — multi-tenant operator-instances pattern.
   watchNamespaces: []
 
-  # Per-snippet steady-state re-render budget. N/period where period is one of
+  # -- Per-snippet steady-state re-render budget. N/period where period is one of
   # sec, min, hour. Token-bucket combined with rerenderBurst.
   rerenderRate: "60/min"
-  # Per-snippet token-bucket depth.
+  # -- Per-snippet token-bucket depth.
   rerenderBurst: 120
 
-  # Bound the time a deleted JsonnetSnippet's finalizer can hold while
+  # -- Bound the time a deleted JsonnetSnippet's finalizer can hold while
   # Publisher.Withdraw keeps failing. Past this, the operator emits a
   # Warning WithdrawForced event, drops the finalizer, and lets the
   # snippet be garbage-collected — possibly leaving an orphan tarball
@@ -360,30 +401,33 @@ operator:
   #   helm uninstall jaas -n <ns>
   cleanupOnDelete:
     enabled: true
-    # Maximum wall-clock time the pre-delete Job waits for snippet
+    # -- Maximum wall-clock time the pre-delete Job waits for snippet
     # finalizers to run before it strips them forcibly and proceeds.
     # Bigger when snippets publish to slow S3 endpoints.
     kubectlTimeout: 2m
-    # Job-level safety net. activeDeadlineSeconds caps the Job's total
+    # -- Job-level safety net. activeDeadlineSeconds caps the Job's total
     # runtime; if the operator is wedged, Helm won't be blocked
     # forever.
     activeDeadlineSeconds: 600
+    # -- backoffLimit on the pre-delete Job.
     backoffLimit: 2
+    # -- Image for the pre-delete cleanup Job (a kubectl image).
     image:
       registry: registry.k8s.io
       repository: kubectl
       tag: v1.34.0
       pullPolicy: IfNotPresent
+    # -- Resource requests/limits for the cleanup Job container.
     resources:
       cpu: 100m
       memory: 64Mi
-      # Ephemeral-storage requests/limits. The cleanup Job runs a few
+      # -- Ephemeral-storage requests/limits. The cleanup Job runs a few
       # `kubectl` calls then exits — disk usage is negligible. Sized
       # small to satisfy kube-score's resource-completeness check
       # without crowding cluster ephemeral-storage budgets.
       ephemeralStorage: 16Mi
 
-  # OpenTelemetry tracing for the operator. When endpoint is empty
+  # -- OpenTelemetry tracing for the operator. When endpoint is empty
   # (the default), no spans are emitted and the OTel SDK is in no-op
   # mode. Set the endpoint to ship spans to an OTLP gRPC collector:
   #   tracing:
@@ -394,18 +438,18 @@ operator:
     insecure: false
     sampleRatio: 1.0
 
-  # Leader election guards against two operator replicas double-reconciling
+  # -- Leader election guards against two operator replicas double-reconciling
   # the same JsonnetSnippet. With replicas.max: 1 (the chart default) only
   # one replica ever runs, so the lock is just defensive — but operators
   # who scale the Deployment up (rolling restarts, blue-green) MUST keep
   # this on. Off is supported (single replica only) but unsafe to scale.
   leaderElection:
     enabled: true
-    # Lease object name. Defaults to "<release name>-operator" so multiple
+    # -- Lease object name. Defaults to "<release name>-operator" so multiple
     # JaaS installs in the same namespace don't fight over a shared lease.
     id: ""
 
-  # Operator-level external variables. Keys here are non-overridable: a
+  # -- Operator-level external variables. Keys here are non-overridable: a
   # JsonnetSnippet whose spec.externalVariables names any of these keys is
   # rejected at admission (and as a fallback at reconcile time).
   extVars: {}
@@ -414,6 +458,7 @@ operator:
   #   cluster: prod
   #   region:  eu-west-1
 
+  # -- Artifact storage for published ExternalArtifact tarballs (operator mode).
   storage:
     # Artifact backend used to persist ExternalArtifact tarballs.
     #   local — emptyDir or PVC mounted into the pod. Simple,
@@ -429,30 +474,31 @@ operator:
     #   - local
     #   - s3
     # @schema
+    # -- Artifact backend used to persist ExternalArtifact tarballs (local | s3).
     backend: local
 
-    # Bind address for the storage HTTP server. Same dual-stack
+    # -- Bind address for the storage HTTP server. Same dual-stack
     # semantics as arguments.listenAddress: `::` accepts both IPv6
     # and IPv4-mapped traffic on Linux.
     listenAddress: "::"
 
-    # Directory inside the container the operator writes tarballs to.
+    # -- Directory inside the container the operator writes tarballs to.
     # Only consulted when backend=local.
     path: /var/lib/jaas/artifacts
 
-    # Public URL prefix downstream Flux consumers dereference. Defaults to
+    # -- Public URL prefix downstream Flux consumers dereference. Defaults to
     # the in-cluster Service DNS name when empty — operators wiring this up
     # via Ingress should set it explicitly.
     baseURL: ""
 
-    # Maximum tarball size the storage HTTP server is willing to write within
+    # -- Maximum tarball size the storage HTTP server is willing to write within
     # a single response. Match against your largest expected snippet output.
     writeTimeout: 5m
 
-    # Read timeout on the storage HTTP server.
+    # -- Read timeout on the storage HTTP server.
     readTimeout: 30s
 
-    # Periodic GC: sweep orphaned <rev>.tar.gz.tmp residue left by Puts
+    # -- Periodic GC: sweep orphaned <rev>.tar.gz.tmp residue left by Puts
     # whose process died mid-rename. Local backend only — the S3
     # backend's Put is atomic so no .tmp files exist. Set interval to
     # "0s" to disable.
@@ -460,13 +506,13 @@ operator:
       interval: 10m
       maxTmpAge: 30m
 
-    # Cap the rendered artifact size in bytes. Snippets whose rendered
+    # -- Cap the rendered artifact size in bytes. Snippets whose rendered
     # output exceeds this fail with ReasonArtifactTooLarge before any
     # disk/S3 write — stops one runaway snippet from filling a shared
     # storage volume. Zero disables.
     maxArtifactBytes: 0
 
-    # Minimum time a superseded artifact revision stays fetchable after
+    # -- Minimum time a superseded artifact revision stays fetchable after
     # being evicted from the keep-set. Closes the pin→fetch race in
     # which a Flux consumer reads ExternalArtifact.status.artifact a
     # moment before the operator garbage-collects the superseded
@@ -478,18 +524,18 @@ operator:
     # rollback retention.
     gcGrace: 5m
 
-    # When true, the storage Service is rendered as headless
+    # -- When true, the storage Service is rendered as headless
     # (clusterIP: None) so DNS resolves each pod IP directly. Useful
     # for external sidecars that want stable per-pod targets, or for
     # traffic that should skip kube-proxy. Default ClusterIP otherwise.
     headless: false
 
-    # emptyDir size limit. Only consulted when persistence.enabled is
+    # -- emptyDir size limit. Only consulted when persistence.enabled is
     # false. Tarballs typically are well under 1 MiB; the sizing here is
     # generous so transient bursts don't OOM the pod.
     sizeLimit: 256Mi
 
-    # Persist tarballs across pod restarts via a PVC. With persistence
+    # -- Persist tarballs across pod restarts via a PVC. With persistence
     # OFF (the default) the chart uses an emptyDir, which is lost on pod
     # restart — downstream Flux consumers then see brief 404s while every
     # snippet re-renders. With persistence ON, the PVC survives restarts
@@ -517,9 +563,9 @@ operator:
       # Optional PVC selector for matching pre-provisioned volumes.
       selector: {}
 
-    # S3 backend configuration. Only consulted when backend=s3.
+    # -- S3 backend configuration. Only consulted when backend=s3.
     s3:
-      # Endpoint host:port (e.g. s3.amazonaws.com, minio.minio.svc:9000).
+      # -- Endpoint host:port (e.g. s3.amazonaws.com, minio.minio.svc:9000).
       # Required.
       endpoint: ""
       # Bucket the artifacts live in. Must already exist; jaas does
@@ -549,13 +595,14 @@ operator:
       credentialsSecret:
         name: ""
 
-  # Controller-runtime exposes a Prometheus metrics endpoint covering
+  # -- Controller-runtime exposes a Prometheus metrics endpoint covering
   # workqueue depth, reconcile latencies, the manager's REST client, and
   # whatever custom collectors the reconciler registers. The chart wires
   # the endpoint to a dedicated Service; ServiceMonitor rendering is
   # opt-in for clusters running the Prometheus Operator.
   metrics:
     enabled: true
+    # -- Opt-in ServiceMonitor (Prometheus Operator) for the metrics endpoint.
     serviceMonitor:
       enabled: false
       # Scrape interval the Prometheus instance honors. Match this to
@@ -568,7 +615,7 @@ operator:
       labels: {}
       # Extra annotations on the ServiceMonitor.
       annotations: {}
-    # Opt-in PrometheusRule shipping a starter set of alerts on the
+    # -- Opt-in PrometheusRule shipping a starter set of alerts on the
     # operator's custom metrics plus a handful of standard
     # controller-runtime signals. Requires the Prometheus Operator's
     # `monitoring.coreos.com/v1` API to be installed in the cluster.
@@ -710,9 +757,11 @@ operator:
         forceDropsPerHour: 0
         forceDropsDuration: 5m
 
+  # -- Validating admission webhook (operator mode). Rejects JsonnetSnippets
+  # whose spec.externalVariables collide with the operator's extVars.
   webhook:
     enabled: false
-    # Directory inside the container where the TLS cert and key land.
+    # -- Directory inside the container where the TLS cert and key land.
     # With certMode=cert-manager this is mounted read-only from the
     # secretName below. With certMode=self-signed it's a writable
     # emptyDir the operator writes into on startup.
@@ -724,7 +773,7 @@ operator:
     #   - cert-manager
     #   - self-signed
     # @schema
-    # How TLS material for the webhook is provisioned:
+    # -- How TLS material for the webhook is provisioned:
     #   cert-manager — chart renders a cert-manager Certificate;
     #     the Secret is mounted into the pod read-only.
     #   self-signed  — operator generates a CA + serving cert at
@@ -734,7 +783,7 @@ operator:
     #     dependency entirely.
     certMode: cert-manager
 
-    # cert-manager-mode knobs. Only consulted when certMode is
+    # -- cert-manager-mode knobs. Only consulted when certMode is
     # "cert-manager". When self-signed, this block is ignored and no
     # cert-manager API objects are rendered.
     certManager:
@@ -746,23 +795,23 @@ operator:
         #   - Issuer
         #   - ClusterIssuer
         # @schema
-        # Issuer kind: Issuer or ClusterIssuer
+        # -- Issuer kind: Issuer or ClusterIssuer
         kind: Issuer
-        # Issuer name in the chart's namespace (Issuer) or cluster
+        # -- Issuer name in the chart's namespace (Issuer) or cluster
         # (ClusterIssuer). Required when certMode=cert-manager.
         name: ""
 
-    # Validity of the self-signed serving cert. Operators that want
+    # -- Validity of the self-signed serving cert. Operators that want
     # short-lived rotation should use cert-manager instead — the
     # self-signed mode renews on every pod restart, no in-flight
     # rotation. Only consulted when certMode=self-signed.
     selfSignedValidity: 8760h
 
-    # The Secret the cert lives in. cert-manager writes it; the Deployment
+    # -- The Secret the cert lives in. cert-manager writes it; the Deployment
     # mounts it read-only at certDir.
     secretName: jaas-webhook-cert
 
-    # Failure policy for the ValidatingWebhookConfiguration. Fail is the
+    # -- Failure policy for the ValidatingWebhookConfiguration. Fail is the
     # safer default — a webhook outage blocks JsonnetSnippet writes
     # cluster-wide until the operator is back. Switch to Ignore only
     # when you're willing to accept invalid snippets reaching the
@@ -779,10 +828,10 @@ operator:
     # Ignore.
     failurePolicy: Fail
 
-    # Side-effect mode for the ValidatingWebhookConfiguration.
+    # -- Side-effect mode for the ValidatingWebhookConfiguration.
     sideEffects: None
 
-    # objectSelector restricts the webhook to JsonnetSnippets carrying
+    # -- objectSelector restricts the webhook to JsonnetSnippets carrying
     # the listed labels. Useful when only some snippets are
     # operator-managed (the rest live in Argo or kustomize).
     # Example:
@@ -791,7 +840,7 @@ operator:
     #       jaas.metio.wtf/managed: "true"
     objectSelector: {}
 
-    # namespaceSelector restricts the webhook to Namespaces carrying
+    # -- namespaceSelector restricts the webhook to Namespaces carrying
     # the listed labels. A common pattern: opt-in per namespace via a
     # label so the apiserver doesn't dial the webhook for unrelated
     # namespaces during operator outages.
@@ -801,14 +850,16 @@ operator:
     #       jaas.metio.wtf/admission: enforce
     namespaceSelector: {}
 
-    # matchConditions are CEL expressions evaluated server-side before
+    # -- matchConditions are CEL expressions evaluated server-side before
     # the webhook is dialed. Lets operators short-circuit admission
     # checks for specific snippet shapes without a round trip. Requires
     # Kubernetes 1.30+.
     matchConditions: []
 
+# -- Opt-in NetworkPolicy for the jaas pod (storage port lockdown + per-port
+# ingress controls).
 networkPolicy:
-  # Opt-in. When enabled, a NetworkPolicy targets the jaas pod and locks
+  # -- Opt-in. When enabled, a NetworkPolicy targets the jaas pod and locks
   # the storage HTTP port down to the configured consumer selector (defaults
   # to any pod in flux-system — kustomize-controller / helm-controller).
   # Other ports stay open so kubelet probes, the jsonnet HTTP path, and the
@@ -817,6 +868,23 @@ networkPolicy:
   # — without one, the policy is silently inert; with one, default-deny
   # semantics apply to everything not listed here.
   enabled: false
+  # @schema
+  # type: string
+  # enum:
+  #   - kubernetes
+  #   - cilium
+  #   - calico
+  #   - clusterNetworkPolicy
+  # @schema
+  # -- Policy engine to render for. kubernetes (default) emits a vanilla
+  # networking.k8s.io NetworkPolicy. cilium / calico / clusterNetworkPolicy emit
+  # the engine-native equivalent instead (CiliumNetworkPolicy,
+  # projectcalico.org NetworkPolicy, or policy.networking.k8s.io
+  # ClusterNetworkPolicy). The per-port .from knobs below apply to the kubernetes
+  # engine only; alternative engines are pod-scoped allow-all on the required
+  # ports and tighten via their native passthrough lists
+  # (cilium/calico/clusterNetworkPolicy .ingress / .egress).
+  engine: kubernetes
   # Sources allowed to read published ExternalArtifact tarballs from the
   # storage HTTP port. The consumers are the Flux controllers that dereference
   # ExternalArtifact.status.artifact.url — kustomize-controller and
@@ -832,17 +900,82 @@ networkPolicy:
       - namespaceSelector:
           matchLabels:
             kubernetes.io/metadata.name: flux-system
-  # Restrict sources allowed to hit the jsonnet HTTP endpoint. Empty list
+  # -- Restrict sources allowed to hit the jsonnet HTTP endpoint. Empty list
   # allows everything (typical when an Ingress fronts the service).
   http:
     from: []
-  # Restrict sources allowed to hit the management probes. Empty list
+  # -- Restrict sources allowed to hit the management probes. Empty list
   # allows everything — kubelet probes source from the node IP.
   management:
     from: []
-  # Restrict sources allowed to dial the webhook. Empty list allows
+  # -- Restrict sources allowed to dial the webhook. Empty list allows
   # everything — kube-apiserver cannot be expressed as a podSelector.
   webhook:
     from: []
-  # Free-form additional ingress rules merged into the policy verbatim.
+  # -- Sources allowed to scrape the operator metrics port. Empty = all
+  # (typically your Prometheus). Only rendered in operator mode with metrics
+  # enabled.
+  metrics:
+    from: []
+  # -- Cilium engine (engine=cilium) raw passthrough. Entries are merged verbatim
+  # into the CiliumNetworkPolicy's spec.ingress / spec.egress. This is how you
+  # tighten the cilium policy — e.g. add fromEndpoints to the ingress rules, or
+  # additional toEndpoints / toFQDNs egress.
+  cilium:
+    # -- Extra spec.ingress rules merged verbatim (CiliumNetworkPolicy schema).
+    ingress: []
+    # -- Extra spec.egress rules merged verbatim (CiliumNetworkPolicy schema).
+    egress: []
+  # -- Calico engine (engine=calico) raw passthrough. Entries are merged verbatim
+  # into the projectcalico.org NetworkPolicy's spec.ingress / spec.egress.
+  calico:
+    # -- Extra spec.ingress rules merged verbatim (Calico NetworkPolicy schema).
+    ingress: []
+    # -- Extra spec.egress rules merged verbatim (Calico NetworkPolicy schema).
+    egress: []
+  # -- ClusterNetworkPolicy engine (engine=clusterNetworkPolicy) raw passthrough.
+  # Entries are merged verbatim into the policy.networking.k8s.io
+  # ClusterNetworkPolicy's spec.ingress / spec.egress.
+  clusterNetworkPolicy:
+    # -- spec.priority on the ClusterNetworkPolicy (lower wins within the tier).
+    priority: 1000
+    # -- Extra spec.ingress rules merged verbatim (ClusterNetworkPolicy schema).
+    ingress: []
+    # -- Extra spec.egress rules merged verbatim (ClusterNetworkPolicy schema).
+    egress: []
+  # -- Render a namespace-wide default-deny so EVERY pod in the namespace is
+  # denied by default and the per-workload allowlists are the only exceptions
+  # (zero-trust namespace). OFF by default because it also denies co-located
+  # workloads — enable only when JaaS has its own namespace. Off keeps a
+  # pod-scoped setup: only JaaS's pods are locked down, neighbours untouched.
+  defaultDeny:
+    enabled: false
+    # -- Calico/ClusterNetworkPolicy sort key for the deny-all. It must rank the
+    # deny-all AFTER the per-workload allowlists so the allowlists win: Calico
+    # evaluates lower order first (the allowlist policies carry no order = lowest
+    # precedence, so this defaults high), and ClusterNetworkPolicy gives lower
+    # priority numbers higher precedence (the allowlist priority defaults to
+    # networkPolicy.clusterNetworkPolicy.priority, so this defaults higher). The
+    # kubernetes and cilium engines have no precedence knob — deny + allow simply
+    # combine additively, allow wins.
+    order: 2000
+  # -- Free-form additional ingress rules merged into the policy verbatim.
   additionalIngress: []
+  egress:
+    # -- Render egress rules. Adds Egress to policyTypes, so everything not
+    # explicitly allowed is denied. Off by default: enable only after allowing
+    # everything the pod needs (DNS, the kube-apiserver, source-controller, S3,
+    # the OTLP collector) via egress.to — otherwise the operator loses cluster
+    # access.
+    enabled: false
+    # -- When egress is enabled, allow DNS (UDP+TCP 53) to the cluster DNS
+    # namespace.
+    dns: true
+    # -- Namespace of the cluster DNS service (matched by
+    # kubernetes.io/metadata.name).
+    dnsNamespace: kube-system
+    # -- Additional egress peers merged verbatim into spec.egress. This is where
+    # you allow the kube-apiserver (an ipBlock CIDR), the flux-system namespace
+    # (source-controller), and external endpoints (S3, OTLP). NetworkPolicy
+    # cannot select the apiserver by label, so it must be an ipBlock here.
+    to: []

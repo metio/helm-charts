@@ -96,6 +96,18 @@ jobs:
             echo "::error::charts/${{ matrix.chart }}/values.schema.json is stale. Run 'ilo bash -c \"helm-schema -c charts/${{ matrix.chart }} -k additionalProperties\"' and commit."
             exit 1
           fi
+      - id: docs_render
+        name: helm-docs render check
+        run: |
+          curl -fsSL https://github.com/norwoodj/helm-docs/releases/download/v1.14.2/helm-docs_1.14.2_Linux_x86_64.tar.gz | tar -xz -C /usr/local/bin helm-docs
+          c="charts/${{ matrix.chart }}/"
+          # The README is rendered into the package at release time, not committed,
+          # so there's nothing to drift. This step only proves the template still
+          # renders cleanly — a broken README.md.gotmpl fails here. The rendered
+          # README.md is gitignored, so it never shows up as a diff.
+          if [ -f "${c}README.md.gotmpl" ]; then
+            helm-docs --chart-search-root "$c"
+          fi
       - id: kube_score
         name: kube-score (default + every ci/ variant, CRITICAL fails)
         run: |

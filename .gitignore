@@ -9,6 +9,10 @@ charts/*/charts/
 charts/*/Chart.lock
 *.tgz
 
+# README is rendered from README.md.gotmpl into the package at release time,
+# so the rendered file is a build artifact rather than committed source.
+charts/*/README.md
+
 # JetBrains
 .idea/
 # JetBrains module files

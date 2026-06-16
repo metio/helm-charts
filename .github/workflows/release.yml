@@ -5,7 +5,12 @@ name: Release Charts
 on:
   push:
     branches: [main]
-    paths: ["charts/**"]
+    # A README-only edit must not cut a release — the rendered README is a build
+    # artifact baked into the next real release's package, not a release trigger.
+    paths:
+      - "charts/**"
+      - "!charts/**/README.md"
+      - "!charts/**/README.md.gotmpl"
   workflow_dispatch:
     inputs:
       chart:
@@ -31,6 +36,9 @@ jobs:
         run: |
           curl -fsSL https://github.com/orhun/git-cliff/releases/download/v2.10.1/git-cliff-2.10.1-x86_64-unknown-linux-gnu.tar.gz | tar -xz -C /tmp
           sudo mv /tmp/git-cliff-2.10.1/git-cliff /usr/local/bin/git-cliff
+      - name: Install helm-docs
+        run: |
+          curl -fsSL https://github.com/norwoodj/helm-docs/releases/download/v1.14.2/helm-docs_1.14.2_Linux_x86_64.tar.gz | tar -xz -C /usr/local/bin helm-docs
       - name: Log in to GHCR (Helm OCI)
         run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
       # cosign reads registry credentials from ~/.docker/config.json, which
@@ -67,7 +75,11 @@ jobs:
               # common library chart. The pathspec is `charts/` (not `charts/*/`,
               # which a git pathspec does NOT expand like a shell glob — it
               # matches nothing, silently releasing nothing on every push).
+              # READMEs are excluded: the rendered README is a build artifact and
+              # README.md.gotmpl is docs-only, so a docs change must not trigger a
+              # release on its own (it re-renders into the next real release).
               changed="$(git diff --name-only "$before" '${{ github.sha }}' -- 'charts/' \
+                ':(exclude)charts/*/README.md' ':(exclude)charts/*/README.md.gotmpl' \
                 | awk -F/ '{print $2}' | sort -u | grep -v '^common$' || true)"
             fi
             echo "charts=$(echo "$changed" | tr '\n' ' ')" >> "$GITHUB_OUTPUT"
@@ -95,6 +107,12 @@ jobs:
 
             echo "::group::release $name $version (appVersion $appVersion)"
             helm dependency build "$chart"
+            # Render the README from its template so it lands inside the .tgz.
+            # The rendered README is gitignored (a build artifact); it only ever
+            # exists for the lifetime of a package run.
+            if [ -f "$chart/README.md.gotmpl" ]; then
+              helm-docs --chart-search-root "$chart"
+            fi
             helm package "$chart" --version "$version" --app-version "$appVersion"
             pkg="${name}-${version}.tgz"
 

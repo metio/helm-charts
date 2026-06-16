@@ -6,7 +6,7 @@
         "type": "string"
       },
       "default": "",
-      "description": "IMPORTANT!\nAdd additional libraries here. The key is the name of the directory and the value is an OCI volume that will be\nmounted beneath .Values.paths.libraries, e.g., the commented example below would result in all files from\n'ghcr.io/metio/something:latest' to be mounted at '/srv/libraries/something/' (using the default configuration)\n\nOCI mounts suit large, independently-released library bundles pinned by digest. For shared libraries you want to\nmanage as ordinary manifests — published and updated via kubectl/GitOps without an operator restart — apply a\nnamespaced JsonnetLibrary instead and reference it from a snippet's spec.libraries.",
+      "description": "Additional library OCI volumes to mount. The key is the name of the directory and the value is an OCI volume that will be\nmounted beneath .Values.paths.libraries, e.g., the commented example below would result in all files from\n'ghcr.io/metio/something:latest' to be mounted at '/srv/libraries/something/' (using the default configuration)\n\nOCI mounts suit large, independently-released library bundles pinned by digest. For shared libraries you want to\nmanage as ordinary manifests — published and updated via kubectl/GitOps without an operator restart — apply a\nnamespaced JsonnetLibrary instead and reference it from a snippet's spec.libraries.",
       "required": [],
       "title": "additionalLibraries",
       "type": [
@@ -15,15 +15,17 @@
       ]
     },
     "arguments": {
-      "description": "These arguments map directly to their corresponding CLI flag",
+      "description": "CLI flags for the jaas binary. These arguments map directly to their\ncorresponding CLI flag.",
       "properties": {
         "evaluationTimeout": {
           "default": "5s",
+          "description": "Per-request go-jsonnet evaluation timeout. 0 disables.",
           "title": "evaluationTimeout",
           "type": "string"
         },
         "jsonnetEndpointPath": {
           "default": "jsonnet",
+          "description": "URL path segment the jsonnet handler is mounted under (GET /\u003cpath\u003e/...).",
           "title": "jsonnetEndpointPath",
           "type": "string"
         },
@@ -35,6 +37,7 @@
         },
         "logLevel": {
           "default": "info",
+          "description": "Log verbosity for the jaas binary (debug, info, warn, error).",
           "enum": [
             "debug",
             "info",
@@ -46,16 +49,19 @@
         },
         "managementListenAddress": {
           "default": "::",
+          "description": "Bind address for the management (probes) HTTP server. Same dual-stack\nsemantics as listenAddress.",
           "title": "managementListenAddress",
           "type": "string"
         },
         "managementReadTimeout": {
           "default": "10s",
+          "description": "Read timeout on the management (probes) HTTP server.",
           "title": "managementReadTimeout",
           "type": "string"
         },
         "managementWriteTimeout": {
           "default": "10s",
+          "description": "Write timeout on the management (probes) HTTP server.",
           "title": "managementWriteTimeout",
           "type": "string"
         },
@@ -68,21 +74,25 @@
         },
         "maxStack": {
           "default": 500,
+          "description": "go-jsonnet stack-depth ceiling. Guards against unbounded recursion.",
           "title": "maxStack",
           "type": "integer"
         },
         "readTimeout": {
           "default": "10s",
+          "description": "Read timeout on the jsonnet HTTP server.",
           "title": "readTimeout",
           "type": "string"
         },
         "shutdownDelay": {
           "default": "5s",
+          "description": "Grace period readiness stays false before in-flight requests are aborted\non SIGTERM, so endpoint controllers can drain the pod first.",
           "title": "shutdownDelay",
           "type": "string"
         },
         "writeTimeout": {
           "default": "10s",
+          "description": "Write timeout on the jsonnet HTTP server.",
           "title": "writeTimeout",
           "type": "string"
         }
@@ -118,15 +128,17 @@
       "type": "object"
     },
     "deployment": {
-      "description": "Fine tune the Deployment resource",
+      "description": "Fine tune the Deployment resource.",
       "properties": {
         "additionalLabels": {
+          "description": "Extra labels merged onto the Deployment metadata.",
           "required": [],
           "title": "additionalLabels",
           "type": "object"
         },
         "revisionHistoryLimit": {
           "default": 1,
+          "description": "spec.revisionHistoryLimit on the Deployment.",
           "title": "revisionHistoryLimit",
           "type": "integer"
         }
@@ -143,7 +155,7 @@
         "type": "string"
       },
       "default": "",
-      "description": "IMPORTANT!\nAdd external variables here. They will be added as JAAS_EXT_VAR_your_name and are available as your_name in your\nJsonnet snippets.",
+      "description": "External variables (std.extVar). They will be added as JAAS_EXT_VAR_your_name and are available as your_name in your\nJsonnet snippets.",
       "required": [],
       "title": "externalVariables",
       "type": [
@@ -152,9 +164,10 @@
       ]
     },
     "externalVariablesFrom": {
-      "description": "IMPORTANT!\nAdd external variables loaded from ConfigMaps or Secrets here. Each array expects the name of either ConfigMaps or\nSecrets. Only those values in ConfigMaps and Secrets that start with JAAS_EXT_VAR will be available as external\nvariable in your Jsonnet snippets.",
+      "description": "External variables loaded from ConfigMaps or Secrets. Each array expects the name of either ConfigMaps or\nSecrets. Only those values in ConfigMaps and Secrets that start with JAAS_EXT_VAR will be available as external\nvariable in your Jsonnet snippets.",
       "properties": {
         "configMaps": {
+          "description": "ConfigMap names to source JAAS_EXT_VAR_* env vars from.",
           "items": {
             "required": []
           },
@@ -162,6 +175,7 @@
           "type": "array"
         },
         "secrets": {
+          "description": "Secret names to source JAAS_EXT_VAR_* env vars from.",
           "items": {
             "required": []
           },
@@ -183,7 +197,7 @@
       "type": "object"
     },
     "image": {
-      "description": "Overwrite these in case you want to use an internal registry mirror",
+      "description": "Container image for the jaas workload. Overwrite these in case you want to\nuse an internal registry mirror.",
       "properties": {
         "pullPolicy": {
           "default": "IfNotPresent",
@@ -230,12 +244,13 @@
       "type": "array"
     },
     "libraries": {
-      "description": "Enable/disable well-known jsonnet libraries",
+      "description": "Well-known jsonnet libraries. All OFF by default — a default install mounts no\nOCI volumes. Enable per renderer-mode need (the standalone HTTP renderer\nimports these from pre-baked image bundles). Each enabled library renders a\n`-library-path` arg, a read-only volumeMount, and an OCI `image:` volume.\nStatic OCI mounts are mutually exclusive with operator.enabled (Flux mode):\nin Flux mode libraries come from JsonnetLibrary CRs, not these image bundles.",
       "properties": {
         "docsonnet": {
+          "description": "docsonnet library. Mounts a JOI OCI bundle when enabled.",
           "properties": {
             "enabled": {
-              "default": true,
+              "default": false,
               "title": "enabled",
               "type": "boolean"
             },
@@ -265,9 +280,10 @@
           "type": "object"
         },
         "grafonnet": {
+          "description": "grafonnet library (Grafana dashboards). Mounts a JOI OCI bundle when enabled.",
           "properties": {
             "enabled": {
-              "default": true,
+              "default": false,
               "title": "enabled",
               "type": "boolean"
             },
@@ -298,9 +314,10 @@
           "type": "object"
         },
         "xtd": {
+          "description": "xtd library. Mounts a JOI OCI bundle when enabled.",
           "properties": {
             "enabled": {
-              "default": true,
+              "default": false,
               "title": "enabled",
               "type": "boolean"
             },
@@ -342,24 +359,29 @@
       "description": "Opt-in install-namespace render with Pod Security Standards labels.\nDefault-off so the chart doesn't claim ownership of a pre-existing\nnamespace operators created via kubectl / Argo. Enable for fresh\ninstalls that want the namespace's PSS posture baked into the chart.",
       "properties": {
         "additionalLabels": {
+          "description": "Extra labels on the rendered Namespace.",
           "required": [],
           "title": "additionalLabels",
           "type": "object"
         },
         "annotations": {
+          "description": "Extra annotations on the rendered Namespace.",
           "required": [],
           "title": "annotations",
           "type": "object"
         },
         "create": {
           "default": false,
+          "description": "Whether the chart renders (and owns) its install Namespace.",
           "title": "create",
           "type": "boolean"
         },
         "podSecurity": {
+          "description": "Pod Security Standards admission labels stamped on the namespace.",
           "properties": {
             "audit": {
               "default": "restricted",
+              "description": "PSS audit level.",
               "enum": [
                 "privileged",
                 "baseline",
@@ -391,6 +413,7 @@
             },
             "warn": {
               "default": "restricted",
+              "description": "PSS warn level.",
               "enum": [
                 "privileged",
                 "baseline",
@@ -424,6 +447,7 @@
       "type": "object"
     },
     "networkPolicy": {
+      "description": "Opt-in NetworkPolicy for the jaas pod (storage port lockdown + per-port\ningress controls).",
       "properties": {
         "additionalIngress": {
           "description": "Free-form additional ingress rules merged into the policy verbatim.",
@@ -433,11 +457,171 @@
           "title": "additionalIngress",
           "type": "array"
         },
+        "calico": {
+          "description": "Calico engine (engine=calico) raw passthrough. Entries are merged verbatim\ninto the projectcalico.org NetworkPolicy's spec.ingress / spec.egress.",
+          "properties": {
+            "egress": {
+              "description": "Extra spec.egress rules merged verbatim (Calico NetworkPolicy schema).",
+              "items": {
+                "required": []
+              },
+              "title": "egress",
+              "type": "array"
+            },
+            "ingress": {
+              "description": "Extra spec.ingress rules merged verbatim (Calico NetworkPolicy schema).",
+              "items": {
+                "required": []
+              },
+              "title": "ingress",
+              "type": "array"
+            }
+          },
+          "required": [
+            "ingress",
+            "egress"
+          ],
+          "title": "calico",
+          "type": "object"
+        },
+        "cilium": {
+          "description": "Cilium engine (engine=cilium) raw passthrough. Entries are merged verbatim\ninto the CiliumNetworkPolicy's spec.ingress / spec.egress. This is how you\ntighten the cilium policy — e.g. add fromEndpoints to the ingress rules, or\nadditional toEndpoints / toFQDNs egress.",
+          "properties": {
+            "egress": {
+              "description": "Extra spec.egress rules merged verbatim (CiliumNetworkPolicy schema).",
+              "items": {
+                "required": []
+              },
+              "title": "egress",
+              "type": "array"
+            },
+            "ingress": {
+              "description": "Extra spec.ingress rules merged verbatim (CiliumNetworkPolicy schema).",
+              "items": {
+                "required": []
+              },
+              "title": "ingress",
+              "type": "array"
+            }
+          },
+          "required": [
+            "ingress",
+            "egress"
+          ],
+          "title": "cilium",
+          "type": "object"
+        },
+        "clusterNetworkPolicy": {
+          "description": "ClusterNetworkPolicy engine (engine=clusterNetworkPolicy) raw passthrough.\nEntries are merged verbatim into the policy.networking.k8s.io\nClusterNetworkPolicy's spec.ingress / spec.egress.",
+          "properties": {
+            "egress": {
+              "description": "Extra spec.egress rules merged verbatim (ClusterNetworkPolicy schema).",
+              "items": {
+                "required": []
+              },
+              "title": "egress",
+              "type": "array"
+            },
+            "ingress": {
+              "description": "Extra spec.ingress rules merged verbatim (ClusterNetworkPolicy schema).",
+              "items": {
+                "required": []
+              },
+              "title": "ingress",
+              "type": "array"
+            },
+            "priority": {
+              "default": 1000,
+              "description": "spec.priority on the ClusterNetworkPolicy (lower wins within the tier).",
+              "title": "priority",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "priority",
+            "ingress",
+            "egress"
+          ],
+          "title": "clusterNetworkPolicy",
+          "type": "object"
+        },
+        "defaultDeny": {
+          "description": "Render a namespace-wide default-deny so EVERY pod in the namespace is\ndenied by default and the per-workload allowlists are the only exceptions\n(zero-trust namespace). OFF by default because it also denies co-located\nworkloads — enable only when JaaS has its own namespace. Off keeps a\npod-scoped setup: only JaaS's pods are locked down, neighbours untouched.",
+          "properties": {
+            "enabled": {
+              "default": false,
+              "title": "enabled",
+              "type": "boolean"
+            },
+            "order": {
+              "default": 2000,
+              "description": "Calico/ClusterNetworkPolicy sort key for the deny-all. It must rank the\ndeny-all AFTER the per-workload allowlists so the allowlists win: Calico\nevaluates lower order first (the allowlist policies carry no order = lowest\nprecedence, so this defaults high), and ClusterNetworkPolicy gives lower\npriority numbers higher precedence (the allowlist priority defaults to\nnetworkPolicy.clusterNetworkPolicy.priority, so this defaults higher). The\nkubernetes and cilium engines have no precedence knob — deny + allow simply\ncombine additively, allow wins.",
+              "title": "order",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "enabled",
+            "order"
+          ],
+          "title": "defaultDeny",
+          "type": "object"
+        },
+        "egress": {
+          "properties": {
+            "dns": {
+              "default": true,
+              "description": "When egress is enabled, allow DNS (UDP+TCP 53) to the cluster DNS\nnamespace.",
+              "title": "dns",
+              "type": "boolean"
+            },
+            "dnsNamespace": {
+              "default": "kube-system",
+              "description": "Namespace of the cluster DNS service (matched by\nkubernetes.io/metadata.name).",
+              "title": "dnsNamespace",
+              "type": "string"
+            },
+            "enabled": {
+              "default": false,
+              "description": "Render egress rules. Adds Egress to policyTypes, so everything not\nexplicitly allowed is denied. Off by default: enable only after allowing\neverything the pod needs (DNS, the kube-apiserver, source-controller, S3,\nthe OTLP collector) via egress.to — otherwise the operator loses cluster\naccess.",
+              "title": "enabled",
+              "type": "boolean"
+            },
+            "to": {
+              "description": "Additional egress peers merged verbatim into spec.egress. This is where\nyou allow the kube-apiserver (an ipBlock CIDR), the flux-system namespace\n(source-controller), and external endpoints (S3, OTLP). NetworkPolicy\ncannot select the apiserver by label, so it must be an ipBlock here.",
+              "items": {
+                "required": []
+              },
+              "title": "to",
+              "type": "array"
+            }
+          },
+          "required": [
+            "enabled",
+            "dns",
+            "dnsNamespace",
+            "to"
+          ],
+          "title": "egress",
+          "type": "object"
+        },
         "enabled": {
           "default": false,
           "description": "Opt-in. When enabled, a NetworkPolicy targets the jaas pod and locks\nthe storage HTTP port down to the configured consumer selector (defaults\nto any pod in flux-system — kustomize-controller / helm-controller).\nOther ports stay open so kubelet probes, the jsonnet HTTP path, and the\nwebhook traffic from kube-apiserver continue to work. Leave OFF on initial\ninstall if the cluster has no NetworkPolicy controller (Calico/Cilium/etc.)\n— without one, the policy is silently inert; with one, default-deny\nsemantics apply to everything not listed here.",
           "title": "enabled",
           "type": "boolean"
+        },
+        "engine": {
+          "default": "kubernetes",
+          "description": "Policy engine to render for. kubernetes (default) emits a vanilla\nnetworking.k8s.io NetworkPolicy. cilium / calico / clusterNetworkPolicy emit\nthe engine-native equivalent instead (CiliumNetworkPolicy,\nprojectcalico.org NetworkPolicy, or policy.networking.k8s.io\nClusterNetworkPolicy). The per-port .from knobs below apply to the kubernetes\nengine only; alternative engines are pod-scoped allow-all on the required\nports and tighten via their native passthrough lists\n(cilium/calico/clusterNetworkPolicy .ingress / .egress).",
+          "enum": [
+            "kubernetes",
+            "cilium",
+            "calico",
+            "clusterNetworkPolicy"
+          ],
+          "title": "engine",
+          "type": "string"
         },
         "http": {
           "description": "Restrict sources allowed to hit the jsonnet HTTP endpoint. Empty list\nallows everything (typical when an Ingress fronts the service).",
@@ -471,6 +655,23 @@
             "from"
           ],
           "title": "management",
+          "type": "object"
+        },
+        "metrics": {
+          "description": "Sources allowed to scrape the operator metrics port. Empty = all\n(typically your Prometheus). Only rendered in operator mode with metrics\nenabled.",
+          "properties": {
+            "from": {
+              "items": {
+                "required": []
+              },
+              "title": "from",
+              "type": "array"
+            }
+          },
+          "required": [
+            "from"
+          ],
+          "title": "metrics",
           "type": "object"
         },
         "storage": {
@@ -547,7 +748,13 @@
         "http",
         "management",
         "webhook",
-        "additionalIngress"
+        "metrics",
+        "cilium",
+        "calico",
+        "clusterNetworkPolicy",
+        "defaultDeny",
+        "additionalIngress",
+        "egress"
       ],
       "title": "networkPolicy",
       "type": "object"
@@ -566,6 +773,7 @@
             },
             "backoffLimit": {
               "default": 2,
+              "description": "backoffLimit on the pre-delete Job.",
               "title": "backoffLimit",
               "type": "integer"
             },
@@ -575,6 +783,7 @@
               "type": "boolean"
             },
             "image": {
+              "description": "Image for the pre-delete cleanup Job (a kubectl image).",
               "properties": {
                 "pullPolicy": {
                   "default": "IfNotPresent",
@@ -613,6 +822,7 @@
               "type": "string"
             },
             "resources": {
+              "description": "Resource requests/limits for the cleanup Job container.",
               "properties": {
                 "cpu": {
                   "default": "100m",
@@ -950,6 +1160,7 @@
               "type": "object"
             },
             "serviceMonitor": {
+              "description": "Opt-in ServiceMonitor (Prometheus Operator) for the metrics endpoint.",
               "properties": {
                 "annotations": {
                   "description": "Extra annotations on the ServiceMonitor.",
@@ -1062,10 +1273,11 @@
           "type": "object"
         },
         "storage": {
+          "description": "Artifact storage for published ExternalArtifact tarballs (operator mode).",
           "properties": {
             "backend": {
               "default": "local",
-              "description": "Artifact backend used to persist ExternalArtifact tarballs.\n  local — emptyDir or PVC mounted into the pod. Simple,\n    single-pod (RWO PVC) unless a ReadWriteMany storage class\n    is configured.\n  s3    — any S3-compatible bucket (AWS S3, MinIO, Ceph RGW,\n    etc.). The chart-default story for multi-replica HA: every\n    replica reads from the same bucket; leader election still\n    gates writes. PVC settings below are ignored when backend=s3.",
+              "description": "Artifact backend used to persist ExternalArtifact tarballs.\n  local — emptyDir or PVC mounted into the pod. Simple,\n    single-pod (RWO PVC) unless a ReadWriteMany storage class\n    is configured.\n  s3    — any S3-compatible bucket (AWS S3, MinIO, Ceph RGW,\n    etc.). The chart-default story for multi-replica HA: every\n    replica reads from the same bucket; leader election still\n    gates writes. PVC settings below are ignored when backend=s3.\nArtifact backend used to persist ExternalArtifact tarballs (local | s3).",
               "enum": [
                 "local",
                 "s3"
@@ -1352,6 +1564,7 @@
           "type": "array"
         },
         "webhook": {
+          "description": "Validating admission webhook (operator mode). Rejects JsonnetSnippets\nwhose spec.externalVariables collide with the operator's extVars.",
           "properties": {
             "certDir": {
               "default": "/tmp/k8s-webhook-server/serving-certs",
@@ -1498,15 +1711,17 @@
       "type": "object"
     },
     "paths": {
-      "description": "Modify the paths used, use this in case you run a custom image",
+      "description": "Filesystem paths inside the container. Modify the paths used, use this in\ncase you run a custom image.",
       "properties": {
         "libraries": {
           "default": "/srv/libraries",
+          "description": "Directory library OCI volumes mount beneath.",
           "title": "libraries",
           "type": "string"
         },
         "snippets": {
           "default": "/srv/snippets",
+          "description": "Directory snippet OCI volumes mount beneath.",
           "title": "snippets",
           "type": "string"
         }
@@ -1523,6 +1738,7 @@
       "properties": {
         "maxUnavailable": {
           "default": 1,
+          "description": "PDB maxUnavailable. Default 1 caps voluntary disruptions to one pod at a\ntime. Set to null when using minAvailable instead.",
           "required": [],
           "title": "maxUnavailable",
           "type": [
@@ -1533,7 +1749,7 @@
         },
         "minAvailable": {
           "default": "null",
-          "description": "Disruption budget shape. Exactly one of minAvailable / maxUnavailable\nis rendered into the PDB spec; setting both is a config error\nK8s would reject.\n\nDefault `maxUnavailable: 1` caps voluntary disruptions to one pod\nat a time regardless of replica count — the right knob for a\nrolling restart / node drain story. `minAvailable: N` is the\nalternative when you want \"always keep at least N pods up\" instead\n— useful only when the workload's headroom is a fixed floor, not\nthe more common \"one out at a time\".\n\nOverride examples:\n  pdb: { maxUnavailable: 2 }       # allow draining two nodes in parallel\n  pdb: { minAvailable: 1, maxUnavailable: null }  # floor of 1 instead\n  pdb: { minAvailable: \"50%\", maxUnavailable: null }  # percentage form",
+          "description": "Disruption budget shape. Exactly one of minAvailable / maxUnavailable\nis rendered into the PDB spec; setting both is a config error\nK8s would reject.\n\nDefault `maxUnavailable: 1` caps voluntary disruptions to one pod\nat a time regardless of replica count — the right knob for a\nrolling restart / node drain story. `minAvailable: N` is the\nalternative when you want \"always keep at least N pods up\" instead\n— useful only when the workload's headroom is a fixed floor, not\nthe more common \"one out at a time\".\n\nOverride examples:\n  pdb: { maxUnavailable: 2 }       # allow draining two nodes in parallel\n  pdb: { minAvailable: 1, maxUnavailable: null }  # floor of 1 instead\n  pdb: { minAvailable: \"50%\", maxUnavailable: null }  # percentage form\nPDB minAvailable. Mutually exclusive with maxUnavailable; null leaves it\nunset.",
           "required": [],
           "title": "minAvailable",
           "type": [
@@ -1544,6 +1760,7 @@
         },
         "unhealthyPodEvictionPolicy": {
           "default": "",
+          "description": "spec.unhealthyPodEvictionPolicy on the PDB. Empty defers to the\ncluster default.",
           "enum": [
             "",
             "IfHealthyBudget",
@@ -1558,9 +1775,10 @@
       "type": "object"
     },
     "pod": {
-      "description": "Fine tune the managed Pod resources",
+      "description": "Fine tune the managed Pod resources.",
       "properties": {
         "additionalLabels": {
+          "description": "Extra labels merged onto the pod template.",
           "required": [],
           "title": "additionalLabels",
           "type": "object"
@@ -1573,6 +1791,7 @@
       "type": "object"
     },
     "ports": {
+      "description": "Container port assignments for the jaas pod.",
       "properties": {
         "http": {
           "default": 8080,
@@ -1616,7 +1835,7 @@
       "type": "object"
     },
     "replicas": {
-      "description": "It is safe to increase the number of replicas",
+      "description": "Replica bounds for the Deployment. It is safe to increase the number of\nreplicas.",
       "properties": {
         "max": {
           "default": 1,
@@ -1637,7 +1856,7 @@
       "type": "object"
     },
     "resources": {
-      "description": "Smallest possible values here, increase if you have more resources to spare",
+      "description": "Per-container resource requests/limits. Smallest possible values here,\nincrease if you have more resources to spare.",
       "properties": {
         "cpu": {
           "default": "32m",
@@ -1664,7 +1883,7 @@
       "type": "object"
     },
     "service": {
-      "description": "Fine tune the Service resource",
+      "description": "Fine tune the Service resource.",
       "properties": {
         "ipFamilies": {
           "description": "Explicit list of IP families for the Service. Empty defers to\nthe cluster's default. Example for explicit IPv4+IPv6:\n  ipFamilies: [IPv4, IPv6]\nOrder matters: the first family becomes the primary ClusterIP.",
@@ -1698,7 +1917,7 @@
         "type": "string"
       },
       "default": "",
-      "description": "IMPORTANT!\nAdd snippet directories here. The key is the name of the directory and the value is an OCI volume that will be\nmounted beneath .Values.paths.snippets, e.g., the commented example below would result in all files from\n'ghcr.io/metio/something:latest' to be mounted at '/srv/snippets/something/' (using the default configuration)",
+      "description": "Snippet OCI volumes to mount. The key is the name of the directory and the value is an OCI volume that will be\nmounted beneath .Values.paths.snippets, e.g., the commented example below would result in all files from\n'ghcr.io/metio/something:latest' to be mounted at '/srv/snippets/something/' (using the default configuration)",
       "required": [],
       "title": "snippets",
       "type": [

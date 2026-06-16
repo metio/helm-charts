@@ -1,0 +1,228 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+suite: test stageset ClusterNetworkPolicy
+templates:
+  - clusternetworkpolicy.yaml
+tests:
+  - it: is empty by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: is empty for the default kubernetes engine even when enabled
+    set:
+      networkPolicy:
+        enabled: true
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders a ClusterNetworkPolicy for the clusterNetworkPolicy engine
+    set:
+      networkPolicy:
+        enabled: true
+        engine: clusterNetworkPolicy
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ClusterNetworkPolicy
+      - equal:
+          path: apiVersion
+          value: policy.networking.k8s.io/v1alpha2
+
+  - it: is cluster-scoped (no namespace in metadata)
+    set:
+      networkPolicy:
+        enabled: true
+        engine: clusterNetworkPolicy
+    asserts:
+      - notExists:
+          path: metadata.namespace
+
+  - it: pins the Baseline tier and the configured priority
+    set:
+      networkPolicy:
+        enabled: true
+        engine: clusterNetworkPolicy
+        clusterNetworkPolicy:
+          priority: 1500
+    asserts:
+      - equal:
+          path: spec.tier
+          value: Baseline
+      - equal:
+          path: spec.priority
+          value: 1500
+
+  - it: scopes the subject to this chart's pods
+    set:
+      networkPolicy:
+        enabled: true
+        engine: clusterNetworkPolicy
+    release:
+      namespace: stageset-system
+    asserts:
+      - equal:
+          path: spec.subject.pods.namespaceSelector.matchLabels["kubernetes.io/metadata.name"]
+          value: stageset-system
+      - equal:
+          path: spec.subject.pods.podSelector.matchLabels["app.kubernetes.io/name"]
+          value: stageset-controller
+
+  - it: accepts the metrics and gate ports from any peer
+    set:
+      networkPolicy:
+        enabled: true
+        engine: clusterNetworkPolicy
+    asserts:
+      - contains:
+          path: spec.ingress
+          content:
+            name: metrics
+            action: Accept
+            from:
+              - namespaces: {}
+            protocols:
+              - tcp:
+                  destinationPort:
+                    number: 8080
+      - contains:
+          path: spec.ingress
+          content:
+            name: gate
+            action: Accept
+            from:
+              - namespaces: {}
+            protocols:
+              - tcp:
+                  destinationPort:
+                    number: 8082
+
+  - it: includes the webhook port only when the webhook is enabled
+    set:
+      networkPolicy:
+        enabled: true
+        engine: clusterNetworkPolicy
+      webhook:
+        enabled: true
+    asserts:
+      - contains:
+          path: spec.ingress
+          content:
+            name: webhook
+            action: Accept
+            from:
+              - namespaces: {}
+            protocols:
+              - tcp:
+                  destinationPort:
+                    number: 9443
+
+  - it: omits the webhook port when the webhook is disabled
+    set:
+      networkPolicy:
+        enabled: true
+        engine: clusterNetworkPolicy
+      webhook:
+        enabled: false
+    asserts:
+      - notContains:
+          path: spec.ingress
+          content:
+            name: webhook
+            action: Accept
+            from:
+              - namespaces: {}
+            protocols:
+              - tcp:
+                  destinationPort:
+                    number: 9443
+
+  - it: omits the gate port when the gate is disabled
+    set:
+      networkPolicy:
+        enabled: true
+        engine: clusterNetworkPolicy
+      gate:
+        enabled: false
+    asserts:
+      - notContains:
+          path: spec.ingress
+          content:
+            name: gate
+
+  - it: has no egress by default
+    set:
+      networkPolicy:
+        enabled: true
+        engine: clusterNetworkPolicy
+    asserts:
+      - notExists:
+          path: spec.egress
+
+  - it: adds a DNS Accept egress rule when egress is enabled
+    set:
+      networkPolicy:
+        enabled: true
+        engine: clusterNetworkPolicy
+        egress:
+          enabled: true
+    asserts:
+      - contains:
+          path: spec.egress
+          content:
+            name: dns
+            action: Accept
+            to:
+              - namespaces:
+                  matchLabels:
+                    kubernetes.io/metadata.name: kube-system
+            protocols:
+              - udp:
+                  destinationPort:
+                    number: 53
+              - tcp:
+                  destinationPort:
+                    number: 53
+
+  - it: merges native ingress and egress passthrough lists
+    set:
+      networkPolicy:
+        enabled: true
+        engine: clusterNetworkPolicy
+        egress:
+          enabled: true
+        clusterNetworkPolicy:
+          ingress:
+            - name: extra
+              action: Accept
+              from:
+                - namespaces:
+                    matchLabels:
+                      kubernetes.io/metadata.name: monitoring
+          egress:
+            - name: apiserver
+              action: Accept
+              to:
+                - networks:
+                    - 10.0.0.0/8
+    asserts:
+      - contains:
+          path: spec.ingress
+          content:
+            name: extra
+            action: Accept
+            from:
+              - namespaces:
+                  matchLabels:
+                    kubernetes.io/metadata.name: monitoring
+      - contains:
+          path: spec.egress
+          content:
+            name: apiserver
+            action: Accept
+            to:
+              - networks:
+                  - 10.0.0.0/8

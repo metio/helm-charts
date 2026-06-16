@@ -502,32 +502,39 @@ tests:
   # ------------------------------------------------------------------
   # Built-in libraries (grafonnet, docsonnet, xtd)
   # ------------------------------------------------------------------
-  - it: includes grafonnet by default — arg, mount, and OCI volume
+  - it: omits grafonnet by default — no arg, mount, or OCI volume
     asserts:
-      - contains:
+      - notContains:
           path: spec.template.spec.containers[0].args
           content: -library-path=/srv/libraries/grafonnet
-      - contains:
+      - notContains:
           path: spec.template.spec.containers[0].volumeMounts
           content:
             name: library-grafonnet
             mountPath: /srv/libraries/grafonnet
             readOnly: true
-  - it: disabling grafonnet removes its arg, mount and volume
+  - it: enabling grafonnet adds its arg, mount and volume
     set:
       libraries:
         grafonnet:
-          enabled: false
+          enabled: true
     asserts:
-      - notContains:
+      - contains:
           path: spec.template.spec.containers[0].args
           content: -library-path=/srv/libraries/grafonnet
-      - notContains:
+      - contains:
           path: spec.template.spec.containers[0].volumeMounts
           content:
             name: library-grafonnet
             mountPath: /srv/libraries/grafonnet
             readOnly: true
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: library-grafonnet
+            image:
+              reference: ghcr.io/metio/joi-grafana-grafonnet:latest
+              pullPolicy: IfNotPresent
   - it: customizes grafonnet OCI coordinates via registry/repository/version
     set:
       libraries:
@@ -544,20 +551,12 @@ tests:
             image:
               reference: example.com/org/grafonnet:v99.0.0
               pullPolicy: IfNotPresent
-  - it: disabling docsonnet removes its arg, mount and volume
-    set:
-      libraries:
-        docsonnet:
-          enabled: false
+  - it: omits docsonnet by default — no arg
     asserts:
       - notContains:
           path: spec.template.spec.containers[0].args
           content: -library-path=/srv/libraries/docsonnet
-  - it: disabling xtd removes its arg, mount and volume
-    set:
-      libraries:
-        xtd:
-          enabled: false
+  - it: omits xtd by default — no arg
     asserts:
       - notContains:
           path: spec.template.spec.containers[0].args

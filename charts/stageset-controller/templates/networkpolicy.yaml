@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: The helm-charts Authors
 # SPDX-License-Identifier: 0BSD
 
-{{- if .Values.networkPolicy.enabled }}
+{{- if and .Values.networkPolicy.enabled (or (not .Values.networkPolicy.engine) (eq .Values.networkPolicy.engine "kubernetes")) }}
 # Allows ingress to the webhook (apiserver admission), metrics (Prometheus), and
 # gate (Flagger) ports. Inert without a NetworkPolicy controller; with one,
 # anything not listed is denied.
@@ -18,16 +18,62 @@ spec:
       {{- include "stageset.selectorLabels" . | nindent 6 }}
   policyTypes:
     - Ingress
+    {{- if .Values.networkPolicy.egress.enabled }}
+    - Egress
+    {{- end }}
   ingress:
+    {{- if .Values.webhook.enabled }}
+    # Validating webhook — kube-apiserver dials this. The apiserver source
+    # cannot be expressed as a podSelector; webhook TLS + the CA bundle on the
+    # ValidatingWebhookConfiguration enforce authenticity.
     - ports:
-        {{- if .Values.webhook.enabled }}
         - port: webhook
           protocol: TCP
-        {{- end }}
+      {{- with .Values.networkPolicy.webhook.from }}
+      from:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    {{- end }}
+    # Metrics — scraped by Prometheus. Default scope is open; tighten via
+    # .Values.networkPolicy.metrics.from to the monitoring namespace.
+    - ports:
         - port: metrics
           protocol: TCP
-        {{- if .Values.gate.enabled }}
+      {{- with .Values.networkPolicy.metrics.from }}
+      from:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    {{- if .Values.gate.enabled }}
+    # Stage-gate — polled by Flagger to read the StageSet promotion verdict.
+    # Default scope is open; tighten via .Values.networkPolicy.gate.from.
+    - ports:
         - port: gate
           protocol: TCP
-        {{- end }}
+      {{- with .Values.networkPolicy.gate.from }}
+      from:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    {{- end }}
+    {{- with .Values.networkPolicy.additionalIngress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- if .Values.networkPolicy.egress.enabled }}
+  egress:
+    {{- if .Values.networkPolicy.egress.dns }}
+    # Cluster DNS — UDP and TCP 53 to the DNS namespace. Without this rule an
+    # Egress policy denies name resolution, breaking every outbound connection.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.egress.dnsNamespace }}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    {{- end }}
+    {{- with .Values.networkPolicy.egress.to }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
 {{- end }}

@@ -2,7 +2,7 @@
 SPDX-FileCopyrightText: The helm-charts Authors
 SPDX-License-Identifier: 0BSD
 */ -}}
-{{- if .Values.networkPolicy.enabled -}}
+{{- if and .Values.networkPolicy.enabled (or (not .Values.networkPolicy.engine) (eq .Values.networkPolicy.engine "kubernetes")) -}}
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -25,6 +25,9 @@ spec:
       app.kubernetes.io/part-of: {{ .Chart.Name }}
   policyTypes:
     - Ingress
+    {{- if .Values.networkPolicy.egress.enabled }}
+    - Egress
+    {{- end }}
   ingress:
     # Jsonnet HTTP endpoint — reachable from anywhere by default. Overridable
     # via .Values.networkPolicy.http.from for tighter scopes.
@@ -70,7 +73,38 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
     {{- end }}
+    {{- if and .Values.operator.enabled .Values.operator.metrics.enabled }}
+    # Metrics endpoint — Prometheus scrapes the controller-runtime metrics
+    # server here. Default scope is open (any pod); restrict it to the
+    # monitoring namespace via .Values.networkPolicy.metrics.from.
+    - ports:
+        - protocol: TCP
+          port: {{ .Values.ports.metrics }}
+      {{- with .Values.networkPolicy.metrics.from }}
+      from:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    {{- end }}
     {{- with .Values.networkPolicy.additionalIngress }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
+  {{- if .Values.networkPolicy.egress.enabled }}
+  egress:
+    {{- if .Values.networkPolicy.egress.dns }}
+    # Cluster DNS — UDP and TCP 53 to the DNS namespace. Without this rule an
+    # Egress policy denies name resolution, breaking every outbound connection.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.egress.dnsNamespace }}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    {{- end }}
+    {{- with .Values.networkPolicy.egress.to }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
 {{- end }}

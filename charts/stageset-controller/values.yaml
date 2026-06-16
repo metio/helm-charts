@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: The helm-charts Authors
 # SPDX-License-Identifier: 0BSD
 
-# CRD lifecycle. The chart ships the controller's CRDs under templates/ so a
+# -- CRD lifecycle. The chart ships the controller's CRDs under templates/ so a
 # `helm upgrade` applies schema changes automatically. Set create=false to
 # manage them out-of-band — e.g. pre-installed cluster-wide, or in CI where the
 # same chart is installed once per values file and a kept cluster-scoped CRD
@@ -9,7 +9,7 @@
 crds:
   create: true
 
-# Container image. tag defaults to .Chart.AppVersion (the released controller
+# -- Container image. tag defaults to .Chart.AppVersion (the released controller
 # version); override only for a custom build.
 image:
   registry: ghcr.io
@@ -21,44 +21,44 @@ image:
   #   - IfNotPresent
   #   - Never
   # @schema
-  # Pull policy. IfNotPresent suits tagged release images; switch to Always for
+  # -- Pull policy. IfNotPresent suits tagged release images; switch to Always for
   # a mutable tag (latest, edge).
   pullPolicy: IfNotPresent
-  # Explicit tag override; empty defaults to .Chart.AppVersion.
+  # -- Explicit tag override; empty defaults to .Chart.AppVersion.
   tag: ""
 
-# Image pull secrets for a private registry.
+# -- Image pull secrets for a private registry.
 imagePullSecrets: []
 
-# Controller ServiceAccount.
+# -- Controller ServiceAccount.
 serviceAccount:
-  # Extra annotations on the ServiceAccount — e.g. eks.amazonaws.com/role-arn for
+  # -- Extra annotations on the ServiceAccount — e.g. eks.amazonaws.com/role-arn for
   # IRSA, so the controller's S3 rollback store assumes an IAM role instead of
   # using static keys.
   annotations: {}
 
-# Replica bounds. min is the Deployment replica count; when max > min an HPA and
+# -- Replica bounds. min is the Deployment replica count; when max > min an HPA and
 # a PodDisruptionBudget are rendered. At the default 1/1 both are omitted.
 replicas:
   min: 1
   max: 1
 
-# Ports the controller binds.
+# -- Ports the controller binds.
 ports:
-  # controller-runtime Prometheus metrics
+  # -- controller-runtime Prometheus metrics
   metrics: 8080
-  # /healthz + /readyz probes
+  # -- /healthz + /readyz probes
   health: 8081
-  # read-only Flagger stage-gate endpoint
+  # -- read-only Flagger stage-gate endpoint
   gate: 8082
-  # validating admission webhook
+  # -- validating admission webhook
   webhook: 9443
 
-# Controller behaviour (maps onto the binary's flags).
+# -- Controller behaviour (maps onto the binary's flags).
 controller:
-  # Leader election for HA replicas. Keep on; harmless single-replica.
+  # -- Leader election for HA replicas. Keep on; harmless single-replica.
   leaderElect: true
-  # Reconcile cadence for StageSets that omit spec.interval. Most StageSets can
+  # -- Reconcile cadence for StageSets that omit spec.interval. Most StageSets can
   # leave spec.interval unset and inherit this.
   defaultInterval: 10m
   # @schema
@@ -68,31 +68,31 @@ controller:
   #   - hybrid
   #   - applyset
   # @schema
-  # Inventory strategy for tracking applied objects.
+  # -- Inventory strategy for tracking applied objects.
   inventoryMode: hybrid
-  # Maximum entries per StageInventory shard.
+  # -- Maximum entries per StageInventory shard.
   inventoryShardCap: 5000
-  # Host globs permitted for http actions (SSRF guard). Loopback/link-local are
+  # -- Host globs permitted for http actions (SSRF guard). Loopback/link-local are
   # always denied unless explicitly listed here.
   allowedActionHosts: []
-  # Deny cross-namespace sourceRef / dependsOn references.
+  # -- Deny cross-namespace sourceRef / dependsOn references.
   noCrossNamespaceRefs: false
-  # Namespaces this controller watches. Empty (the default) means cluster-wide.
+  # -- Namespaces this controller watches. Empty (the default) means cluster-wide.
   # When set, the manager's cache only observes StageSets and sources in these
   # namespaces, and RBAC pivots from a cluster-wide ClusterRoleBinding to one
   # RoleBinding per listed namespace — the multi-tenant controller-instances
   # pattern (one release per tenant-group, disjoint watch sets).
   watchNamespaces: []
-  # URL prefix appended to actionable Ready messages as (runbook: <base>/<reason>/).
+  # -- URL prefix appended to actionable Ready messages as (runbook: <base>/<reason>/).
   # Defaults to the documentation site; override to a fork or an internal mirror,
   # or set empty to disable the runbook links.
   runbookBaseURL: https://stageset.projects.metio.wtf/runbooks
 
-# Controller RBAC. The default grant is deliberately minimal: the controller
+# -- Controller RBAC. The default grant is deliberately minimal: the controller
 # impersonates each StageSet's spec.serviceAccountName for cluster writes, so a
 # tenant's own RBAC bounds what its StageSets can touch.
 rbac:
-  # Bind the controller ServiceAccount to the built-in cluster-admin ClusterRole.
+  # -- Bind the controller ServiceAccount to the built-in cluster-admin ClusterRole.
   # Single-tenant clusters where StageSets omit spec.serviceAccountName run the
   # controller under its own identity; cluster-admin lets it apply any kind
   # cluster-wide — the model Flux's helm-controller uses in its default install.
@@ -100,12 +100,12 @@ rbac:
   # serviceAccountName and the controller only impersonates those scoped SAs.
   clusterAdmin: false
 
-# Flagger stage-gate endpoint (GET /gate/{ns}/{stageset}/{stage}). Renders a
+# -- Flagger stage-gate endpoint (GET /gate/{ns}/{stageset}/{stage}). Renders a
 # dedicated Service when enabled.
 gate:
   enabled: true
 
-# Validating admission webhook for StageSet.
+# -- Validating admission webhook for StageSet.
 webhook:
   enabled: true
   # @schema
@@ -114,7 +114,7 @@ webhook:
   #   - cert-manager
   #   - self-signed
   # @schema
-  # TLS provisioning. self-signed (default) has the controller generate a CA +
+  # -- TLS provisioning. self-signed (default) has the controller generate a CA +
   # serving cert in-pod and patch the ValidatingWebhookConfiguration caBundle
   # (HA-safe) — no cluster prerequisite, works out of the box. cert-manager
   # renders a Certificate (cert mounted from the issued Secret) and needs
@@ -124,9 +124,9 @@ webhook:
   # type: string
   # pattern: ^[0-9]+(s|m|h)$
   # @schema
-  # Validity of the self-signed serving cert; the renewer rotates at validity/3.
+  # -- Validity of the self-signed serving cert; the renewer rotates at validity/3.
   certValidity: 8760h
-  # cert-manager mode: the issuer that signs the webhook Certificate.
+  # -- cert-manager mode: the issuer that signs the webhook Certificate.
   certManager:
     issuerRef:
       # @schema
@@ -138,7 +138,7 @@ webhook:
       kind: Issuer
       name: ""
 
-# Optional rollback store for bit-exact, GC-independent rollbacks.
+# -- Optional rollback store for bit-exact, GC-independent rollbacks.
 rollbackStore:
   # @schema
   # type: string
@@ -147,7 +147,7 @@ rollbackStore:
   #   - pvc
   #   - s3
   # @schema
-  # none: rollback falls back to re-fetching the producer artifact. pvc: an RWX
+  # -- none: rollback falls back to re-fetching the producer artifact. pvc: an RWX
   # PersistentVolumeClaim (use RWX for HA replicas). s3: any S3-compatible bucket.
   backend: none
   pvc:
@@ -187,13 +187,13 @@ rollbackStore:
     # creds engage minio-go's IAM/IRSA discovery chain.
     existingSecret: ""
 
-# Prometheus integration.
+# -- Prometheus integration.
 metrics:
   serviceMonitor:
     enabled: false
     interval: 30s
     additionalLabels: {}
-  # Opt-in PrometheusRule with a starter alert set on the custom stageset_* metrics
+  # -- Opt-in PrometheusRule with a starter alert set on the custom stageset_* metrics
   # plus controller-runtime signals. Requires the Prometheus operator CRDs.
   prometheusRule:
     enabled: false
@@ -240,11 +240,110 @@ metrics:
       webhookCertRenewalFailuresPerHour: 1
       webhookCertRenewalFailuresDuration: 30m
 
-# Opt-in NetworkPolicy. Inert without a NetworkPolicy controller.
+# -- Opt-in NetworkPolicy. Inert without a NetworkPolicy controller.
 networkPolicy:
+  # -- Render the NetworkPolicy. When enabled, the policy targets the controller
+  # pod; with a NetworkPolicy controller (Calico/Cilium/etc.) installed,
+  # anything not listed below is denied. Leave OFF on clusters without such a
+  # controller — the policy is silently inert there.
   enabled: false
+  # @schema
+  # type: string
+  # enum:
+  #   - kubernetes
+  #   - cilium
+  #   - calico
+  #   - clusterNetworkPolicy
+  # @schema
+  # -- Policy engine to render for. kubernetes (default) emits a vanilla
+  # networking.k8s.io NetworkPolicy. cilium / calico / clusterNetworkPolicy emit
+  # the engine-native equivalent instead (CiliumNetworkPolicy,
+  # projectcalico.org NetworkPolicy, or policy.networking.k8s.io
+  # ClusterNetworkPolicy). The per-port .from knobs below apply to the kubernetes
+  # engine only; alternative engines are pod-scoped allow-all on the required
+  # ports and tighten via their native passthrough lists
+  # (cilium/calico/clusterNetworkPolicy .ingress / .egress).
+  engine: kubernetes
+  # -- Render a namespace-wide default-deny policy so EVERY pod in the namespace
+  # is denied by default and the per-workload allowlists are the only exceptions
+  # (zero-trust namespace). OFF by default because it also denies co-located
+  # workloads — only enable it when the controller has its own namespace. Leaving
+  # it off keeps a pod-scoped setup: only this controller's pods are locked down,
+  # neighbours untouched.
+  defaultDeny:
+    enabled: false
+    # -- Calico/ClusterNetworkPolicy sort key for the deny-all. It must rank the
+    # deny-all AFTER the per-workload allowlists so the allowlists win: Calico
+    # evaluates lower order first (the allowlist policies carry no order = lowest
+    # precedence, so this defaults high), and ClusterNetworkPolicy gives lower
+    # priority numbers higher precedence (the allowlist priority defaults to
+    # networkPolicy.clusterNetworkPolicy.priority, so this defaults higher). The
+    # kubernetes and cilium engines have no precedence knob — deny + allow simply
+    # combine additively, allow wins.
+    order: 2000
+  # -- Sources allowed to reach the webhook port. Empty = all (e.g.
+  # kube-apiserver for the webhook, which cannot be a podSelector).
+  # Applies to the kubernetes engine only.
+  webhook:
+    from: []
+  # -- Sources allowed to reach the metrics port. Empty = all (e.g. Prometheus
+  # for metrics).
+  metrics:
+    from: []
+  # -- Sources allowed to reach the gate port. Empty = all (e.g. Flagger for the
+  # gate).
+  gate:
+    from: []
+  # -- Cilium engine (engine=cilium) raw passthrough. Entries are merged verbatim
+  # into the CiliumNetworkPolicy's spec.ingress / spec.egress. This is how you
+  # tighten the cilium policy — e.g. add fromEndpoints to the ingress rules, or
+  # additional toEndpoints / toFQDNs egress.
+  cilium:
+    # -- Extra spec.ingress rules merged verbatim (CiliumNetworkPolicy schema).
+    ingress: []
+    # -- Extra spec.egress rules merged verbatim (CiliumNetworkPolicy schema).
+    egress: []
+  # -- Calico engine (engine=calico) raw passthrough. Entries are merged verbatim
+  # into the projectcalico.org NetworkPolicy's spec.ingress / spec.egress.
+  calico:
+    # -- Extra spec.ingress rules merged verbatim (Calico NetworkPolicy schema).
+    ingress: []
+    # -- Extra spec.egress rules merged verbatim (Calico NetworkPolicy schema).
+    egress: []
+  # -- ClusterNetworkPolicy engine (engine=clusterNetworkPolicy) raw passthrough.
+  # Entries are merged verbatim into the policy.networking.k8s.io
+  # ClusterNetworkPolicy's spec.ingress / spec.egress.
+  clusterNetworkPolicy:
+    # -- spec.priority on the ClusterNetworkPolicy (lower wins within the tier).
+    priority: 1000
+    # -- Extra spec.ingress rules merged verbatim (ClusterNetworkPolicy schema).
+    ingress: []
+    # -- Extra spec.egress rules merged verbatim (ClusterNetworkPolicy schema).
+    egress: []
+  # -- Extra ingress rules merged verbatim. Applies to the kubernetes engine only.
+  additionalIngress: []
+  egress:
+    # -- Render egress rules. Adds Egress to policyTypes, so everything not
+    # explicitly allowed is denied. Off by default: enable only after allowing
+    # everything the controller needs (DNS, the kube-apiserver,
+    # source-controller / producer namespaces, S3, the OTLP collector, and any
+    # remote-cluster or http-action targets) via egress.to — enabling egress
+    # without allowing the apiserver cuts the controller off from the cluster.
+    enabled: false
+    # -- When egress is enabled, allow DNS (UDP+TCP 53) to the cluster DNS
+    # namespace.
+    dns: true
+    # -- Namespace of the cluster DNS service (matched by
+    # kubernetes.io/metadata.name).
+    dnsNamespace: kube-system
+    # -- Additional egress peers merged verbatim into spec.egress. This is where
+    # you allow the kube-apiserver (an ipBlock CIDR), the source-controller /
+    # producer namespaces, and external endpoints (S3, OTLP, remote-cluster or
+    # http-action targets). NetworkPolicy cannot select the apiserver by label,
+    # so it must be an ipBlock here.
+    to: []
 
-# Install namespace with Pod-Security labels. The chart installs into
+# -- Install namespace with Pod-Security labels. The chart installs into
 # .Release.Namespace; set create to render it with PSS labels.
 namespace:
   create: false
@@ -257,7 +356,7 @@ namespace:
   # @schema
   pssLevel: restricted
 
-# Pod resource sizing. Applied to both requests and limits (cpu, memory, and
+# -- Pod resource sizing. Applied to both requests and limits (cpu, memory, and
 # ephemeral-storage) so the pod is fully constrained — kube-score's
 # resource-completeness checks require all three on both sides.
 resources:
@@ -265,13 +364,13 @@ resources:
   memory: 256Mi
   ephemeralStorage: 32Mi
 
-# Pod-level securityContext (PSS restricted).
+# -- Pod-level securityContext (PSS restricted).
 podSecurityContext:
   runAsNonRoot: true
   seccompProfile:
     type: RuntimeDefault
 
-# Container-level securityContext (PSS restricted). runAsUser/runAsGroup are
+# -- Container-level securityContext (PSS restricted). runAsUser/runAsGroup are
 # set above 10000 (kube-score requirement) for a static binary that needs no
 # real user identity.
 securityContext:
@@ -286,23 +385,27 @@ securityContext:
   seccompProfile:
     type: RuntimeDefault
 
-# Scheduling.
+# -- Node selector for scheduling.
 nodeSelector: {}
+# -- Tolerations for scheduling.
 tolerations: []
+# -- Affinity rules for scheduling.
 affinity: {}
+# -- Topology spread constraints for scheduling.
 topologySpreadConstraints: []
 
-# Extra labels.
+# -- Extra labels and revision history for the Deployment.
 deployment:
   additionalLabels: {}
   revisionHistoryLimit: 10
+# -- Extra labels for the pod template.
 pod:
   additionalLabels: {}
 
-# PodDisruptionBudget (rendered only when replicas.max > replicas.min).
+# -- PodDisruptionBudget (rendered only when replicas.max > replicas.min).
 podDisruptionBudget:
   minAvailable: 1
 
-# HorizontalPodAutoscaler (rendered only when replicas.max > replicas.min).
+# -- HorizontalPodAutoscaler (rendered only when replicas.max > replicas.min).
 autoscaling:
   targetCPUUtilizationPercentage: 80

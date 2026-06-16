@@ -1,0 +1,184 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+suite: test jaas default-deny NetworkPolicy
+templates:
+  - networkpolicy-default-deny.yaml
+tests:
+  - it: is empty by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: is empty when networkPolicy is enabled but defaultDeny is off
+    set:
+      networkPolicy:
+        enabled: true
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: is empty when defaultDeny is on but networkPolicy is disabled
+    set:
+      networkPolicy:
+        enabled: false
+        defaultDeny:
+          enabled: true
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders a vanilla deny-all for the kubernetes engine
+    set:
+      networkPolicy:
+        enabled: true
+        defaultDeny:
+          enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: NetworkPolicy
+      - equal:
+          path: apiVersion
+          value: networking.k8s.io/v1
+      - equal:
+          path: spec.podSelector
+          value: {}
+      - equal:
+          path: spec.policyTypes
+          value:
+            - Ingress
+            - Egress
+      - notExists:
+          path: spec.ingress
+      - notExists:
+          path: spec.egress
+
+  - it: renders a cilium default-deny for the cilium engine
+    set:
+      networkPolicy:
+        enabled: true
+        engine: cilium
+        defaultDeny:
+          enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: CiliumNetworkPolicy
+      - equal:
+          path: spec.endpointSelector
+          value: {}
+      # Empty ingress/egress SECTIONS trigger default deny-mode per direction
+      # while admitting nothing. An empty rule ENTRY (- {}) would instead match
+      # all peers and allow everything, so the sections must be empty lists.
+      - equal:
+          path: spec.ingress
+          value: []
+      - equal:
+          path: spec.egress
+          value: []
+      - notExists:
+          path: spec.enableDefaultDeny
+
+  - it: renders a calico deny-all for the calico engine
+    set:
+      networkPolicy:
+        enabled: true
+        engine: calico
+        defaultDeny:
+          enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: NetworkPolicy
+      - equal:
+          path: apiVersion
+          value: projectcalico.org/v3
+      - equal:
+          path: spec.selector
+          value: all()
+      - equal:
+          path: spec.order
+          value: 2000
+      - equal:
+          path: spec.types
+          value:
+            - Ingress
+            - Egress
+      - notExists:
+          path: spec.ingress
+      - notExists:
+          path: spec.egress
+
+  - it: honours a custom order on the calico deny-all
+    set:
+      networkPolicy:
+        enabled: true
+        engine: calico
+        defaultDeny:
+          enabled: true
+          order: 5000
+    asserts:
+      - equal:
+          path: spec.order
+          value: 5000
+
+  - it: renders a ClusterNetworkPolicy deny-all that loses to the allowlist
+    set:
+      networkPolicy:
+        enabled: true
+        engine: clusterNetworkPolicy
+        defaultDeny:
+          enabled: true
+    release:
+      namespace: jaas-system
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ClusterNetworkPolicy
+      - equal:
+          path: metadata.name
+          value: jaas-default-deny-jaas-system
+      - equal:
+          path: spec.tier
+          value: Baseline
+      # Lower priority numbers win; the allowlist defaults to
+      # clusterNetworkPolicy.priority (1000), so the deny-all's defaultDeny.order
+      # (2000) yields.
+      - equal:
+          path: spec.priority
+          value: 2000
+      - equal:
+          path: spec.subject.namespaces.matchLabels["kubernetes.io/metadata.name"]
+          value: jaas-system
+      - contains:
+          path: spec.ingress
+          content:
+            name: deny-all
+            action: Deny
+            from:
+              - namespaces: {}
+      - contains:
+          path: spec.egress
+          content:
+            name: deny-all
+            action: Deny
+            to:
+              - namespaces: {}
+
+  - it: honours a custom order as the clusterNetworkPolicy priority
+    set:
+      networkPolicy:
+        enabled: true
+        engine: clusterNetworkPolicy
+        defaultDeny:
+          enabled: true
+          order: 9000
+    asserts:
+      - equal:
+          path: spec.priority
+          value: 9000

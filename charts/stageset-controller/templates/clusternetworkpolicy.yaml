@@ -1,0 +1,83 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+{{- if and .Values.networkPolicy.enabled (eq .Values.networkPolicy.engine "clusterNetworkPolicy") }}
+# Network Policy API (policy.networking.k8s.io/v1alpha2) equivalent of the vanilla
+# NetworkPolicy. ClusterNetworkPolicy is cluster-scoped, so the subject pins this
+# chart's pods via namespace + pod selectors. The Baseline tier yields to any
+# developer NetworkPolicy. Ingress accepts the webhook (apiserver admission),
+# metrics (Prometheus), and gate (Flagger) ports from any peer. Tighten with
+# native passthrough lists in networkPolicy.clusterNetworkPolicy.*.
+apiVersion: policy.networking.k8s.io/v1alpha2
+kind: ClusterNetworkPolicy
+metadata:
+  name: {{ include "stageset.name" . }}-{{ include "stageset.namespace" . }}
+  labels:
+    {{- include "stageset.labels" . | nindent 4 }}
+spec:
+  tier: Baseline
+  priority: {{ .Values.networkPolicy.clusterNetworkPolicy.priority }}
+  subject:
+    pods:
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: {{ include "stageset.namespace" . }}
+      podSelector:
+        matchLabels:
+          {{- include "stageset.selectorLabels" . | nindent 10 }}
+  ingress:
+    {{- if .Values.webhook.enabled }}
+    - name: webhook
+      action: Accept
+      from:
+        - namespaces: {}
+      protocols:
+        - tcp:
+            destinationPort:
+              number: {{ .Values.ports.webhook }}
+    {{- end }}
+    - name: metrics
+      action: Accept
+      from:
+        - namespaces: {}
+      protocols:
+        - tcp:
+            destinationPort:
+              number: {{ .Values.ports.metrics }}
+    {{- if .Values.gate.enabled }}
+    - name: gate
+      action: Accept
+      from:
+        - namespaces: {}
+      protocols:
+        - tcp:
+            destinationPort:
+              number: {{ .Values.ports.gate }}
+    {{- end }}
+    {{- with .Values.networkPolicy.clusterNetworkPolicy.ingress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- if .Values.networkPolicy.egress.enabled }}
+  egress:
+    {{- if .Values.networkPolicy.egress.dns }}
+    # Cluster DNS — UDP and TCP 53 to the DNS namespace. Without this an egress
+    # policy denies name resolution, breaking every outbound connection.
+    - name: dns
+      action: Accept
+      to:
+        - namespaces:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.egress.dnsNamespace }}
+      protocols:
+        - udp:
+            destinationPort:
+              number: 53
+        - tcp:
+            destinationPort:
+              number: 53
+    {{- end }}
+    {{- with .Values.networkPolicy.clusterNetworkPolicy.egress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+{{- end }}

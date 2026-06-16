@@ -1,0 +1,67 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+{{- if and .Values.networkPolicy.enabled (eq .Values.networkPolicy.engine "calico") }}
+# Calico-native equivalent of the vanilla NetworkPolicy. Pod-scoped via Calico's
+# label-selector syntax. Ingress allows the webhook (apiserver admission),
+# metrics (Prometheus), and gate (Flagger) ports from any source (no source
+# selector = allow-all). Tighten with native passthrough lists in
+# networkPolicy.calico.*.
+apiVersion: projectcalico.org/v3
+kind: NetworkPolicy
+metadata:
+  name: {{ include "stageset.name" . }}
+  namespace: {{ include "stageset.namespace" . }}
+  labels:
+    {{- include "stageset.labels" . | nindent 4 }}
+spec:
+  selector: app.kubernetes.io/name == '{{ include "stageset.name" . }}' && app.kubernetes.io/component == 'controller' && app.kubernetes.io/instance == '{{ .Release.Name }}'
+  types:
+    - Ingress
+    {{- if .Values.networkPolicy.egress.enabled }}
+    - Egress
+    {{- end }}
+  ingress:
+    {{- if .Values.webhook.enabled }}
+    - action: Allow
+      protocol: TCP
+      destination:
+        ports:
+          - {{ .Values.ports.webhook }}
+    {{- end }}
+    - action: Allow
+      protocol: TCP
+      destination:
+        ports:
+          - {{ .Values.ports.metrics }}
+    {{- if .Values.gate.enabled }}
+    - action: Allow
+      protocol: TCP
+      destination:
+        ports:
+          - {{ .Values.ports.gate }}
+    {{- end }}
+    {{- with .Values.networkPolicy.calico.ingress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- if .Values.networkPolicy.egress.enabled }}
+  egress:
+    {{- if .Values.networkPolicy.egress.dns }}
+    # Cluster DNS — UDP and TCP 53. Without these an egress policy denies name
+    # resolution, breaking every outbound connection.
+    - action: Allow
+      protocol: UDP
+      destination:
+        ports:
+          - 53
+    - action: Allow
+      protocol: TCP
+      destination:
+        ports:
+          - 53
+    {{- end }}
+    {{- with .Values.networkPolicy.calico.egress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+{{- end }}

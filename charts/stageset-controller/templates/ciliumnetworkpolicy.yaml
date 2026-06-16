@@ -1,0 +1,63 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+{{- if and .Values.networkPolicy.enabled (eq .Values.networkPolicy.engine "cilium") }}
+# Cilium-native equivalent of the vanilla NetworkPolicy. Pod-scoped: selects only
+# this chart's pods. Ingress allows the webhook (apiserver admission), metrics
+# (Prometheus), and gate (Flagger) ports from any source (no fromEndpoints =
+# allow-all). Tighten with native passthrough lists in networkPolicy.cilium.*.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "stageset.name" . }}
+  namespace: {{ include "stageset.namespace" . }}
+  labels:
+    {{- include "stageset.labels" . | nindent 4 }}
+spec:
+  endpointSelector:
+    matchLabels:
+      {{- include "stageset.selectorLabels" . | nindent 6 }}
+  ingress:
+    {{- if .Values.webhook.enabled }}
+    - toPorts:
+        - ports:
+            - port: {{ .Values.ports.webhook | quote }}
+              protocol: TCP
+    {{- end }}
+    - toPorts:
+        - ports:
+            - port: {{ .Values.ports.metrics | quote }}
+              protocol: TCP
+    {{- if .Values.gate.enabled }}
+    - toPorts:
+        - ports:
+            - port: {{ .Values.ports.gate | quote }}
+              protocol: TCP
+    {{- end }}
+    {{- with .Values.networkPolicy.cilium.ingress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- if .Values.networkPolicy.egress.enabled }}
+  egress:
+    {{- if .Values.networkPolicy.egress.dns }}
+    # Cluster DNS — resolves names via kube-dns. Without this an egress policy
+    # denies resolution, breaking every outbound connection.
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: {{ .Values.networkPolicy.egress.dnsNamespace }}
+            k8s:k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+          rules:
+            dns:
+              - matchPattern: "*"
+    {{- end }}
+    {{- with .Values.networkPolicy.cilium.egress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+{{- end }}

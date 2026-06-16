@@ -2,6 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "properties": {
     "affinity": {
+      "description": "Affinity rules for scheduling.",
       "required": [],
       "title": "affinity",
       "type": "object"
@@ -110,7 +111,7 @@
       "type": "object"
     },
     "deployment": {
-      "description": "Extra labels.",
+      "description": "Extra labels and revision history for the Deployment.",
       "properties": {
         "additionalLabels": {
           "required": [],
@@ -398,25 +399,255 @@
     "networkPolicy": {
       "description": "Opt-in NetworkPolicy. Inert without a NetworkPolicy controller.",
       "properties": {
+        "additionalIngress": {
+          "description": "Extra ingress rules merged verbatim. Applies to the kubernetes engine only.",
+          "items": {
+            "required": []
+          },
+          "title": "additionalIngress",
+          "type": "array"
+        },
+        "calico": {
+          "description": "Calico engine (engine=calico) raw passthrough. Entries are merged verbatim\ninto the projectcalico.org NetworkPolicy's spec.ingress / spec.egress.",
+          "properties": {
+            "egress": {
+              "description": "Extra spec.egress rules merged verbatim (Calico NetworkPolicy schema).",
+              "items": {
+                "required": []
+              },
+              "title": "egress",
+              "type": "array"
+            },
+            "ingress": {
+              "description": "Extra spec.ingress rules merged verbatim (Calico NetworkPolicy schema).",
+              "items": {
+                "required": []
+              },
+              "title": "ingress",
+              "type": "array"
+            }
+          },
+          "required": [
+            "ingress",
+            "egress"
+          ],
+          "title": "calico",
+          "type": "object"
+        },
+        "cilium": {
+          "description": "Cilium engine (engine=cilium) raw passthrough. Entries are merged verbatim\ninto the CiliumNetworkPolicy's spec.ingress / spec.egress. This is how you\ntighten the cilium policy — e.g. add fromEndpoints to the ingress rules, or\nadditional toEndpoints / toFQDNs egress.",
+          "properties": {
+            "egress": {
+              "description": "Extra spec.egress rules merged verbatim (CiliumNetworkPolicy schema).",
+              "items": {
+                "required": []
+              },
+              "title": "egress",
+              "type": "array"
+            },
+            "ingress": {
+              "description": "Extra spec.ingress rules merged verbatim (CiliumNetworkPolicy schema).",
+              "items": {
+                "required": []
+              },
+              "title": "ingress",
+              "type": "array"
+            }
+          },
+          "required": [
+            "ingress",
+            "egress"
+          ],
+          "title": "cilium",
+          "type": "object"
+        },
+        "clusterNetworkPolicy": {
+          "description": "ClusterNetworkPolicy engine (engine=clusterNetworkPolicy) raw passthrough.\nEntries are merged verbatim into the policy.networking.k8s.io\nClusterNetworkPolicy's spec.ingress / spec.egress.",
+          "properties": {
+            "egress": {
+              "description": "Extra spec.egress rules merged verbatim (ClusterNetworkPolicy schema).",
+              "items": {
+                "required": []
+              },
+              "title": "egress",
+              "type": "array"
+            },
+            "ingress": {
+              "description": "Extra spec.ingress rules merged verbatim (ClusterNetworkPolicy schema).",
+              "items": {
+                "required": []
+              },
+              "title": "ingress",
+              "type": "array"
+            },
+            "priority": {
+              "default": 1000,
+              "description": "spec.priority on the ClusterNetworkPolicy (lower wins within the tier).",
+              "title": "priority",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "priority",
+            "ingress",
+            "egress"
+          ],
+          "title": "clusterNetworkPolicy",
+          "type": "object"
+        },
+        "defaultDeny": {
+          "description": "Render a namespace-wide default-deny policy so EVERY pod in the namespace\nis denied by default and the per-workload allowlists are the only exceptions\n(zero-trust namespace). OFF by default because it also denies co-located\nworkloads — only enable it when the controller has its own namespace. Leaving\nit off keeps a pod-scoped setup: only this controller's pods are locked down,\nneighbours untouched.",
+          "properties": {
+            "enabled": {
+              "default": false,
+              "title": "enabled",
+              "type": "boolean"
+            },
+            "order": {
+              "default": 2000,
+              "description": "Calico/ClusterNetworkPolicy sort key for the deny-all. It must rank the\ndeny-all AFTER the per-workload allowlists so the allowlists win: Calico\nevaluates lower order first (the allowlist policies carry no order = lowest\nprecedence, so this defaults high), and ClusterNetworkPolicy gives lower\npriority numbers higher precedence (the allowlist priority defaults to\nnetworkPolicy.clusterNetworkPolicy.priority, so this defaults higher). The\nkubernetes and cilium engines have no precedence knob — deny + allow simply\ncombine additively, allow wins.",
+              "title": "order",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "enabled",
+            "order"
+          ],
+          "title": "defaultDeny",
+          "type": "object"
+        },
+        "egress": {
+          "properties": {
+            "dns": {
+              "default": true,
+              "description": "When egress is enabled, allow DNS (UDP+TCP 53) to the cluster DNS\nnamespace.",
+              "title": "dns",
+              "type": "boolean"
+            },
+            "dnsNamespace": {
+              "default": "kube-system",
+              "description": "Namespace of the cluster DNS service (matched by\nkubernetes.io/metadata.name).",
+              "title": "dnsNamespace",
+              "type": "string"
+            },
+            "enabled": {
+              "default": false,
+              "description": "Render egress rules. Adds Egress to policyTypes, so everything not\nexplicitly allowed is denied. Off by default: enable only after allowing\neverything the controller needs (DNS, the kube-apiserver,\nsource-controller / producer namespaces, S3, the OTLP collector, and any\nremote-cluster or http-action targets) via egress.to — enabling egress\nwithout allowing the apiserver cuts the controller off from the cluster.",
+              "title": "enabled",
+              "type": "boolean"
+            },
+            "to": {
+              "description": "Additional egress peers merged verbatim into spec.egress. This is where\nyou allow the kube-apiserver (an ipBlock CIDR), the source-controller /\nproducer namespaces, and external endpoints (S3, OTLP, remote-cluster or\nhttp-action targets). NetworkPolicy cannot select the apiserver by label,\nso it must be an ipBlock here.",
+              "items": {
+                "required": []
+              },
+              "title": "to",
+              "type": "array"
+            }
+          },
+          "required": [
+            "enabled",
+            "dns",
+            "dnsNamespace",
+            "to"
+          ],
+          "title": "egress",
+          "type": "object"
+        },
         "enabled": {
           "default": false,
+          "description": "Render the NetworkPolicy. When enabled, the policy targets the controller\npod; with a NetworkPolicy controller (Calico/Cilium/etc.) installed,\nanything not listed below is denied. Leave OFF on clusters without such a\ncontroller — the policy is silently inert there.",
           "title": "enabled",
           "type": "boolean"
+        },
+        "engine": {
+          "default": "kubernetes",
+          "description": "Policy engine to render for. kubernetes (default) emits a vanilla\nnetworking.k8s.io NetworkPolicy. cilium / calico / clusterNetworkPolicy emit\nthe engine-native equivalent instead (CiliumNetworkPolicy,\nprojectcalico.org NetworkPolicy, or policy.networking.k8s.io\nClusterNetworkPolicy). The per-port .from knobs below apply to the kubernetes\nengine only; alternative engines are pod-scoped allow-all on the required\nports and tighten via their native passthrough lists\n(cilium/calico/clusterNetworkPolicy .ingress / .egress).",
+          "enum": [
+            "kubernetes",
+            "cilium",
+            "calico",
+            "clusterNetworkPolicy"
+          ],
+          "title": "engine",
+          "type": "string"
+        },
+        "gate": {
+          "description": "Sources allowed to reach the gate port. Empty = all (e.g. Flagger for the\ngate).",
+          "properties": {
+            "from": {
+              "items": {
+                "required": []
+              },
+              "title": "from",
+              "type": "array"
+            }
+          },
+          "required": [
+            "from"
+          ],
+          "title": "gate",
+          "type": "object"
+        },
+        "metrics": {
+          "description": "Sources allowed to reach the metrics port. Empty = all (e.g. Prometheus\nfor metrics).",
+          "properties": {
+            "from": {
+              "items": {
+                "required": []
+              },
+              "title": "from",
+              "type": "array"
+            }
+          },
+          "required": [
+            "from"
+          ],
+          "title": "metrics",
+          "type": "object"
+        },
+        "webhook": {
+          "description": "Sources allowed to reach the webhook port. Empty = all (e.g.\nkube-apiserver for the webhook, which cannot be a podSelector).\nApplies to the kubernetes engine only.",
+          "properties": {
+            "from": {
+              "items": {
+                "required": []
+              },
+              "title": "from",
+              "type": "array"
+            }
+          },
+          "required": [
+            "from"
+          ],
+          "title": "webhook",
+          "type": "object"
         }
       },
       "required": [
-        "enabled"
+        "enabled",
+        "defaultDeny",
+        "webhook",
+        "metrics",
+        "gate",
+        "cilium",
+        "calico",
+        "clusterNetworkPolicy",
+        "additionalIngress",
+        "egress"
       ],
       "title": "networkPolicy",
       "type": "object"
     },
     "nodeSelector": {
-      "description": "Scheduling.",
+      "description": "Node selector for scheduling.",
       "required": [],
       "title": "nodeSelector",
       "type": "object"
     },
     "pod": {
+      "description": "Extra labels for the pod template.",
       "properties": {
         "additionalLabels": {
           "required": [],
@@ -793,6 +1024,7 @@
       "type": "object"
     },
     "tolerations": {
+      "description": "Tolerations for scheduling.",
       "items": {
         "required": []
       },
@@ -800,6 +1032,7 @@
       "type": "array"
     },
     "topologySpreadConstraints": {
+      "description": "Topology spread constraints for scheduling.",
       "items": {
         "required": []
       },

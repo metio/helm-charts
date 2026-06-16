@@ -1,0 +1,230 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+suite: test jaas CiliumNetworkPolicy
+templates:
+  - cilium-networkpolicy.yaml
+tests:
+  - it: is empty by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: is empty for the default kubernetes engine even when enabled
+    set:
+      networkPolicy:
+        enabled: true
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders a CiliumNetworkPolicy for the cilium engine
+    set:
+      networkPolicy:
+        enabled: true
+        engine: cilium
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: CiliumNetworkPolicy
+      - equal:
+          path: apiVersion
+          value: cilium.io/v2
+
+  - it: scopes to the jaas pods via endpointSelector
+    set:
+      networkPolicy:
+        enabled: true
+        engine: cilium
+    release:
+      name: prod-jaas
+    asserts:
+      - equal:
+          path: spec.endpointSelector.matchLabels["app.kubernetes.io/name"]
+          value: jaas
+      - equal:
+          path: spec.endpointSelector.matchLabels["app.kubernetes.io/instance"]
+          value: prod-jaas
+
+  - it: allows the http and management ports as strings
+    set:
+      networkPolicy:
+        enabled: true
+        engine: cilium
+    asserts:
+      - contains:
+          path: spec.ingress
+          content:
+            toPorts:
+              - ports:
+                  - port: "8080"
+                    protocol: TCP
+      - contains:
+          path: spec.ingress
+          content:
+            toPorts:
+              - ports:
+                  - port: "8081"
+                    protocol: TCP
+
+  - it: omits the storage port when operator is disabled
+    set:
+      networkPolicy:
+        enabled: true
+        engine: cilium
+    asserts:
+      - notContains:
+          path: spec.ingress
+          content:
+            toPorts:
+              - ports:
+                  - port: "8082"
+                    protocol: TCP
+
+  - it: allows the storage port when operator is enabled
+    set:
+      networkPolicy:
+        enabled: true
+        engine: cilium
+      operator:
+        enabled: true
+    asserts:
+      - contains:
+          path: spec.ingress
+          content:
+            toPorts:
+              - ports:
+                  - port: "8082"
+                    protocol: TCP
+
+  - it: includes the webhook port only when operator and webhook are enabled
+    set:
+      networkPolicy:
+        enabled: true
+        engine: cilium
+      operator:
+        enabled: true
+        webhook:
+          enabled: true
+          certManager:
+            issuerRef:
+              name: jaas-ca
+    asserts:
+      - contains:
+          path: spec.ingress
+          content:
+            toPorts:
+              - ports:
+                  - port: "9443"
+                    protocol: TCP
+
+  - it: omits the webhook port when the webhook is disabled
+    set:
+      networkPolicy:
+        enabled: true
+        engine: cilium
+      operator:
+        enabled: true
+    asserts:
+      - notContains:
+          path: spec.ingress
+          content:
+            toPorts:
+              - ports:
+                  - port: "9443"
+                    protocol: TCP
+
+  - it: includes the metrics port when operator and metrics are enabled
+    set:
+      networkPolicy:
+        enabled: true
+        engine: cilium
+      operator:
+        enabled: true
+        metrics:
+          enabled: true
+    asserts:
+      - contains:
+          path: spec.ingress
+          content:
+            toPorts:
+              - ports:
+                  - port: "8083"
+                    protocol: TCP
+
+  - it: omits the metrics port when operator is disabled
+    set:
+      networkPolicy:
+        enabled: true
+        engine: cilium
+    asserts:
+      - notContains:
+          path: spec.ingress
+          content:
+            toPorts:
+              - ports:
+                  - port: "8083"
+                    protocol: TCP
+
+  - it: has no egress by default
+    set:
+      networkPolicy:
+        enabled: true
+        engine: cilium
+    asserts:
+      - notExists:
+          path: spec.egress
+
+  - it: adds a DNS egress rule when egress is enabled
+    set:
+      networkPolicy:
+        enabled: true
+        engine: cilium
+        egress:
+          enabled: true
+    asserts:
+      - contains:
+          path: spec.egress
+          content:
+            toEndpoints:
+              - matchLabels:
+                  k8s:io.kubernetes.pod.namespace: kube-system
+                  k8s:k8s-app: kube-dns
+            toPorts:
+              - ports:
+                  - port: "53"
+                    protocol: UDP
+                  - port: "53"
+                    protocol: TCP
+                rules:
+                  dns:
+                    - matchPattern: "*"
+
+  - it: merges native ingress and egress passthrough lists
+    set:
+      networkPolicy:
+        enabled: true
+        engine: cilium
+        egress:
+          enabled: true
+        cilium:
+          ingress:
+            - fromEndpoints:
+                - matchLabels:
+                    app: prometheus
+          egress:
+            - toFQDNs:
+                - matchName: example.com
+    asserts:
+      - contains:
+          path: spec.ingress
+          content:
+            fromEndpoints:
+              - matchLabels:
+                  app: prometheus
+      - contains:
+          path: spec.egress
+          content:
+            toFQDNs:
+              - matchName: example.com

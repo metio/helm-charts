@@ -15,9 +15,6 @@ matches its arguments snapshot:
     - -max-concurrent-evals=32
     - -shutdown-delay=5s
     - -snippet-directory=/srv/snippets
-    - -library-path=/srv/libraries/grafonnet
-    - -library-path=/srv/libraries/docsonnet
-    - -library-path=/srv/libraries/xtd
 matches its security context snapshot:
   1: |
     allowPrivilegeEscalation: false
@@ -34,32 +31,11 @@ matches its volume mounts snapshot:
   1: |
     - mountPath: /tmp
       name: tmp
-    - mountPath: /srv/libraries/grafonnet
-      name: library-grafonnet
-      readOnly: true
-    - mountPath: /srv/libraries/docsonnet
-      name: library-docsonnet
-      readOnly: true
-    - mountPath: /srv/libraries/xtd
-      name: library-xtd
-      readOnly: true
 matches its volumes snapshot:
   1: |
     - emptyDir:
         sizeLimit: 256Mi
       name: tmp
-    - image:
-        pullPolicy: IfNotPresent
-        reference: ghcr.io/metio/joi-grafana-grafonnet:latest
-      name: library-grafonnet
-    - image:
-        pullPolicy: IfNotPresent
-        reference: ghcr.io/metio/joi-jsonnet-libs-docsonnet:latest
-      name: library-docsonnet
-    - image:
-        pullPolicy: IfNotPresent
-        reference: ghcr.io/metio/joi-jsonnet-libs-xtd:latest
-      name: library-xtd
 supports additional env variables:
   1: |
     - name: JAAS_EXT_VAR_other

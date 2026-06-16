@@ -1,0 +1,241 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+suite: test jaas Calico NetworkPolicy
+templates:
+  - calico-networkpolicy.yaml
+tests:
+  - it: is empty by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: is empty for the default kubernetes engine even when enabled
+    set:
+      networkPolicy:
+        enabled: true
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders a Calico NetworkPolicy for the calico engine
+    set:
+      networkPolicy:
+        enabled: true
+        engine: calico
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: NetworkPolicy
+      - equal:
+          path: apiVersion
+          value: projectcalico.org/v3
+
+  - it: scopes to the jaas pods via a calico selector expression
+    set:
+      networkPolicy:
+        enabled: true
+        engine: calico
+    asserts:
+      - matchRegex:
+          path: spec.selector
+          pattern: app.kubernetes.io/name == 'jaas'
+      - matchRegex:
+          path: spec.selector
+          pattern: app.kubernetes.io/component == 'jaas'
+
+  - it: declares only the Ingress type by default
+    set:
+      networkPolicy:
+        enabled: true
+        engine: calico
+    asserts:
+      - equal:
+          path: spec.types
+          value:
+            - Ingress
+
+  - it: allows the http and management ports
+    set:
+      networkPolicy:
+        enabled: true
+        engine: calico
+    asserts:
+      - contains:
+          path: spec.ingress
+          content:
+            action: Allow
+            protocol: TCP
+            destination:
+              ports:
+                - 8080
+      - contains:
+          path: spec.ingress
+          content:
+            action: Allow
+            protocol: TCP
+            destination:
+              ports:
+                - 8081
+
+  - it: omits the storage port when operator is disabled
+    set:
+      networkPolicy:
+        enabled: true
+        engine: calico
+    asserts:
+      - notContains:
+          path: spec.ingress
+          content:
+            action: Allow
+            protocol: TCP
+            destination:
+              ports:
+                - 8082
+
+  - it: allows the storage port when operator is enabled
+    set:
+      networkPolicy:
+        enabled: true
+        engine: calico
+      operator:
+        enabled: true
+    asserts:
+      - contains:
+          path: spec.ingress
+          content:
+            action: Allow
+            protocol: TCP
+            destination:
+              ports:
+                - 8082
+
+  - it: includes the webhook port only when operator and webhook are enabled
+    set:
+      networkPolicy:
+        enabled: true
+        engine: calico
+      operator:
+        enabled: true
+        webhook:
+          enabled: true
+          certManager:
+            issuerRef:
+              name: jaas-ca
+    asserts:
+      - contains:
+          path: spec.ingress
+          content:
+            action: Allow
+            protocol: TCP
+            destination:
+              ports:
+                - 9443
+
+  - it: omits the webhook port when the webhook is disabled
+    set:
+      networkPolicy:
+        enabled: true
+        engine: calico
+      operator:
+        enabled: true
+    asserts:
+      - notContains:
+          path: spec.ingress
+          content:
+            action: Allow
+            protocol: TCP
+            destination:
+              ports:
+                - 9443
+
+  - it: includes the metrics port when operator and metrics are enabled
+    set:
+      networkPolicy:
+        enabled: true
+        engine: calico
+      operator:
+        enabled: true
+        metrics:
+          enabled: true
+    asserts:
+      - contains:
+          path: spec.ingress
+          content:
+            action: Allow
+            protocol: TCP
+            destination:
+              ports:
+                - 8083
+
+  - it: has no egress by default
+    set:
+      networkPolicy:
+        enabled: true
+        engine: calico
+    asserts:
+      - notExists:
+          path: spec.egress
+
+  - it: adds the Egress type and DNS allow rules when egress is enabled
+    set:
+      networkPolicy:
+        enabled: true
+        engine: calico
+        egress:
+          enabled: true
+    asserts:
+      - contains:
+          path: spec.types
+          content: Egress
+      - contains:
+          path: spec.egress
+          content:
+            action: Allow
+            protocol: UDP
+            destination:
+              ports:
+                - 53
+      - contains:
+          path: spec.egress
+          content:
+            action: Allow
+            protocol: TCP
+            destination:
+              ports:
+                - 53
+
+  - it: merges native ingress and egress passthrough lists
+    set:
+      networkPolicy:
+        enabled: true
+        engine: calico
+        egress:
+          enabled: true
+        calico:
+          ingress:
+            - action: Allow
+              protocol: TCP
+              source:
+                selector: app == 'prometheus'
+          egress:
+            - action: Allow
+              destination:
+                nets:
+                  - 10.0.0.0/8
+    asserts:
+      - contains:
+          path: spec.ingress
+          content:
+            action: Allow
+            protocol: TCP
+            source:
+              selector: app == 'prometheus'
+      - contains:
+          path: spec.egress
+          content:
+            action: Allow
+            destination:
+              nets:
+                - 10.0.0.0/8

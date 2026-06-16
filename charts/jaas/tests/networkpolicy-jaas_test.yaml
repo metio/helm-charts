@@ -20,6 +20,45 @@ tests:
       - isKind:
           of: NetworkPolicy
 
+  - it: renders for the explicit kubernetes engine
+    set:
+      networkPolicy:
+        enabled: true
+        engine: kubernetes
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: apiVersion
+          value: networking.k8s.io/v1
+
+  - it: is absent for the cilium engine
+    set:
+      networkPolicy:
+        enabled: true
+        engine: cilium
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: is absent for the calico engine
+    set:
+      networkPolicy:
+        enabled: true
+        engine: calico
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: is absent for the clusterNetworkPolicy engine
+    set:
+      networkPolicy:
+        enabled: true
+        engine: clusterNetworkPolicy
+    asserts:
+      - hasDocuments:
+          count: 0
+
   - it: selects only the jaas pod
     set:
       networkPolicy:
@@ -179,6 +218,184 @@ tests:
             ports:
               - protocol: TCP
                 port: 9443
+
+  - it: includes the metrics port when operator and metrics are enabled
+    set:
+      networkPolicy:
+        enabled: true
+      operator:
+        enabled: true
+        metrics:
+          enabled: true
+    asserts:
+      - contains:
+          path: spec.ingress
+          content:
+            ports:
+              - protocol: TCP
+                port: 8083
+
+  - it: omits the metrics port when operator is disabled
+    set:
+      networkPolicy:
+        enabled: true
+    asserts:
+      - notContains:
+          path: spec.ingress
+          content:
+            ports:
+              - protocol: TCP
+                port: 8083
+
+  - it: tightens the metrics port when metrics.from is configured
+    set:
+      networkPolicy:
+        enabled: true
+        metrics:
+          from:
+            - namespaceSelector:
+                matchLabels:
+                  kubernetes.io/metadata.name: monitoring
+      operator:
+        enabled: true
+        metrics:
+          enabled: true
+    asserts:
+      - contains:
+          path: spec.ingress
+          content:
+            ports:
+              - protocol: TCP
+                port: 8083
+            from:
+              - namespaceSelector:
+                  matchLabels:
+                    kubernetes.io/metadata.name: monitoring
+
+  - it: declares no Egress policy type by default
+    set:
+      networkPolicy:
+        enabled: true
+    asserts:
+      - equal:
+          path: spec.policyTypes
+          value:
+            - Ingress
+      - notExists:
+          path: spec.egress
+
+  - it: adds Egress to policyTypes and a DNS rule when egress is enabled
+    set:
+      networkPolicy:
+        enabled: true
+        egress:
+          enabled: true
+    asserts:
+      - contains:
+          path: spec.policyTypes
+          content: Egress
+      - contains:
+          path: spec.egress
+          content:
+            to:
+              - namespaceSelector:
+                  matchLabels:
+                    kubernetes.io/metadata.name: kube-system
+            ports:
+              - protocol: UDP
+                port: 53
+              - protocol: TCP
+                port: 53
+
+  - it: honors a custom egress dnsNamespace
+    set:
+      networkPolicy:
+        enabled: true
+        egress:
+          enabled: true
+          dnsNamespace: openshift-dns
+    asserts:
+      - contains:
+          path: spec.egress
+          content:
+            to:
+              - namespaceSelector:
+                  matchLabels:
+                    kubernetes.io/metadata.name: openshift-dns
+            ports:
+              - protocol: UDP
+                port: 53
+              - protocol: TCP
+                port: 53
+
+  - it: omits the DNS rule when egress.dns is false
+    set:
+      networkPolicy:
+        enabled: true
+        egress:
+          enabled: true
+          dns: false
+    asserts:
+      - contains:
+          path: spec.policyTypes
+          content: Egress
+      # With DNS off and no egress.to peers, the egress key renders empty —
+      # Egress in policyTypes with no rules denies all outbound traffic.
+      - equal:
+          path: spec.egress
+          value: null
+
+  - it: merges egress.to peers into spec.egress verbatim
+    set:
+      networkPolicy:
+        enabled: true
+        egress:
+          enabled: true
+          to:
+            - to:
+                - ipBlock:
+                    cidr: 10.96.0.1/32
+              ports:
+                - protocol: TCP
+                  port: 443
+            - to:
+                - namespaceSelector:
+                    matchLabels:
+                      kubernetes.io/metadata.name: flux-system
+    asserts:
+      - contains:
+          path: spec.egress
+          content:
+            to:
+              - ipBlock:
+                  cidr: 10.96.0.1/32
+            ports:
+              - protocol: TCP
+                port: 443
+      - contains:
+          path: spec.egress
+          content:
+            to:
+              - namespaceSelector:
+                  matchLabels:
+                    kubernetes.io/metadata.name: flux-system
+
+  - it: renders no egress section when egress is disabled
+    set:
+      networkPolicy:
+        enabled: true
+        egress:
+          enabled: false
+          to:
+            - to:
+                - ipBlock:
+                    cidr: 10.0.0.0/8
+    asserts:
+      - notExists:
+          path: spec.egress
+      - notContains:
+          path: spec.policyTypes
+          content: Egress
 
   - it: appends additionalIngress entries verbatim
     set:

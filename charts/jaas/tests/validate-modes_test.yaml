@@ -29,7 +29,7 @@ tests:
         dashboards: ghcr.io/metio/joi-grafana-grafonnet:v11.4.0
     asserts:
       - failedTemplate:
-          errorMessage: "operator.enabled (Flux integration) is mutually exclusive with static OCI volume mounts. Either clear `snippets` and `additionalLibraries` (Flux mode: snippets/libraries come from CRs), or set operator.enabled=false (standalone renderer: use the OCI mounts)."
+          errorMessage: "operator.enabled (Flux integration) is mutually exclusive with static OCI volume mounts. Either clear `snippets`, `additionalLibraries`, and any enabled `libraries` (Flux mode: snippets/libraries come from CRs), or set operator.enabled=false (standalone renderer: use the OCI mounts)."
   - it: rejects Flux mode combined with library OCI mounts
     set:
       operator.enabled: true
@@ -38,3 +38,18 @@ tests:
         grafonnet: ghcr.io/metio/joi-grafana-grafonnet:v11.4.0
     asserts:
       - failedTemplate: {}
+  - it: rejects Flux mode combined with an enabled well-known library
+    set:
+      operator.enabled: true
+      operator.defaultServiceAccount: default
+      libraries.grafonnet.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "operator.enabled (Flux integration) is mutually exclusive with static OCI volume mounts. Either clear `snippets`, `additionalLibraries`, and any enabled `libraries` (Flux mode: snippets/libraries come from CRs), or set operator.enabled=false (standalone renderer: use the OCI mounts)."
+  - it: allows Flux mode with all well-known libraries disabled (default)
+    set:
+      operator.enabled: true
+      operator.defaultServiceAccount: default
+    asserts:
+      - hasDocuments:
+          count: 0

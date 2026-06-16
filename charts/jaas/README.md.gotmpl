@@ -3,16 +3,20 @@ SPDX-FileCopyrightText: The helm-charts Authors
 SPDX-License-Identifier: 0BSD
  -->
 
-# Jsonnet-as-a-Service (JaaS) Helm Chart
+{{ template "chart.header" . }}
 
-This [Helm chart](https://helm.sh/) defines a minimal JaaS deployment with limited resource usage. See the [values.yaml](./values.yaml) for configuration options.
+{{ template "chart.deprecationWarning" . }}
 
-The chart is published in OCI format and can be downloaded from `oci://ghcr.io/metio/jaas` using `helm`.
+{{ template "chart.description" . }}
+
+This [Helm chart](https://helm.sh/) defines a minimal JaaS deployment with limited resource usage. See the [Values](#values) section below for every configuration option.
+
+The chart is published in OCI format and can be downloaded from `oci://ghcr.io/metio/helm-charts/jaas` using `helm`.
 
 Install it with:
 
 ```shell
-helm install SOME_RELEASE oci://ghcr.io/metio/jaas --version SOME_VERSION
+helm install SOME_RELEASE oci://ghcr.io/metio/helm-charts/jaas --version SOME_VERSION
 ```
 
 Replace `SOME_RELEASE` and `SOME_VERSION` with appropriate values for your environment. In general, we recommend to run the latest available version.
@@ -248,3 +252,5 @@ helm uninstall jaas -n <ns>
 If the operator pod is already dead when the hook runs, the Job times out (default 2 minutes), strips finalizers, and proceeds so Helm doesn't hang forever.
 
 **PVC isn't deleted** — Helm intentionally leaves PVCs behind. To reclaim the storage volume, `kubectl delete pvc <release>-storage -n <ns>` after `helm uninstall`. With `backend: s3` the bucket and its objects are external; jaas only cleans up its own keys via the per-snippet finalizer.
+
+{{ template "chart.valuesSection" . }}

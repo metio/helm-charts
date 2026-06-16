@@ -1,0 +1,91 @@
+{{- /*
+SPDX-FileCopyrightText: The helm-charts Authors
+SPDX-License-Identifier: 0BSD
+*/ -}}
+{{- if and .Values.networkPolicy.enabled (eq .Values.networkPolicy.engine "calico") }}
+# Calico-native equivalent of the vanilla NetworkPolicy. Pod-scoped via Calico's
+# label-selector syntax. Ingress allows the jsonnet HTTP and management ports
+# always, plus the operator-gated storage, webhook, and metrics ports, from any
+# source (no source selector = allow-all). Tighten with native passthrough lists
+# in networkPolicy.calico.*.
+apiVersion: projectcalico.org/v3
+kind: NetworkPolicy
+metadata:
+  name: jaas
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/component: jaas
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+    app.kubernetes.io/part-of: {{ .Chart.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+spec:
+  selector: app.kubernetes.io/name == '{{ .Chart.Name }}' && app.kubernetes.io/component == 'jaas' && app.kubernetes.io/instance == '{{ .Release.Name }}'
+  types:
+    - Ingress
+    {{- if .Values.networkPolicy.egress.enabled }}
+    - Egress
+    {{- end }}
+  ingress:
+    # Jsonnet HTTP endpoint — reachable from anywhere by default.
+    - action: Allow
+      protocol: TCP
+      destination:
+        ports:
+          - {{ .Values.ports.http }}
+    # Management probes — kubelet sources from the node IP.
+    - action: Allow
+      protocol: TCP
+      destination:
+        ports:
+          - {{ .Values.ports.management }}
+    {{- if .Values.operator.enabled }}
+    # Storage HTTP server — serves published ExternalArtifact tarballs to Flux.
+    - action: Allow
+      protocol: TCP
+      destination:
+        ports:
+          - {{ .Values.ports.storage }}
+    {{- end }}
+    {{- if and .Values.operator.enabled .Values.operator.webhook.enabled }}
+    # Validating webhook — kube-apiserver dials this.
+    - action: Allow
+      protocol: TCP
+      destination:
+        ports:
+          - {{ .Values.ports.webhook }}
+    {{- end }}
+    {{- if and .Values.operator.enabled .Values.operator.metrics.enabled }}
+    # Metrics endpoint — Prometheus scrapes the controller-runtime metrics here.
+    - action: Allow
+      protocol: TCP
+      destination:
+        ports:
+          - {{ .Values.ports.metrics }}
+    {{- end }}
+    {{- with .Values.networkPolicy.calico.ingress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- if .Values.networkPolicy.egress.enabled }}
+  egress:
+    {{- if .Values.networkPolicy.egress.dns }}
+    # Cluster DNS — UDP and TCP 53. Without these an egress policy denies name
+    # resolution, breaking every outbound connection.
+    - action: Allow
+      protocol: UDP
+      destination:
+        ports:
+          - 53
+    - action: Allow
+      protocol: TCP
+      destination:
+        ports:
+          - 53
+    {{- end }}
+    {{- with .Values.networkPolicy.calico.egress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+{{- end }}

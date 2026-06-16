@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+# README is rendered from this template into the package at release time, so the
+# template itself does not belong in the deployable chart.
+README.md.gotmpl
+# CI-only fixtures (extra values files) and the helm-unittest suite are read from
+# the source tree by ct / helm unittest, never from the package.
+ci/
+tests/

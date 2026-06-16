@@ -2,14 +2,21 @@
 SPDX-FileCopyrightText: The helm-charts Authors
 SPDX-License-Identifier: 0BSD
 
-Static OCI volume mounts (`snippets` / `additionalLibraries`) and Flux
-integration (`operator.enabled`) are mutually exclusive. The OCI mounts feed
-the standalone HTTP renderer — a high-DX, cluster-free way to render jsonnet
-from pre-baked library/snippet image bundles. In Flux/operator mode, snippets
-and libraries instead come from JsonnetSnippet / JsonnetLibrary CRs. Mixing the
-two in one release is a configuration mistake, so it is rejected at render time
-rather than silently half-applied.
+Static OCI volume mounts (`snippets`, `additionalLibraries`, and any enabled
+well-known `libraries`) and Flux integration (`operator.enabled`) are mutually
+exclusive. The OCI mounts feed the standalone HTTP renderer — a high-DX,
+cluster-free way to render jsonnet from pre-baked library/snippet image
+bundles. In Flux/operator mode, snippets and libraries instead come from
+JsonnetSnippet / JsonnetLibrary CRs. Mixing the two in one release is a
+configuration mistake, so it is rejected at render time rather than silently
+half-applied.
 */ -}}
-{{- if and .Values.operator.enabled (or (not (empty .Values.snippets)) (not (empty .Values.additionalLibraries))) -}}
-{{- fail "operator.enabled (Flux integration) is mutually exclusive with static OCI volume mounts. Either clear `snippets` and `additionalLibraries` (Flux mode: snippets/libraries come from CRs), or set operator.enabled=false (standalone renderer: use the OCI mounts)." -}}
+{{- $anyLibraryEnabled := false -}}
+{{- range .Values.libraries -}}
+{{- if .enabled -}}
+{{- $anyLibraryEnabled = true -}}
+{{- end -}}
+{{- end -}}
+{{- if and .Values.operator.enabled (or (not (empty .Values.snippets)) (not (empty .Values.additionalLibraries)) $anyLibraryEnabled) -}}
+{{- fail "operator.enabled (Flux integration) is mutually exclusive with static OCI volume mounts. Either clear `snippets`, `additionalLibraries`, and any enabled `libraries` (Flux mode: snippets/libraries come from CRs), or set operator.enabled=false (standalone renderer: use the OCI mounts)." -}}
 {{- end -}}
