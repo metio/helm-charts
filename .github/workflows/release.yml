@@ -99,7 +99,10 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          version="$(date +'%Y.%-m.%-d+%H%M%S')"
+          # %-m/%-d/%-H drop leading zeros (so June is 6, not 06); minutes and
+          # seconds keep theirs — stripping them would let e.g. 01:23:45 and
+          # 12:34:05 both collapse to 12345 and collide.
+          version="$(date +'%Y.%-m.%-d+%-H%M%S')"
           for name in ${{ steps.changed.outputs.charts }}; do
             chart="charts/$name"
             [ -f "$chart/Chart.yaml" ] || { echo "no such chart: $name"; continue; }
