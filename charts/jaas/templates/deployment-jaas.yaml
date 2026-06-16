@@ -117,109 +117,100 @@ spec:
           image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}:{{ default .Chart.AppVersion .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args:
-            - "-listen-address={{ .Values.arguments.listenAddress }}"
-            - -port={{ .Values.ports.http }}
-            - -read-timeout={{ .Values.arguments.readTimeout }}
-            - -write-timeout={{ .Values.arguments.writeTimeout }}
-            - "-management-listen-address={{ .Values.arguments.managementListenAddress }}"
-            - -management-port={{ .Values.ports.management }}
-            - -management-read-timeout={{ .Values.arguments.managementReadTimeout }}
-            - -management-write-timeout={{ .Values.arguments.managementWriteTimeout }}
-            - -log-level={{ .Values.arguments.logLevel }}
-            - -jsonnet-endpoint-path={{ .Values.arguments.jsonnetEndpointPath }}
-            - -evaluation-timeout={{ .Values.arguments.evaluationTimeout }}
-            - -max-stack={{ .Values.arguments.maxStack }}
-            - -max-concurrent-evals={{ .Values.arguments.maxConcurrentEvals }}
-            - -shutdown-delay={{ .Values.arguments.shutdownDelay }}
-            - -snippet-directory={{ $.Values.paths.snippets }}
+            - "--listen-address={{ .Values.arguments.listenAddress }}"
+            - --port={{ .Values.ports.http }}
+            - --read-timeout={{ .Values.arguments.readTimeout }}
+            - --write-timeout={{ .Values.arguments.writeTimeout }}
+            - "--management-listen-address={{ .Values.arguments.managementListenAddress }}"
+            - --management-port={{ .Values.ports.management }}
+            - --management-read-timeout={{ .Values.arguments.managementReadTimeout }}
+            - --management-write-timeout={{ .Values.arguments.managementWriteTimeout }}
+            - --log-level={{ .Values.arguments.logLevel }}
+            - --jsonnet-endpoint-path={{ .Values.arguments.jsonnetEndpointPath }}
+            - --evaluation-timeout={{ .Values.arguments.evaluationTimeout }}
+            - --max-stack={{ .Values.arguments.maxStack }}
+            - --max-concurrent-evals={{ .Values.arguments.maxConcurrentEvals }}
+            - --shutdown-delay={{ .Values.arguments.shutdownDelay }}
+            - --snippet-directory={{ $.Values.paths.snippets }}
           {{- if .Values.operator.enabled }}
-            - -enable-flux-integration
-            - -storage-backend={{ .Values.operator.storage.backend }}
+            - --enable-flux-integration
+            - --storage-backend={{ .Values.operator.storage.backend }}
             {{- if eq .Values.operator.storage.backend "local" }}
-            - -storage-path={{ .Values.operator.storage.path }}
+            - --storage-path={{ .Values.operator.storage.path }}
             {{- else if eq .Values.operator.storage.backend "s3" }}
-            - -s3-endpoint={{ required "operator.storage.s3.endpoint is required when backend is \"s3\"" .Values.operator.storage.s3.endpoint }}
-            - -s3-bucket={{ required "operator.storage.s3.bucket is required when backend is \"s3\"" .Values.operator.storage.s3.bucket }}
+            - --s3-endpoint={{ required "operator.storage.s3.endpoint is required when backend is \"s3\"" .Values.operator.storage.s3.endpoint }}
+            - --s3-bucket={{ required "operator.storage.s3.bucket is required when backend is \"s3\"" .Values.operator.storage.s3.bucket }}
             {{- with .Values.operator.storage.s3.prefix }}
-            - -s3-prefix={{ . }}
+            - --s3-prefix={{ . }}
             {{- end }}
             {{- with .Values.operator.storage.s3.region }}
-            - -s3-region={{ . }}
+            - --s3-region={{ . }}
             {{- end }}
-            - -s3-use-ssl={{ .Values.operator.storage.s3.useSSL }}
-            - -s3-anonymous={{ .Values.operator.storage.s3.anonymous }}
-            {{- with .Values.operator.storage.s3.accessKey }}
-            - -s3-access-key={{ . }}
+            - --s3-use-ssl={{ .Values.operator.storage.s3.useSSL }}
+            - --s3-anonymous={{ .Values.operator.storage.s3.anonymous }}
             {{- end }}
-            {{- with .Values.operator.storage.s3.secretKey }}
-            - -s3-secret-key={{ . }}
-            {{- end }}
-            {{- with .Values.operator.storage.s3.sessionToken }}
-            - -s3-session-token={{ . }}
-            {{- end }}
-            {{- end }}
-            - "-storage-listen-address={{ .Values.operator.storage.listenAddress }}"
-            - -storage-port={{ .Values.ports.storage }}
-            - -storage-read-timeout={{ .Values.operator.storage.readTimeout }}
-            - -storage-write-timeout={{ .Values.operator.storage.writeTimeout }}
-            - -storage-base-url={{ default (printf "http://jaas-storage.%s.svc.cluster.local:%v" .Release.Namespace .Values.ports.storage) .Values.operator.storage.baseURL }}
-            - -no-cross-namespace-refs={{ .Values.operator.noCrossNamespaceRefs }}
-            - -rerender-rate={{ .Values.operator.rerenderRate }}
-            - -rerender-burst={{ .Values.operator.rerenderBurst }}
-            - -max-artifact-bytes={{ .Values.operator.storage.maxArtifactBytes }}
-            - -artifact-gc-grace={{ .Values.operator.storage.gcGrace }}
-            - -max-withdraw-wait={{ .Values.operator.maxWithdrawWait }}
-            - -storage-sweep-interval={{ .Values.operator.storage.sweep.interval }}
-            - -storage-sweep-max-tmp-age={{ .Values.operator.storage.sweep.maxTmpAge }}
+            - "--storage-listen-address={{ .Values.operator.storage.listenAddress }}"
+            - --storage-port={{ .Values.ports.storage }}
+            - --storage-read-timeout={{ .Values.operator.storage.readTimeout }}
+            - --storage-write-timeout={{ .Values.operator.storage.writeTimeout }}
+            - --storage-base-url={{ default (printf "http://jaas-storage.%s.svc.cluster.local:%v" .Release.Namespace .Values.ports.storage) .Values.operator.storage.baseURL }}
+            - --no-cross-namespace-refs={{ .Values.operator.noCrossNamespaceRefs }}
+            - --rerender-rate={{ .Values.operator.rerenderRate }}
+            - --rerender-burst={{ .Values.operator.rerenderBurst }}
+            - --max-artifact-bytes={{ .Values.operator.storage.maxArtifactBytes }}
+            - --artifact-gc-grace={{ .Values.operator.storage.gcGrace }}
+            - --max-withdraw-wait={{ .Values.operator.maxWithdrawWait }}
+            - --storage-sweep-interval={{ .Values.operator.storage.sweep.interval }}
+            - --storage-sweep-max-tmp-age={{ .Values.operator.storage.sweep.maxTmpAge }}
             {{- with .Values.operator.tracing.endpoint }}
-            - -tracing-endpoint={{ . }}
-            - -tracing-insecure={{ $.Values.operator.tracing.insecure }}
-            - -tracing-sample-ratio={{ $.Values.operator.tracing.sampleRatio }}
+            - --tracing-endpoint={{ . }}
+            - --tracing-insecure={{ $.Values.operator.tracing.insecure }}
+            - --tracing-sample-ratio={{ $.Values.operator.tracing.sampleRatio }}
             {{- end }}
             {{- if .Values.operator.defaultServiceAccount }}
-            - -default-service-account={{ .Values.operator.defaultServiceAccount }}
+            - --default-service-account={{ .Values.operator.defaultServiceAccount }}
             {{- end }}
             {{- if .Values.operator.labelSelector }}
-            - -label-selector={{ .Values.operator.labelSelector }}
+            - --label-selector={{ .Values.operator.labelSelector }}
             {{- end }}
             {{- if .Values.operator.watchNamespaces }}
-            - -watch-namespaces={{ join "," .Values.operator.watchNamespaces }}
+            - --watch-namespaces={{ join "," .Values.operator.watchNamespaces }}
             {{- end }}
             {{- range $name, $value := .Values.operator.extVars }}
-            - -ext-var={{ $name }}={{ $value }}
+            - --ext-var={{ $name }}={{ $value }}
             {{- end }}
             {{- if .Values.operator.webhook.enabled }}
-            - -enable-webhook
-            - -webhook-port={{ .Values.ports.webhook }}
-            - -webhook-cert-dir={{ .Values.operator.webhook.certDir }}
-            - -webhook-cert-mode={{ .Values.operator.webhook.certMode }}
+            - --enable-webhook
+            - --webhook-port={{ .Values.ports.webhook }}
+            - --webhook-cert-dir={{ .Values.operator.webhook.certDir }}
+            - --webhook-cert-mode={{ .Values.operator.webhook.certMode }}
             {{- if eq .Values.operator.webhook.certMode "self-signed" }}
-            - -webhook-service-name=jaas-webhook
-            - -webhook-service-namespace={{ .Release.Namespace }}
-            - -webhook-validating-config-name={{ .Release.Name }}-jsonnetsnippet
-            - -webhook-cert-validity={{ .Values.operator.webhook.selfSignedValidity }}
+            - --webhook-service-name=jaas-webhook
+            - --webhook-service-namespace={{ .Release.Namespace }}
+            - --webhook-validating-config-name={{ .Release.Name }}-jsonnetsnippet
+            - --webhook-cert-validity={{ .Values.operator.webhook.selfSignedValidity }}
             {{- end }}
             {{- end }}
-            - -leader-election={{ .Values.operator.leaderElection.enabled }}
-            - -leader-election-id={{ default (printf "%s-operator" .Release.Name) .Values.operator.leaderElection.id }}
-            - -leader-election-namespace={{ .Release.Namespace }}
+            - --leader-election={{ .Values.operator.leaderElection.enabled }}
+            - --leader-election-id={{ default (printf "%s-operator" .Release.Name) .Values.operator.leaderElection.id }}
+            - --leader-election-namespace={{ .Release.Namespace }}
             {{- if .Values.operator.metrics.enabled }}
-            - -metrics-bind-address=:{{ .Values.ports.metrics }}
+            - --metrics-bind-address=:{{ .Values.ports.metrics }}
             {{- else }}
-            - -metrics-bind-address=0
+            - --metrics-bind-address=0
             {{- end }}
           {{- end }}
           {{ if .Values.libraries.grafonnet.enabled }}
-            - -library-path={{ .Values.paths.libraries }}/grafonnet
+            - --library-path={{ .Values.paths.libraries }}/grafonnet
           {{ end }}
           {{ if .Values.libraries.docsonnet.enabled }}
-            - -library-path={{ .Values.paths.libraries }}/docsonnet
+            - --library-path={{ .Values.paths.libraries }}/docsonnet
           {{ end }}
           {{ if .Values.libraries.xtd.enabled }}
-            - -library-path={{ .Values.paths.libraries }}/xtd
+            - --library-path={{ .Values.paths.libraries }}/xtd
           {{ end }}
           {{ range $name, $image := .Values.additionalLibraries }}
-            - -library-path={{ $.Values.paths.libraries }}/{{ $name }}
+            - --library-path={{ $.Values.paths.libraries }}/{{ $name }}
           {{ end }}
           env:
           {{ range $name, $value := .Values.externalVariables }}

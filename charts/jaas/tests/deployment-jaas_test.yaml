@@ -239,129 +239,129 @@ tests:
   # ------------------------------------------------------------------
   # Container args
   # ------------------------------------------------------------------
-  - it: passes ports.http via -port
+  - it: passes ports.http via --port
     set:
       ports:
         http: 9090
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -port=9090
-  - it: passes ports.management via -management-port
+          content: --port=9090
+  - it: passes ports.management via --management-port
     set:
       ports:
         management: 9091
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -management-port=9091
-  - it: passes arguments.logLevel via -log-level
+          content: --management-port=9091
+  - it: passes arguments.logLevel via --log-level
     set:
       arguments:
         logLevel: debug
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -log-level=debug
-  - it: passes paths.snippets via -snippet-directory
+          content: --log-level=debug
+  - it: passes paths.snippets via --snippet-directory
     set:
       paths:
         snippets: /custom/snippets
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -snippet-directory=/custom/snippets
-  - it: passes the default arguments.readTimeout via -read-timeout
+          content: --snippet-directory=/custom/snippets
+  - it: passes the default arguments.readTimeout via --read-timeout
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -read-timeout=10s
-  - it: passes a custom arguments.readTimeout via -read-timeout
+          content: --read-timeout=10s
+  - it: passes a custom arguments.readTimeout via --read-timeout
     set:
       arguments:
         readTimeout: 30s
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -read-timeout=30s
-  - it: passes the default arguments.writeTimeout via -write-timeout
+          content: --read-timeout=30s
+  - it: passes the default arguments.writeTimeout via --write-timeout
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -write-timeout=10s
-  - it: passes a custom arguments.writeTimeout via -write-timeout
+          content: --write-timeout=10s
+  - it: passes a custom arguments.writeTimeout via --write-timeout
     set:
       arguments:
         writeTimeout: 45s
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -write-timeout=45s
-  - it: passes the default arguments.managementReadTimeout via -management-read-timeout
+          content: --write-timeout=45s
+  - it: passes the default arguments.managementReadTimeout via --management-read-timeout
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -management-read-timeout=10s
-  - it: passes a custom arguments.managementReadTimeout via -management-read-timeout
+          content: --management-read-timeout=10s
+  - it: passes a custom arguments.managementReadTimeout via --management-read-timeout
     set:
       arguments:
         managementReadTimeout: 5s
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -management-read-timeout=5s
-  - it: passes the default arguments.managementWriteTimeout via -management-write-timeout
+          content: --management-read-timeout=5s
+  - it: passes the default arguments.managementWriteTimeout via --management-write-timeout
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -management-write-timeout=10s
-  - it: passes a custom arguments.managementWriteTimeout via -management-write-timeout
+          content: --management-write-timeout=10s
+  - it: passes a custom arguments.managementWriteTimeout via --management-write-timeout
     set:
       arguments:
         managementWriteTimeout: 15s
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -management-write-timeout=15s
-  - it: passes the default arguments.jsonnetEndpointPath via -jsonnet-endpoint-path
+          content: --management-write-timeout=15s
+  - it: passes the default arguments.jsonnetEndpointPath via --jsonnet-endpoint-path
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -jsonnet-endpoint-path=jsonnet
-  - it: passes a custom arguments.jsonnetEndpointPath via -jsonnet-endpoint-path
+          content: --jsonnet-endpoint-path=jsonnet
+  - it: passes a custom arguments.jsonnetEndpointPath via --jsonnet-endpoint-path
     set:
       arguments:
         jsonnetEndpointPath: eval
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -jsonnet-endpoint-path=eval
-  - it: passes the default arguments.evaluationTimeout via -evaluation-timeout
+          content: --jsonnet-endpoint-path=eval
+  - it: passes the default arguments.evaluationTimeout via --evaluation-timeout
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -evaluation-timeout=5s
-  - it: passes a custom arguments.evaluationTimeout via -evaluation-timeout
+          content: --evaluation-timeout=5s
+  - it: passes a custom arguments.evaluationTimeout via --evaluation-timeout
     set:
       arguments:
         evaluationTimeout: 30s
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -evaluation-timeout=30s
-  - it: passes the default arguments.maxStack via -max-stack
+          content: --evaluation-timeout=30s
+  - it: passes the default arguments.maxStack via --max-stack
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -max-stack=500
-  - it: passes a custom arguments.maxStack via -max-stack
+          content: --max-stack=500
+  - it: passes a custom arguments.maxStack via --max-stack
     set:
       arguments:
         maxStack: 2000
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -max-stack=2000
+          content: --max-stack=2000
   - it: accepts disabling the evaluation timeout (0)
     set:
       arguments:
@@ -369,7 +369,7 @@ tests:
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -evaluation-timeout=0s
+          content: --evaluation-timeout=0s
   - it: accepts disabling the max-stack limit (0)
     set:
       arguments:
@@ -377,20 +377,20 @@ tests:
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -max-stack=0
-  - it: passes the default arguments.shutdownDelay via -shutdown-delay
+          content: --max-stack=0
+  - it: passes the default arguments.shutdownDelay via --shutdown-delay
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -shutdown-delay=5s
-  - it: passes a custom arguments.shutdownDelay via -shutdown-delay
+          content: --shutdown-delay=5s
+  - it: passes a custom arguments.shutdownDelay via --shutdown-delay
     set:
       arguments:
         shutdownDelay: 20s
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -shutdown-delay=20s
+          content: --shutdown-delay=20s
   - it: accepts disabling the shutdown delay (0)
     set:
       arguments:
@@ -398,7 +398,7 @@ tests:
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -shutdown-delay=0s
+          content: --shutdown-delay=0s
 
   # ------------------------------------------------------------------
   # Scheduling selectors must NOT include managed-by, but must still carry
@@ -506,7 +506,7 @@ tests:
     asserts:
       - notContains:
           path: spec.template.spec.containers[0].args
-          content: -library-path=/srv/libraries/grafonnet
+          content: --library-path=/srv/libraries/grafonnet
       - notContains:
           path: spec.template.spec.containers[0].volumeMounts
           content:
@@ -521,7 +521,7 @@ tests:
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -library-path=/srv/libraries/grafonnet
+          content: --library-path=/srv/libraries/grafonnet
       - contains:
           path: spec.template.spec.containers[0].volumeMounts
           content:
@@ -555,12 +555,12 @@ tests:
     asserts:
       - notContains:
           path: spec.template.spec.containers[0].args
-          content: -library-path=/srv/libraries/docsonnet
+          content: --library-path=/srv/libraries/docsonnet
   - it: omits xtd by default — no arg
     asserts:
       - notContains:
           path: spec.template.spec.containers[0].args
-          content: -library-path=/srv/libraries/xtd
+          content: --library-path=/srv/libraries/xtd
 
   # ------------------------------------------------------------------
   # additionalLibraries (operator-supplied OCI library images)
@@ -572,7 +572,7 @@ tests:
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -library-path=/srv/libraries/mylib
+          content: --library-path=/srv/libraries/mylib
   - it: adds a volume per entry in additionalLibraries
     set:
       additionalLibraries:
@@ -703,7 +703,7 @@ tests:
     asserts:
       - notContains:
           path: spec.template.spec.containers[0].args
-          content: -enable-flux-integration
+          content: --enable-flux-integration
 
   - it: omits the storage container port when operator.enabled is false
     asserts:
@@ -722,14 +722,14 @@ tests:
       - notExists:
           path: spec.template.spec.serviceAccountName
 
-  - it: adds -enable-flux-integration to args when operator.enabled
+  - it: adds --enable-flux-integration to args when operator.enabled
     set:
       operator:
         enabled: true
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -enable-flux-integration
+          content: --enable-flux-integration
 
   - it: passes storage flags when operator.enabled
     set:
@@ -738,10 +738,10 @@ tests:
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -storage-path=/var/lib/jaas/artifacts
+          content: --storage-path=/var/lib/jaas/artifacts
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -storage-port=8082
+          content: --storage-port=8082
 
   - it: defaults storage base URL to the in-cluster Service DNS name
     release:
@@ -752,7 +752,7 @@ tests:
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -storage-base-url=http://jaas-storage.my-ns.svc.cluster.local:8082
+          content: --storage-base-url=http://jaas-storage.my-ns.svc.cluster.local:8082
 
   - it: honors a configured storage base URL override
     set:
@@ -763,7 +763,7 @@ tests:
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -storage-base-url=https://artifacts.example.com
+          content: --storage-base-url=https://artifacts.example.com
 
   - it: passes --no-cross-namespace-refs verbatim
     set:
@@ -773,7 +773,7 @@ tests:
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -no-cross-namespace-refs=false
+          content: --no-cross-namespace-refs=false
 
   - it: passes rerender-rate and rerender-burst
     set:
@@ -784,21 +784,21 @@ tests:
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -rerender-rate=30/sec
+          content: --rerender-rate=30/sec
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -rerender-burst=60
+          content: --rerender-burst=60
 
-  - it: omits -default-service-account when value is empty
+  - it: omits --default-service-account when value is empty
     set:
       operator:
         enabled: true
     asserts:
       - notContains:
           path: spec.template.spec.containers[0].args
-          content: -default-service-account=
+          content: --default-service-account=
 
-  - it: passes -default-service-account when set
+  - it: passes --default-service-account when set
     set:
       operator:
         enabled: true
@@ -806,18 +806,18 @@ tests:
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -default-service-account=tenant-a
+          content: --default-service-account=tenant-a
 
-  - it: omits -label-selector when empty
+  - it: omits --label-selector when empty
     set:
       operator:
         enabled: true
     asserts:
       - notContains:
           path: spec.template.spec.containers[0].args
-          content: -label-selector=
+          content: --label-selector=
 
-  - it: passes -label-selector when set
+  - it: passes --label-selector when set
     set:
       operator:
         enabled: true
@@ -825,9 +825,9 @@ tests:
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -label-selector=tenant=team-a
+          content: --label-selector=tenant=team-a
 
-  - it: renders one -ext-var per entry
+  - it: renders one --ext-var per entry
     set:
       operator:
         enabled: true
@@ -837,10 +837,10 @@ tests:
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -ext-var=cluster=prod
+          content: --ext-var=cluster=prod
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -ext-var=region=eu-west-1
+          content: --ext-var=region=eu-west-1
 
   - it: exposes the storage containerPort when operator.enabled
     set:
@@ -927,7 +927,7 @@ tests:
     asserts:
       - notContains:
           path: spec.template.spec.containers[0].args
-          content: -enable-webhook
+          content: --enable-webhook
 
   - it: adds webhook args when webhook is enabled
     set:
@@ -938,13 +938,13 @@ tests:
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -enable-webhook
+          content: --enable-webhook
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -webhook-port=9443
+          content: --webhook-port=9443
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -webhook-cert-dir=/tmp/k8s-webhook-server/serving-certs
+          content: --webhook-cert-dir=/tmp/k8s-webhook-server/serving-certs
 
   - it: exposes the webhook containerPort when webhook is enabled
     set:
@@ -970,13 +970,13 @@ tests:
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -leader-election=true
+          content: --leader-election=true
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -leader-election-id=jaas-prod-operator
+          content: --leader-election-id=jaas-prod-operator
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -leader-election-namespace=jaas-system
+          content: --leader-election-namespace=jaas-system
 
   - it: honors operator.leaderElection.enabled=false
     set:
@@ -987,7 +987,7 @@ tests:
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -leader-election=false
+          content: --leader-election=false
 
   - it: honors operator.leaderElection.id override
     set:
@@ -998,22 +998,22 @@ tests:
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -leader-election-id=my-custom-lease
+          content: --leader-election-id=my-custom-lease
 
   - it: omits leader-election flags when operator is disabled
     asserts:
       - notContains:
           path: spec.template.spec.containers[0].args
-          content: -leader-election=true
+          content: --leader-election=true
 
-  - it: passes -metrics-bind-address when operator + metrics are enabled (default)
+  - it: passes --metrics-bind-address when operator + metrics are enabled (default)
     set:
       operator:
         enabled: true
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -metrics-bind-address=:8083
+          content: --metrics-bind-address=:8083
       - contains:
           path: spec.template.spec.containers[0].ports
           content:
@@ -1021,7 +1021,7 @@ tests:
             name: metrics
             protocol: TCP
 
-  - it: passes -metrics-bind-address=0 when metrics are disabled
+  - it: passes --metrics-bind-address=0 when metrics are disabled
     set:
       operator:
         enabled: true
@@ -1030,7 +1030,7 @@ tests:
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -metrics-bind-address=0
+          content: --metrics-bind-address=0
       - notContains:
           path: spec.template.spec.containers[0].ports
           content:
@@ -1047,7 +1047,7 @@ tests:
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -metrics-bind-address=:9090
+          content: --metrics-bind-address=:9090
       - contains:
           path: spec.template.spec.containers[0].ports
           content:
@@ -1059,22 +1059,22 @@ tests:
     asserts:
       - notContains:
           path: spec.template.spec.containers[0].args
-          content: -metrics-bind-address=:8083
+          content: --metrics-bind-address=:8083
 
-  - it: passes -storage-backend=local and -storage-path by default
+  - it: passes --storage-backend=local and --storage-path by default
     set:
       operator:
         enabled: true
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -storage-backend=local
+          content: --storage-backend=local
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -storage-path=/var/lib/jaas/artifacts
+          content: --storage-path=/var/lib/jaas/artifacts
       - notContains:
           path: spec.template.spec.containers[0].args
-          content: -s3-endpoint=
+          content: --s3-endpoint=
 
   - it: switches to S3 args when backend=s3
     set:
@@ -1087,41 +1087,76 @@ tests:
             bucket: my-jaas
             region: us-east-1
             useSSL: false
-            accessKey: AKIA
-            secretKey: SECRET
-            sessionToken: TOKEN
             prefix: tenants/jaas
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -storage-backend=s3
+          content: --storage-backend=s3
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -s3-endpoint=minio.minio.svc:9000
+          content: --s3-endpoint=minio.minio.svc:9000
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -s3-bucket=my-jaas
+          content: --s3-bucket=my-jaas
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -s3-region=us-east-1
+          content: --s3-region=us-east-1
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -s3-use-ssl=false
+          content: --s3-use-ssl=false
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -s3-access-key=AKIA
-      - contains:
-          path: spec.template.spec.containers[0].args
-          content: -s3-secret-key=SECRET
-      - contains:
-          path: spec.template.spec.containers[0].args
-          content: -s3-session-token=TOKEN
-      - contains:
-          path: spec.template.spec.containers[0].args
-          content: -s3-prefix=tenants/jaas
+          content: --s3-prefix=tenants/jaas
       - notContains:
           path: spec.template.spec.containers[0].args
-          content: -storage-path=/var/lib/jaas/artifacts
+          content: --storage-path=/var/lib/jaas/artifacts
+
+  # Credentials never reach the command line: there is no chart field
+  # that emits a --s3-access-key / --s3-secret-key / --s3-session-token flag.
+  # Credentials flow via credentialsSecret (envFrom) or the IAM/IRSA chain.
+  - it: never emits inline S3 credential flags on the command line
+    set:
+      operator:
+        enabled: true
+        storage:
+          backend: s3
+          s3:
+            endpoint: minio.minio.svc:9000
+            bucket: my-jaas
+            credentialsSecret:
+              name: jaas-s3-creds
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].args
+          content: --s3-access-key=
+      - notContains:
+          path: spec.template.spec.containers[0].args
+          content: --s3-secret-key=
+      - notContains:
+          path: spec.template.spec.containers[0].args
+          content: --s3-session-token=
+
+  # IRSA / IAM path: no credentialsSecret, no credential flags, no envFrom
+  # secretRef for S3 — minio-go discovers credentials from the environment.
+  - it: emits no S3 credential flags on the IAM/IRSA path
+    set:
+      operator:
+        enabled: true
+        storage:
+          backend: s3
+          s3:
+            endpoint: s3.amazonaws.com
+            bucket: my-jaas
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].args
+          content: --s3-access-key=
+      - notContains:
+          path: spec.template.spec.containers[0].args
+          content: --s3-secret-key=
+      - notContains:
+          path: spec.template.spec.containers[0].args
+          content: --s3-session-token=
 
   - it: omits the storage volume + mount when backend=s3
     set:
@@ -1162,6 +1197,15 @@ tests:
           content:
             secretRef:
               name: jaas-s3-creds
+      - notContains:
+          path: spec.template.spec.containers[0].args
+          content: --s3-access-key=
+      - notContains:
+          path: spec.template.spec.containers[0].args
+          content: --s3-secret-key=
+      - notContains:
+          path: spec.template.spec.containers[0].args
+          content: --s3-session-token=
 
   - it: fails fast if backend=s3 but endpoint is empty
     set:
@@ -1186,10 +1230,10 @@ tests:
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: "-listen-address=::"
+          content: "--listen-address=::"
       - contains:
           path: spec.template.spec.containers[0].args
-          content: "-management-listen-address=::"
+          content: "--management-listen-address=::"
 
   - it: honors IPv4-only bind address overrides
     set:
@@ -1199,10 +1243,10 @@ tests:
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -listen-address=0.0.0.0
+          content: --listen-address=0.0.0.0
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -management-listen-address=0.0.0.0
+          content: --management-listen-address=0.0.0.0
 
   - it: storage server defaults to dual-stack-friendly `::`
     set:
@@ -1211,7 +1255,7 @@ tests:
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: "-storage-listen-address=::"
+          content: "--storage-listen-address=::"
 
   - it: defaults imagePullPolicy to IfNotPresent
     asserts:
@@ -1267,10 +1311,10 @@ tests:
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -webhook-cert-mode=cert-manager
+          content: --webhook-cert-mode=cert-manager
       - notContains:
           path: spec.template.spec.containers[0].args
-          content: -webhook-service-name=jaas-webhook
+          content: --webhook-service-name=jaas-webhook
 
   - it: self-signed mode passes the self-signed args
     release:
@@ -1285,19 +1329,19 @@ tests:
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -webhook-cert-mode=self-signed
+          content: --webhook-cert-mode=self-signed
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -webhook-service-name=jaas-webhook
+          content: --webhook-service-name=jaas-webhook
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -webhook-service-namespace=jaas-system
+          content: --webhook-service-namespace=jaas-system
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -webhook-validating-config-name=jaas-prod-jsonnetsnippet
+          content: --webhook-validating-config-name=jaas-prod-jsonnetsnippet
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -webhook-cert-validity=8760h
+          content: --webhook-cert-validity=8760h
 
   - it: self-signed mode swaps the cert mount to a writable emptyDir
     set:
@@ -1361,7 +1405,7 @@ tests:
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: -webhook-cert-validity=720h
+          content: --webhook-cert-validity=720h
 
   - it: mounts the cert Secret read-only when webhook is enabled
     set:

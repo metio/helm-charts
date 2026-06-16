@@ -1,14 +1,19 @@
 # SPDX-FileCopyrightText: The helm-charts Authors
 # SPDX-License-Identifier: 0BSD
 
-# One-off: push each chart's Artifact Hub repository metadata to the OCI registry
-# under the special `:artifacthub.io` tag, so Artifact Hub marks the repos as
-# Verified Publisher. The repositoryID is static, so trigger this once from the
-# Actions tab; re-run only if a registry repo is recreated. Uses the built-in
-# GITHUB_TOKEN (packages: write) — no PAT to create or renew.
+# Push each chart's Artifact Hub repository metadata to the OCI registry under the
+# special `:artifacthub.io` tag, so Artifact Hub marks the repos as Verified
+# Publisher. Runs automatically whenever an artifacthub-repo.yml changes (a new
+# chart, or an updated repositoryID), so there is nothing to trigger by hand; the
+# push is idempotent. Uses the built-in GITHUB_TOKEN (packages: write) — no PAT to
+# create or renew. workflow_dispatch is kept as a manual fallback.
 name: Push Artifact Hub metadata
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "charts/*/artifacthub-repo.yml"
 permissions:
   packages: write
 jobs:

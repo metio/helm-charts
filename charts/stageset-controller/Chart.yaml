@@ -18,7 +18,76 @@ maintainers:
   # name must be the GitHub login — chart-testing's validate-maintainers checks
   # it against the GitHub users API.
   - name: sebhoss
+    email: seb@xn--ho-hia.de
     url: https://github.com/sebhoss
+annotations:
+  artifacthub.io/license: 0BSD
+  artifacthub.io/category: integration-delivery
+  artifacthub.io/operator: "true"
+  artifacthub.io/operatorCapabilities: full lifecycle
+  artifacthub.io/links: |
+    - name: support
+      url: https://github.com/metio/stageset-controller/issues
+    - name: documentation
+      url: https://stageset.projects.metio.wtf/
+  artifacthub.io/crds: |
+    - kind: StageSet
+      version: v1
+      name: stagesets.stages.metio.wtf
+      displayName: Stage Set
+      description: Ordered, gated, multi-stage delivery of Flux sources (Git, OCI, Bucket, ExternalArtifact).
+    - kind: StageInventory
+      version: v1
+      name: stageinventories.stages.metio.wtf
+      displayName: Stage Inventory
+      description: Controller-owned record of what each stage applied, used for pruning and teardown.
+  artifacthub.io/recommendations: |
+    - url: https://artifacthub.io/packages/helm/jaas/jaas
+  artifacthub.io/crdsExamples: |
+    - apiVersion: stages.metio.wtf/v1
+      kind: StageSet
+      metadata:
+        name: storefront
+        namespace: apps
+      spec:
+        serviceAccountName: storefront-deployer
+        interval: 5m
+        dependsOn:
+          - name: platform
+        stages:
+          - name: database
+            sourceRef:
+              apiVersion: jaas.metio.wtf/v1
+              kind: JsonnetSnippet
+              name: storefront-database
+            readyChecks:
+              checks:
+                - apiVersion: apps/v1
+                  kind: StatefulSet
+                  name: storefront-db
+          - name: api
+            sourceRef:
+              kind: ExternalArtifact
+              name: storefront-api
+            actions:
+              pre:
+                - name: settle-database
+                  wait:
+                    duration: 30s
+            readyChecks:
+              checks:
+                - apiVersion: apps/v1
+                  kind: Deployment
+                  name: storefront-api
+          - name: web
+            sourceRef:
+              kind: ExternalArtifact
+              name: storefront-web
+            readyChecks:
+              checks:
+                - apiVersion: apps/v1
+                  kind: Deployment
+                  name: storefront-web
 # version is the chart's own version; the release pipeline rewrites this
 # placeholder to a calendar+time value (%Y.%-m.%-d+%H%M%S) at package time.
 version: 0.0.0

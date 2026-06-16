@@ -17,7 +17,66 @@ maintainers:
   # name must be the GitHub login — chart-testing's validate-maintainers checks
   # it against the GitHub users API.
   - name: sebhoss
+    email: seb@xn--ho-hia.de
     url: https://github.com/sebhoss
+annotations:
+  artifacthub.io/license: 0BSD
+  artifacthub.io/category: integration-delivery
+  artifacthub.io/operator: "true"
+  artifacthub.io/operatorCapabilities: seamless upgrades
+  artifacthub.io/links: |
+    - name: support
+      url: https://github.com/metio/jaas/issues
+    - name: documentation
+      url: https://jaas.projects.metio.wtf/
+  artifacthub.io/crds: |
+    - kind: JsonnetSnippet
+      version: v1
+      name: jsonnetsnippets.jaas.metio.wtf
+      displayName: Jsonnet Snippet
+      description: A Jsonnet snippet evaluated and published as a Flux ExternalArtifact.
+    - kind: JsonnetLibrary
+      version: v1
+      name: jsonnetlibraries.jaas.metio.wtf
+      displayName: Jsonnet Library
+      description: Reusable .libsonnet files referenced by snippets in the same namespace.
+  artifacthub.io/recommendations: |
+    - url: https://artifacthub.io/packages/helm/stageset-controller/stageset-controller
+    - url: https://artifacthub.io/packages/helm/joi/joi
+  artifacthub.io/crdsExamples: |
+    - apiVersion: jaas.metio.wtf/v1
+      kind: JsonnetSnippet
+      metadata:
+        name: api-latency-dashboard
+        namespace: default
+      spec:
+        serviceAccountName: grafana-tenant
+        entryFile: main.jsonnet
+        files:
+          main.jsonnet: |
+            local dashboard = import 'grafana/dashboard.libsonnet';
+            dashboard.new(std.extVar('title'))
+        externalVariables:
+          title: API Latency
+        libraries:
+          - kind: JsonnetLibrary
+            name: grafana-helpers
+            importPath: grafana
+    - apiVersion: jaas.metio.wtf/v1
+      kind: JsonnetLibrary
+      metadata:
+        name: grafana-helpers
+        namespace: default
+      spec:
+        files:
+          dashboard.libsonnet: |
+            {
+              new(title): {
+                title: title,
+                panels: [],
+                schemaVersion: 38,
+              },
+            }
 # version is the chart's own version; the release pipeline rewrites this
 # placeholder to a calendar+time value (%Y.%-m.%-d+%H%M%S) at package time.
 version: 0.0.0

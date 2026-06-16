@@ -1,0 +1,12 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+#
+# Artifact Hub repository metadata. For an OCI-based Helm repository this file is
+# NOT read from git — it is pushed to the registry as an artifact tagged
+# `<chart>:artifacthub.io` (see hack/push-artifacthub-metadata.sh). The
+# repositoryID is the value Artifact Hub generated for this repo and proves
+# ownership of the listing.
+repositoryID: 909c4220-dca9-4b49-a2ed-57a96870abfa
+owners:
+  - name: Sebastian Hoß
+    email: seb@xn--ho-hia.de

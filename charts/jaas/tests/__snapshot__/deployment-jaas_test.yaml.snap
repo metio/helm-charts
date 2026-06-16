@@ -1,20 +1,20 @@
 matches its arguments snapshot:
   1: |
-    - '-listen-address=::'
-    - -port=8080
-    - -read-timeout=10s
-    - -write-timeout=10s
-    - '-management-listen-address=::'
-    - -management-port=8081
-    - -management-read-timeout=10s
-    - -management-write-timeout=10s
-    - -log-level=info
-    - -jsonnet-endpoint-path=jsonnet
-    - -evaluation-timeout=5s
-    - -max-stack=500
-    - -max-concurrent-evals=32
-    - -shutdown-delay=5s
-    - -snippet-directory=/srv/snippets
+    - '--listen-address=::'
+    - --port=8080
+    - --read-timeout=10s
+    - --write-timeout=10s
+    - '--management-listen-address=::'
+    - --management-port=8081
+    - --management-read-timeout=10s
+    - --management-write-timeout=10s
+    - --log-level=info
+    - --jsonnet-endpoint-path=jsonnet
+    - --evaluation-timeout=5s
+    - --max-stack=500
+    - --max-concurrent-evals=32
+    - --shutdown-delay=5s
+    - --snippet-directory=/srv/snippets
 matches its security context snapshot:
   1: |
     allowPrivilegeEscalation: false

@@ -581,17 +581,21 @@ operator:
       useSSL: true
       # Skip request signing entirely. Public-bucket test mode only.
       anonymous: false
-      # Static credentials. Leave empty to use the IAM/IRSA discovery
-      # chain (AWS_* env vars, EKS web-identity, EC2 metadata).
-      # When set inline, the values land in the Pod's command line —
-      # prefer credentialsSecret instead.
-      accessKey: ""
-      secretKey: ""
-      sessionToken: ""
-      # Pull credentials from a Secret instead of inline values.
-      # Expected keys: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and
-      # optionally AWS_SESSION_TOKEN. minio-go's env chain picks them
-      # up automatically when no static -s3-* flags are passed.
+      # Credentials are supplied one of two ways — never inline. Inline
+      # values would land on the Pod's command line (visible in `ps`,
+      # in the PodSpec, and in the stored Helm release), so the chart
+      # deliberately offers no accessKey/secretKey/sessionToken field:
+      #
+      #   credentialsSecret.name — an existing Secret carrying
+      #     AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and optionally
+      #     AWS_SESSION_TOKEN. It is wired into the pod via
+      #     envFrom.secretRef; minio-go's env chain picks the keys up
+      #     automatically since no -s3-* credential flag is passed.
+      #
+      #   leave credentialsSecret empty — minio-go's IAM/IRSA discovery
+      #     chain takes over (AWS_* env vars, EKS web-identity, EC2
+      #     metadata). Bind a cloud identity to the operator's
+      #     ServiceAccount via operator.serviceAccount.annotations.
       credentialsSecret:
         name: ""
 

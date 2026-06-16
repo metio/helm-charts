@@ -1394,12 +1394,6 @@
             "s3": {
               "description": "S3 backend configuration. Only consulted when backend=s3.",
               "properties": {
-                "accessKey": {
-                  "default": "",
-                  "description": "Static credentials. Leave empty to use the IAM/IRSA discovery\nchain (AWS_* env vars, EKS web-identity, EC2 metadata).\nWhen set inline, the values land in the Pod's command line —\nprefer credentialsSecret instead.",
-                  "title": "accessKey",
-                  "type": "string"
-                },
                 "anonymous": {
                   "default": false,
                   "description": "Skip request signing entirely. Public-bucket test mode only.",
@@ -1413,7 +1407,7 @@
                   "type": "string"
                 },
                 "credentialsSecret": {
-                  "description": "Pull credentials from a Secret instead of inline values.\nExpected keys: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and\noptionally AWS_SESSION_TOKEN. minio-go's env chain picks them\nup automatically when no static -s3-* flags are passed.",
+                  "description": "Credentials are supplied one of two ways — never inline. Inline\nvalues would land on the Pod's command line (visible in `ps`,\nin the PodSpec, and in the stored Helm release), so the chart\ndeliberately offers no accessKey/secretKey/sessionToken field:\n\n  credentialsSecret.name — an existing Secret carrying\n    AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and optionally\n    AWS_SESSION_TOKEN. It is wired into the pod via\n    envFrom.secretRef; minio-go's env chain picks the keys up\n    automatically since no -s3-* credential flag is passed.\n\n  leave credentialsSecret empty — minio-go's IAM/IRSA discovery\n    chain takes over (AWS_* env vars, EKS web-identity, EC2\n    metadata). Bind a cloud identity to the operator's\n    ServiceAccount via operator.serviceAccount.annotations.",
                   "properties": {
                     "name": {
                       "default": "",
@@ -1445,16 +1439,6 @@
                   "title": "region",
                   "type": "string"
                 },
-                "secretKey": {
-                  "default": "",
-                  "title": "secretKey",
-                  "type": "string"
-                },
-                "sessionToken": {
-                  "default": "",
-                  "title": "sessionToken",
-                  "type": "string"
-                },
                 "useSSL": {
                   "default": true,
                   "description": "Talk HTTPS. Disable only for local MinIO over HTTP.",
@@ -1469,9 +1453,6 @@
                 "region",
                 "useSSL",
                 "anonymous",
-                "accessKey",
-                "secretKey",
-                "sessionToken",
                 "credentialsSecret"
               ],
               "title": "s3",

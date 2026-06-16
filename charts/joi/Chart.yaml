@@ -18,7 +18,18 @@ maintainers:
   # name must be the GitHub login — chart-testing's validate-maintainers checks
   # it against the GitHub users API.
   - name: sebhoss
+    email: seb@xn--ho-hia.de
     url: https://github.com/sebhoss
+annotations:
+  artifacthub.io/license: 0BSD
+  artifacthub.io/category: integration-delivery
+  artifacthub.io/links: |
+    - name: support
+      url: https://github.com/metio/jsonnet-oci-images/issues
+    - name: documentation
+      url: https://jaas.projects.metio.wtf/usage/joi-images/
+  artifacthub.io/recommendations: |
+    - url: https://artifacthub.io/packages/helm/jaas/jaas
 # version is the chart's own version; the release pipeline rewrites this
 # placeholder to a calendar+time value (%Y.%-m.%-d+%H%M%S) at package time.
 version: 0.0.0
