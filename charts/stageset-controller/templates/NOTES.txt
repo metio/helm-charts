@@ -17,6 +17,13 @@ The controller reconciles StageSet resources cluster-wide. Create one with:
     stages: []
   EOF
 
+The controller never applies your manifests as itself — it impersonates
+spec.serviceAccountName (my-deployer above). That ServiceAccount must exist and
+hold RBAC to apply the resources the StageSet manages, or reconciliation fails
+closed. Tenancy models and how to scope it:
+
+  https://stageset.projects.metio.wtf/usage/multi-cluster/
+
 {{ if .Values.webhook.enabled -}}
 Admission webhook: enabled ({{ .Values.webhook.certMode }} TLS).
 {{- if eq .Values.webhook.certMode "cert-manager" }}

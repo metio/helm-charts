@@ -109,8 +109,8 @@ spec:
             {{- if eq .Values.rollbackStore.backend "pvc" }}
             - --rollback-store-path={{ .Values.rollbackStore.pvc.mountPath }}
             {{- else if eq .Values.rollbackStore.backend "s3" }}
-            - --rollback-store-s3-endpoint={{ .Values.rollbackStore.s3.endpoint }}
-            - --rollback-store-s3-bucket={{ .Values.rollbackStore.s3.bucket }}
+            - --rollback-store-s3-endpoint={{ required "rollbackStore.s3.endpoint is required when rollbackStore.backend is \"s3\"" .Values.rollbackStore.s3.endpoint }}
+            - --rollback-store-s3-bucket={{ required "rollbackStore.s3.bucket is required when rollbackStore.backend is \"s3\"" .Values.rollbackStore.s3.bucket }}
             {{- with .Values.rollbackStore.s3.prefix }}
             - --rollback-store-s3-prefix={{ . }}
             {{- end }}

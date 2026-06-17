@@ -25,5 +25,11 @@ jb vendor path used during local development:
       - kind: JsonnetLibrary
         name: grafonnet
 
+my-renderer is a JaaS tenant ServiceAccount: it must exist in that namespace and
+hold the JaaS tenant Role (read JsonnetLibrary, publish ExternalArtifact), or the
+snippet's first reconcile fails with Forbidden. The Role is documented at:
+
+  https://jaas.projects.metio.wtf/usage/tenancy-and-rbac/
+
 Requires Flux source-controller (OCIRepository CRD) and JaaS in operator mode
 (JsonnetLibrary CRD + reconciler) in the cluster.

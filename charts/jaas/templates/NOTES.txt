@@ -11,7 +11,7 @@ The operator watches JsonnetSnippet and JsonnetLibrary CRs and publishes
 evaluated results as Flux ExternalArtifact resources. To get started:
 
   # See the operator's status:
-  kubectl -n {{ .Release.Namespace }} get deploy {{ .Release.Name }}
+  kubectl --namespace {{ .Release.Namespace }} get deploy {{ .Release.Name }}
 
   # Create your first snippet (run in a tenant namespace, NOT this one):
   cat <<'EOF' | kubectl apply -f -
@@ -19,7 +19,7 @@ evaluated results as Flux ExternalArtifact resources. To get started:
   kind: JsonnetSnippet
   metadata: { name: hello, namespace: <your-namespace> }
   spec:
-    serviceAccountName: default
+    serviceAccountName: jaas-tenant
     files:
       main.jsonnet: '{ greeting: "hello from jaas" }'
   EOF
@@ -28,10 +28,14 @@ evaluated results as Flux ExternalArtifact resources. To get started:
   kubectl get jsonnetsnippet hello -w
   kubectl get externalartifact hello
 
-The tenant SA you reference in spec.serviceAccountName needs the verbs
-documented in https://github.com/metio/jaas#tenant-serviceaccount-rbac
-— without them, the first reconcile fails with Forbidden. The operator
-itself runs as ServiceAccount/{{ .Values.operator.serviceAccount.name }} in this namespace.
+The ServiceAccount in spec.serviceAccountName (jaas-tenant above) must exist in
+that namespace and hold the tenant Role, or the first reconcile fails with
+Forbidden — the cluster-default "default" SA has no such rights. The tenant Role
+(and a single-tenant shortcut) are documented at:
+
+  https://jaas.projects.metio.wtf/usage/tenancy-and-rbac/
+
+The operator itself runs as ServiceAccount/{{ .Values.operator.serviceAccount.name }} in this namespace.
 
 {{ if .Values.operator.webhook.enabled -}}
 === Admission webhook ===
@@ -51,7 +55,7 @@ via the {{ .Release.Name }}-webhook Certificate object.
 
 The operator is OFF. JaaS runs as a stateless HTTP evaluator:
 
-  kubectl -n {{ .Release.Namespace }} port-forward svc/jaas {{ .Values.ports.http }}:{{ .Values.ports.http }}
+  kubectl --namespace {{ .Release.Namespace }} port-forward svc/jaas {{ .Values.ports.http }}:{{ .Values.ports.http }}
   curl http://localhost:{{ .Values.ports.http }}/{{ .Values.arguments.jsonnetEndpointPath }}/<snippet>
 
 Set operator.enabled=true to switch to operator mode.

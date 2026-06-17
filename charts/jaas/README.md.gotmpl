@@ -71,7 +71,7 @@ In order for environment variables to be picked up from `ConfigMaps` or `Secrets
 
 ## Operator mode
 
-Setting `operator.enabled: true` switches JaaS into operator mode alongside the HTTP path. The operator watches `JsonnetSnippet` and `JsonnetLibrary` CRDs (`jaas.metio.wtf/v1`) and publishes evaluated results as Flux `ExternalArtifact` resources. CRDs are bundled in `helm/crds/` and installed on first apply. Cluster-shared libraries are mounted via `additionalLibraries` (OCI volumes) rather than a cluster-scoped CR.
+Setting `operator.enabled: true` switches JaaS into operator mode alongside the HTTP path. The operator watches `JsonnetSnippet` and `JsonnetLibrary` CRDs (`jaas.metio.wtf/v1`) and publishes evaluated results as Flux `ExternalArtifact` resources. The CRDs ship as regular templates (not Helm's special `crds/` directory) with `helm.sh/resource-policy: keep`, so `helm upgrade` applies schema changes like any other resource and `helm uninstall` leaves them in place; set `crds.create: false` to manage them out of band. Cluster-shared libraries are mounted via `additionalLibraries` (OCI volumes) rather than a cluster-scoped CR.
 
 ```yaml
 operator:

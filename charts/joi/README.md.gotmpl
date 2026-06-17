@@ -28,6 +28,13 @@ helm upgrade --install joi oci://ghcr.io/metio/helm-charts/joi \
 - Flux **source-controller** (provides the `OCIRepository` CRD and pulls the artifacts).
 - **JaaS in operator mode** (`operator.enabled=true` on the `jaas` chart — provides the `JsonnetLibrary` CRD + reconciler).
 
+Verify both CRDs exist before installing — otherwise `helm install` fails with
+`no matches for kind "OCIRepository"` / `"JsonnetLibrary"`:
+
+```sh
+kubectl get crd ocirepositories.source.toolkit.fluxcd.io jsonnetlibraries.jaas.metio.wtf
+```
+
 The JOI images are single-layer, so the `OCIRepository` needs no `layerSelector`
 (source-controller extracts the one layer). This is the Flux/CR counterpart to
 mounting the same images as static OCI volumes via the `jaas` chart's

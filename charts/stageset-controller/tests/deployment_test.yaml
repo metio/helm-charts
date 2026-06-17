@@ -111,6 +111,20 @@ tests:
           content:
             secretRef:
               name: rb-creds
+  - it: fails when S3 backend is selected without an endpoint
+    set:
+      rollbackStore.backend: s3
+      rollbackStore.s3.bucket: rb
+    asserts:
+      - failedTemplate:
+          errorMessage: rollbackStore.s3.endpoint is required when rollbackStore.backend is "s3"
+  - it: fails when S3 backend is selected without a bucket
+    set:
+      rollbackStore.backend: s3
+      rollbackStore.s3.endpoint: minio:9000
+    asserts:
+      - failedTemplate:
+          errorMessage: rollbackStore.s3.bucket is required when rollbackStore.backend is "s3"
   - it: defaults S3 server-side encryption on (SSE-S3)
     set:
       rollbackStore.backend: s3
