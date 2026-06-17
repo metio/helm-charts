@@ -11,15 +11,17 @@ templates:
   - templates/role-leader-election.yaml
   - templates/serviceaccount.yaml
 tests:
-  - it: grants impersonate, events, stagesets, and externalartifacts
+  - it: grants token mint, events, stagesets, and externalartifacts
     template: templates/clusterrole.yaml
     asserts:
+      # Local-cluster writes mint a TokenRequest token for the tenant SA and
+      # authenticate as it — least privilege, no impersonate verb.
       - contains:
           path: rules
           content:
             apiGroups: [""]
-            resources: [serviceaccounts]
-            verbs: [impersonate]
+            resources: [serviceaccounts/token]
+            verbs: [create]
       - contains:
           path: rules
           content:
@@ -32,7 +34,16 @@ tests:
             apiGroups: [source.toolkit.fluxcd.io]
             resources: [externalartifacts]
             verbs: [get, list, watch]
-  - it: does not grant blanket write access (apply is impersonated)
+  - it: does not grant the impersonate verb (token mint replaces it)
+    template: templates/clusterrole.yaml
+    asserts:
+      - notContains:
+          path: rules
+          content:
+            apiGroups: [""]
+            resources: [serviceaccounts]
+            verbs: [impersonate]
+  - it: does not grant blanket write access (apply is performed as the tenant SA)
     template: templates/clusterrole.yaml
     asserts:
       - notContains:

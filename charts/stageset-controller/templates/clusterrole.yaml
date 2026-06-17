@@ -9,8 +9,11 @@
 #
 # Mirrors config/rbac/role.yaml (controller-gen) from the source repo. The
 # permissions to apply the manifests a StageSet renders are deliberately NOT
-# granted here: the controller impersonates spec.serviceAccountName for cluster
-# writes, so each tenant's RBAC bounds what its StageSets can touch. Events are
+# granted here: for local-cluster writes the controller mints a short-lived
+# TokenRequest token for spec.serviceAccountName and authenticates as that SA,
+# so each tenant's RBAC bounds what its StageSets can touch — least privilege,
+# no `impersonate` verb. (Remote-cluster apply via spec.kubeConfig authenticates
+# with the provided kubeconfig and is unaffected by this ClusterRole.) Events are
 # added on top of controller-gen's set so the EventRecorder can annotate
 # StageSets in any namespace.
 apiVersion: rbac.authorization.k8s.io/v1
@@ -21,8 +24,8 @@ metadata:
     {{- include "stageset.labels" . | nindent 4 }}
 rules:
   - apiGroups: [""]
-    resources: [serviceaccounts]
-    verbs: [impersonate]
+    resources: [serviceaccounts/token]
+    verbs: [create]
   - apiGroups: [""]
     resources: [events]
     verbs: [create, patch]
