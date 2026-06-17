@@ -1217,6 +1217,117 @@ tests:
       - failedTemplate:
           errorMessage: "operator.storage.s3.endpoint is required when backend is \"s3\""
 
+  # ------------------------------------------------------------------
+  # watchNamespaces
+  # ------------------------------------------------------------------
+  - it: omits --watch-namespaces when watchNamespaces is empty (cluster-wide)
+    set:
+      operator:
+        enabled: true
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].args
+          content: --watch-namespaces=
+
+  - it: joins operator.watchNamespaces into a comma-separated --watch-namespaces
+    set:
+      operator:
+        enabled: true
+        watchNamespaces:
+          - team-a
+          - team-b
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --watch-namespaces=team-a,team-b
+
+  # ------------------------------------------------------------------
+  # max-concurrent-evals
+  # ------------------------------------------------------------------
+  - it: passes the default arguments.maxConcurrentEvals via --max-concurrent-evals
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --max-concurrent-evals=32
+
+  - it: passes a custom arguments.maxConcurrentEvals via --max-concurrent-evals
+    set:
+      arguments:
+        maxConcurrentEvals: 8
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --max-concurrent-evals=8
+
+  # ------------------------------------------------------------------
+  # s3-anonymous (rendered on the S3 backend path)
+  # ------------------------------------------------------------------
+  - it: defaults --s3-anonymous to false on the S3 backend
+    set:
+      operator:
+        enabled: true
+        storage:
+          backend: s3
+          s3:
+            endpoint: s3.amazonaws.com
+            bucket: b
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --s3-anonymous=false
+
+  - it: passes --s3-anonymous=true when anonymous access is requested
+    set:
+      operator:
+        enabled: true
+        storage:
+          backend: s3
+          s3:
+            endpoint: s3.amazonaws.com
+            bucket: b
+            anonymous: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --s3-anonymous=true
+
+  # ------------------------------------------------------------------
+  # OpenTelemetry tracing — args render only when an endpoint is set
+  # ------------------------------------------------------------------
+  - it: omits the tracing args when no endpoint is configured (default)
+    set:
+      operator:
+        enabled: true
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].args
+          content: --tracing-endpoint=
+      - notContains:
+          path: spec.template.spec.containers[0].args
+          content: --tracing-insecure=false
+      - notContains:
+          path: spec.template.spec.containers[0].args
+          content: --tracing-sample-ratio=1
+
+  - it: renders all three tracing args when an endpoint is set
+    set:
+      operator:
+        enabled: true
+        tracing:
+          endpoint: otel-collector.observability.svc:4317
+          insecure: true
+          sampleRatio: 0.25
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --tracing-endpoint=otel-collector.observability.svc:4317
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --tracing-insecure=true
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --tracing-sample-ratio=0.25
+
   - it: pod-level securityContext is PSS-restricted compliant
     asserts:
       - equal:
@@ -1299,20 +1410,17 @@ tests:
       - failedTemplate:
           errorMessage: "operator.storage.s3.bucket is required when backend is \"s3\""
 
-  - it: defaults webhook.certMode to cert-manager and passes that arg
+  - it: defaults webhook.certMode to self-signed and passes that arg
     set:
       operator:
         enabled: true
         webhook:
           enabled: true
-          certManager:
-            issuerRef:
-              name: jaas-ca
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: --webhook-cert-mode=cert-manager
-      - notContains:
+          content: --webhook-cert-mode=self-signed
+      - contains:
           path: spec.template.spec.containers[0].args
           content: --webhook-service-name=jaas-webhook
 
@@ -1376,6 +1484,7 @@ tests:
         enabled: true
         webhook:
           enabled: true
+          certMode: cert-manager
           certManager:
             issuerRef:
               name: jaas-ca
@@ -1413,6 +1522,7 @@ tests:
         enabled: true
         webhook:
           enabled: true
+          certMode: cert-manager
           secretName: jaas-webhook-cert
     asserts:
       - contains:

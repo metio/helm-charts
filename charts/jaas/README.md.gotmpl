@@ -27,7 +27,7 @@ The default install — the HTTP-only renderer — needs nothing beyond a Kubern
 
 - **Operator mode** (`operator.enabled: true`) boots without Flux installed; the Flux source watches engage only once their CRDs are present. Snippets that set `spec.sourceRef`, and any downstream consumer of the published `ExternalArtifact`, require Flux source-controller — the `ExternalArtifact` CRD ships in Flux v2.7.0 and later.
 - **Tenant ServiceAccount RBAC.** In operator mode every snippet reconciles under the ServiceAccount in `spec.serviceAccountName`, which must exist and hold the tenant Role, or the first reconcile fails with `Forbidden`. See [Tenancy and RBAC](https://jaas.projects.metio.wtf/usage/tenancy-and-rbac/).
-- **Admission webhook** (`operator.webhook.enabled: true`) in the default `operator.webhook.certMode: cert-manager` requires [cert-manager](https://cert-manager.io/). The `self-signed` cert mode provisions its own certificate in-pod and needs nothing extra.
+- **Admission webhook** (`operator.webhook.enabled: true`) defaults to `operator.webhook.certMode: self-signed`, which provisions its own certificate in-pod and needs nothing extra. The optional `cert-manager` cert mode requires [cert-manager](https://cert-manager.io/) to be installed.
 - **Metrics integration.** `operator.metrics.serviceMonitor.enabled` and `operator.metrics.prometheusRule.enabled` render `monitoring.coreos.com` resources and require the Prometheus Operator CRDs.
 
 ## Usage with grafana-operator
@@ -138,23 +138,9 @@ So co-locating fixes the fetch direction by subjecting the operator to a policy 
 
 ## Validating admission webhook
 
-Setting `operator.webhook.enabled: true` boots a validating webhook that rejects `JsonnetSnippet`s whose `spec.externalVariables` collide with the operator's `extVars`. The chart provisions a `Service` (`jaas-webhook`), a `ValidatingWebhookConfiguration`, and — when `operator.webhook.certManager.enabled: true` — a cert-manager `Certificate` that issues TLS material into the Secret the Deployment mounts.
+Setting `operator.webhook.enabled: true` boots a validating webhook that rejects `JsonnetSnippet`s whose `spec.externalVariables` collide with the operator's `extVars`. The chart provisions a `Service` (`jaas-webhook`) and a `ValidatingWebhookConfiguration`. TLS material is provisioned according to `operator.webhook.certMode`.
 
-```yaml
-operator:
-  enabled: true
-  webhook:
-    enabled: true
-    certManager:
-      enabled: true
-      issuerRef:
-        kind: Issuer        # or ClusterIssuer
-        name: jaas-issuer   # must exist in the chart's namespace (Issuer) or cluster (ClusterIssuer)
-```
-
-Out-of-band cert provisioning is supported: set `operator.webhook.certManager.enabled: false`, create a Secret matching `operator.webhook.secretName` with `tls.crt` / `tls.key`, and inject the CA bundle into the `ValidatingWebhookConfiguration` yourself.
-
-For clusters without cert-manager, switch to in-pod self-signed certs:
+By default (`certMode: self-signed`) the operator generates its own certificate in-pod and needs nothing extra:
 
 ```yaml
 operator:
@@ -166,6 +152,23 @@ operator:
 ```
 
 In this mode the operator generates a CA + serving cert on startup, writes them into an emptyDir mounted at `operator.webhook.certDir`, and patches its own `ValidatingWebhookConfiguration` `caBundle`. A renewer goroutine rotates the cert at `validity/3` and re-patches the caBundle; controller-runtime's `certwatcher` hot-reloads TLS from the new file (fsnotify-driven, no polling lag).
+
+With cert-manager installed, switch to `certMode: cert-manager` to have the chart render a cert-manager `Certificate` that issues TLS material into the Secret the Deployment mounts:
+
+```yaml
+operator:
+  enabled: true
+  webhook:
+    enabled: true
+    certMode: cert-manager
+    certManager:
+      enabled: true
+      issuerRef:
+        kind: Issuer        # or ClusterIssuer
+        name: jaas-issuer   # must exist in the chart's namespace (Issuer) or cluster (ClusterIssuer)
+```
+
+Out-of-band cert provisioning is supported: set `operator.webhook.certManager.enabled: false`, create a Secret matching `operator.webhook.secretName` with `tls.crt` / `tls.key`, and inject the CA bundle into the `ValidatingWebhookConfiguration` yourself.
 
 ## IPv4 / IPv6 dual-stack
 

@@ -4,7 +4,7 @@ SPDX-License-Identifier: 0BSD
 */ -}}
 {{- if .Values.metrics.prometheusRule.enabled -}}
 {{- $rbKey := .Values.metrics.prometheusRule.runbookAnnotationKey -}}
-{{- $rbBase := .Values.metrics.prometheusRule.runbookBaseURL | trimSuffix "/" -}}
+{{- $rbBase := "https://stageset.projects.metio.wtf/runbooks" -}}
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:

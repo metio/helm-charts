@@ -1,0 +1,63 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+suite: test stageset ServiceMonitor
+templates:
+  - templates/servicemonitor-metrics.yaml
+tests:
+  - it: is empty when ServiceMonitor is disabled (default)
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders when the ServiceMonitor is enabled
+    set:
+      metrics:
+        serviceMonitor:
+          enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ServiceMonitor
+      - equal:
+          path: metadata.name
+          value: stageset-controller-metrics
+
+  - it: scrapes the metrics port at the configured interval
+    set:
+      metrics:
+        serviceMonitor:
+          enabled: true
+          interval: 15s
+    asserts:
+      - equal:
+          path: spec.endpoints[0].port
+          value: metrics
+      - equal:
+          path: spec.endpoints[0].interval
+          value: 15s
+
+  - it: namespace-scoped to the release namespace
+    release:
+      namespace: stageset-prod
+    set:
+      metrics:
+        serviceMonitor:
+          enabled: true
+    asserts:
+      - contains:
+          path: spec.namespaceSelector.matchNames
+          content: stageset-prod
+
+  - it: honors extra labels
+    set:
+      metrics:
+        serviceMonitor:
+          enabled: true
+          additionalLabels:
+            release: kube-prom
+    asserts:
+      - equal:
+          path: metadata.labels.release
+          value: kube-prom

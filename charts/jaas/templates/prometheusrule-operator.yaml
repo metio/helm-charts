@@ -4,7 +4,7 @@ SPDX-License-Identifier: 0BSD
 */ -}}
 {{- if and .Values.operator.enabled .Values.operator.metrics.enabled .Values.operator.metrics.prometheusRule.enabled -}}
 {{- $rbKey := .Values.operator.metrics.prometheusRule.runbookAnnotationKey -}}
-{{- $rbBase := .Values.operator.metrics.prometheusRule.runbookBaseURL -}}
+{{- $rbBase := "https://jaas.projects.metio.wtf/runbooks/" -}}
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
@@ -57,7 +57,7 @@ spec:
               for the alert window. Each Reason has a dedicated runbook page;
               the URL is templated on $labels.reason and lands in the
               {{ $rbKey }} annotation alongside this description.
-            {{ $rbKey }}: {{ printf "%s{{ $labels.reason | toLower }}.md" $rbBase | quote }}
+            {{ $rbKey }}: {{ printf "%s{{ $labels.reason | toLower }}/" $rbBase | quote }}
 
         - alert: JaaSSnippetArtifactGrowing
           expr: |
@@ -78,7 +78,7 @@ spec:
               p99 rendered artifact size exceeded the configured threshold
               over the last 15 minutes. Tune -max-artifact-bytes or project
               the snippet's output.
-            {{ $rbKey }}: {{ printf "%sartifacttoolarge.md" $rbBase | quote }}
+            {{ $rbKey }}: {{ printf "%sartifacttoolarge/" $rbBase | quote }}
 
     - name: jaas-operator-availability
       interval: {{ .Values.operator.metrics.prometheusRule.interval }}
@@ -99,7 +99,7 @@ spec:
               The operator can't drain its reconcile queue. Likely causes:
               apiserver slowness, a slow Publisher backend (S3 throttling),
               or per-snippet rate-limiter exhaustion.
-            {{ $rbKey }}: {{ printf "%sworkqueue-saturation.md" $rbBase | quote }}
+            {{ $rbKey }}: {{ printf "%sworkqueue-saturation/" $rbBase | quote }}
 
         - alert: JaaSReconcileLatencyHigh
           expr: |
@@ -120,7 +120,7 @@ spec:
               Reconcile p99 latency for the JsonnetSnippet controller has
               exceeded the configured threshold. Inspect operator logs and
               the OTLP traces if enabled.
-            {{ $rbKey }}: {{ printf "%sreconcile-latency.md" $rbBase | quote }}
+            {{ $rbKey }}: {{ printf "%sreconcile-latency/" $rbBase | quote }}
 
         - alert: JaaSOperatorPodDown
           expr: |
@@ -137,7 +137,7 @@ spec:
               At least one jaas pod in {{ .Release.Namespace }} has been
               NotReady for the alert window. New snippets will not be
               reconciled until a replica recovers.
-            {{ $rbKey }}: {{ printf "%soperator-pod-down.md" $rbBase | quote }}
+            {{ $rbKey }}: {{ printf "%soperator-pod-down/" $rbBase | quote }}
 
         - alert: JaaSStorageSweepFailures
           expr: |
@@ -156,7 +156,7 @@ spec:
               is unaffected, but stale .tmp files accumulate in the
               store until the underlying issue (filesystem permissions,
               disk full, S3 throttling) is fixed.
-            {{ $rbKey }}: {{ printf "%sstorage-recovery.md" $rbBase | quote }}
+            {{ $rbKey }}: {{ printf "%sstorage-recovery/" $rbBase | quote }}
 
         - alert: JaaSWebhookCertRenewalFailing
           # self-signed cert renewal failures used to only emit
@@ -181,7 +181,7 @@ spec:
               without the operator's resourceNames being updated. The
               existing cert keeps working until its natural expiry;
               that's the deadline.
-            {{ $rbKey }}: {{ printf "%swebhook-cert-renewal.md" $rbBase | quote }}
+            {{ $rbKey }}: {{ printf "%swebhook-cert-renewal/" $rbBase | quote }}
 
         - alert: JaaSTenantTokenMintFailing
           # tenant SA TokenRequest failures used to only emit
@@ -208,7 +208,7 @@ spec:
               this SA was revoked, the SA itself was deleted, or the
               namespace is being torn down. Snippets impersonating
               this SA are pinning Ready=Unknown.
-            {{ $rbKey }}: {{ printf "%srbacdenied.md" $rbBase | quote }}
+            {{ $rbKey }}: {{ printf "%srbacdenied/" $rbBase | quote }}
 
         - alert: JaaSForceDropsAccumulating
           # a force-drop leaves an orphan tarball that no live CR
@@ -234,7 +234,7 @@ spec:
               the storage / RBAC pipeline is permanently broken; the
               reason label names which decision branch triggered each
               drop. See storage-recovery.md.
-            {{ $rbKey }}: {{ printf "%sstorage-recovery.md" $rbBase | quote }}
+            {{ $rbKey }}: {{ printf "%sstorage-recovery/" $rbBase | quote }}
 
         - alert: JaaSCRDWatchEngagementFailing
           # when a previously-missing Flux source CRD becomes
@@ -261,7 +261,7 @@ spec:
               controller-runtime cache reconnect, missing ClusterRole
               verb on the source kind). Snippets depending on this
               kind aren't re-rendering on upstream source updates.
-            {{ $rbKey }}: {{ printf "%scrd-watch-engagement.md" $rbBase | quote }}
+            {{ $rbKey }}: {{ printf "%scrd-watch-engagement/" $rbBase | quote }}
 
         - alert: JaaSEvalSaturation
           expr: |
@@ -284,7 +284,7 @@ spec:
               with EvalUnavailable Warning events. Likely causes: a
               runaway snippet whose synchronous eval outlives every
               ctx, or genuine load exceeding the cap.
-            {{ $rbKey }}: {{ printf "%seval-saturation.md" $rbBase | quote }}
+            {{ $rbKey }}: {{ printf "%seval-saturation/" $rbBase | quote }}
 
         - alert: JaaSEvalRejected
           expr: |
@@ -303,7 +303,7 @@ spec:
               JaaSEvalSaturation — saturation explains why the gate
               fills; this alert flags that rejections are actually
               happening rather than just running close to the limit.
-            {{ $rbKey }}: {{ printf "%seval-saturation.md" $rbBase | quote }}
+            {{ $rbKey }}: {{ printf "%seval-saturation/" $rbBase | quote }}
 
         - alert: JaaSEvalLeakedGoroutines
           # the leak gauge counts orphan eval goroutines whose
@@ -332,7 +332,7 @@ spec:
               --evaluation-timeout. eval-saturation.md's path A
               walks the diagnosis (find the snippet, suspend, tighten
               --max-stack / --evaluation-timeout).
-            {{ $rbKey }}: {{ printf "%seval-saturation.md" $rbBase | quote }}
+            {{ $rbKey }}: {{ printf "%seval-saturation/" $rbBase | quote }}
     {{- /* User-supplied extra rules append after the chart-shipped
            ones, under a separate group so the existing group names
            stay reserved for built-ins. Rendered verbatim — operators

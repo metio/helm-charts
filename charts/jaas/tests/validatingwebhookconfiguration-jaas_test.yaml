@@ -102,6 +102,7 @@ tests:
         enabled: true
         webhook:
           enabled: true
+          certMode: cert-manager
           certManager:
             enabled: true
             issuerRef:

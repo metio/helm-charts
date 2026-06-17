@@ -1,0 +1,23 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+# Operator mode with the S3 artifact backend, anonymous auth. minio-go connects
+# lazily, so the pod boots Ready without a reachable bucket — enough to smoke the
+# backend=s3 config path. credentialsSecret is deliberately NOT set: chart-testing
+# installs into a fresh random namespace, so a referenced Secret can't be
+# pre-created there. Functional S3 writes are the smoke layer's job.
+operator:
+  enabled: true
+  defaultServiceAccount: default
+  storage:
+    backend: s3
+    s3:
+      endpoint: minio.minio.svc:9000
+      bucket: jaas-artifacts
+      useSSL: false
+      anonymous: true
+
+# CI installs the chart once per values file; the CRDs are provisioned
+# out-of-band (see verify.yml) so a kept cluster-scoped CRD owned by one
+# release does not block re-adoption by the next.
+crds:
+  create: false

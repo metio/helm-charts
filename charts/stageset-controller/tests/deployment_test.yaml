@@ -152,3 +152,110 @@ tests:
       - contains:
           path: spec.template.spec.containers[0].args
           content: --rollback-store-s3-sse-kms-key=arn:aws:kms:eu-west-1:111:key/abc
+
+  # ------------------------------------------------------------------
+  # Metrics + health bind addresses
+  # ------------------------------------------------------------------
+  - it: binds metrics on the configured port
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --metrics-bind-address=:8080
+  - it: honors a custom metrics port for --metrics-bind-address
+    set:
+      ports:
+        metrics: 9090
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --metrics-bind-address=:9090
+
+  # ------------------------------------------------------------------
+  # watchNamespaces
+  # ------------------------------------------------------------------
+  - it: omits --watch-namespaces when watchNamespaces is empty (cluster-wide)
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].args
+          content: --watch-namespaces=
+  - it: joins watchNamespaces into a comma-separated --watch-namespaces
+    set:
+      controller:
+        watchNamespaces:
+          - team-a
+          - team-b
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --watch-namespaces=team-a,team-b
+
+  # ------------------------------------------------------------------
+  # allowedActionHosts (repeated --allowed-action-hosts)
+  # ------------------------------------------------------------------
+  - it: omits --allowed-action-hosts when allowedActionHosts is empty
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].args
+          content: --allowed-action-hosts=
+  - it: renders one --allowed-action-hosts per entry
+    set:
+      controller:
+        allowedActionHosts:
+          - "*.example.com"
+          - hooks.internal
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --allowed-action-hosts=*.example.com
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --allowed-action-hosts=hooks.internal
+
+  # ------------------------------------------------------------------
+  # noCrossNamespaceRefs
+  # ------------------------------------------------------------------
+  - it: omits --no-cross-namespace-refs by default
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].args
+          content: --no-cross-namespace-refs
+  - it: adds --no-cross-namespace-refs when enabled
+    set:
+      controller:
+        noCrossNamespaceRefs: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --no-cross-namespace-refs
+
+  # ------------------------------------------------------------------
+  # OpenTelemetry tracing — args render only when an endpoint is set
+  # ------------------------------------------------------------------
+  - it: omits the tracing args when no endpoint is configured (default)
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].args
+          content: --tracing-endpoint=
+      - notContains:
+          path: spec.template.spec.containers[0].args
+          content: --tracing-insecure=false
+      - notContains:
+          path: spec.template.spec.containers[0].args
+          content: --tracing-sample-ratio=1
+  - it: renders all three tracing args when an endpoint is set
+    set:
+      controller:
+        tracing:
+          endpoint: otel-collector.observability.svc:4317
+          insecure: true
+          sampleRatio: 0.25
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --tracing-endpoint=otel-collector.observability.svc:4317
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --tracing-insecure=true
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --tracing-sample-ratio=0.25

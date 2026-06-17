@@ -39,6 +39,9 @@ jobs:
       - name: Install helm-docs
         run: |
           curl -fsSL https://github.com/norwoodj/helm-docs/releases/download/v1.14.2/helm-docs_1.14.2_Linux_x86_64.tar.gz | tar -xz -C /usr/local/bin helm-docs
+      - name: Install helm-schema
+        run: |
+          curl -fsSL https://github.com/dadav/helm-schema/releases/download/0.23.4/helm-schema_0.23.4_Linux_x86_64.tar.gz | tar -xz -C /usr/local/bin helm-schema
       - name: Install yq
         run: |
           curl -fsSL -o /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v4.45.1/yq_linux_amd64
@@ -124,6 +127,11 @@ jobs:
             if [ -f "$chart/README.md.gotmpl" ]; then
               helm-docs --chart-search-root "$chart"
             fi
+            # Generate values.schema.json into the chart dir so Helm's install-time
+            # value validation ships inside the .tgz. Like the README, it's
+            # generated per-run and never committed (gitignored), so there's no
+            # drift gate to maintain.
+            helm-schema -c "$chart" -k additionalProperties
 
             # This chart's last tag bounds both the Artifact Hub changelog and the
             # GitHub release notes below — compute it once. Empty on a first release.

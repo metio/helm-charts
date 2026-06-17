@@ -1,0 +1,22 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+# Operator mode with the validating webhook in cert-manager TLS mode. Uses a
+# cluster-scoped ClusterIssuer (created by verify.yml's prereq) rather than a
+# namespaced Issuer, because ct installs into a fresh random namespace each run —
+# a namespaced Issuer couldn't be pre-created there.
+operator:
+  enabled: true
+  defaultServiceAccount: default
+  webhook:
+    enabled: true
+    certMode: cert-manager
+    certManager:
+      issuerRef:
+        kind: ClusterIssuer
+        name: stageset-selfsigned
+
+# CI installs the chart once per values file; the CRDs are provisioned
+# out-of-band (see verify.yml) so a kept cluster-scoped CRD owned by one
+# release does not block re-adoption by the next.
+crds:
+  create: false

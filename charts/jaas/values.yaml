@@ -491,8 +491,9 @@ operator:
     # via Ingress should set it explicitly.
     baseURL: ""
 
-    # -- Maximum tarball size the storage HTTP server is willing to write within
-    # a single response. Match against your largest expected snippet output.
+    # -- Write timeout on the storage HTTP server (--storage-write-timeout):
+    # how long a single response is allowed to take before the connection is
+    # closed. To cap artifact size, use operator.storage.maxArtifactBytes.
     writeTimeout: 5m
 
     # -- Read timeout on the storage HTTP server.
@@ -638,9 +639,6 @@ operator:
       # Useful for routing all jaas alerts through one Alertmanager
       # receiver (e.g., `team: platform`).
       extraAlertLabels: {}
-      # Prefix prepended to per-alert runbook page names. Defaults to
-      # the upstream repo; override to a fork or an internal mirror.
-      runbookBaseURL: https://github.com/metio/jaas/blob/main/docs/runbooks/
       # Annotation key the runbook URL lands under on every alert.
       # `runbook_url` is the Prometheus-operator convention (kube-prom,
       # Alertmanager templates, most third-party tooling key off it);
@@ -785,7 +783,10 @@ operator:
     #     caBundle. Requires the operator to have get/update on the
     #     named VWC (added automatically). Removes the cert-manager
     #     dependency entirely.
-    certMode: cert-manager
+    # The default is self-signed because it needs no prerequisites and
+    # always works; cert-manager mode only works when cert-manager is
+    # installed in the cluster.
+    certMode: self-signed
 
     # -- cert-manager-mode knobs. Only consulted when certMode is
     # "cert-manager". When self-signed, this block is ignored and no

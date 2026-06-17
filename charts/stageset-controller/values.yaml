@@ -83,10 +83,25 @@ controller:
   # RoleBinding per listed namespace — the multi-tenant controller-instances
   # pattern (one release per tenant-group, disjoint watch sets).
   watchNamespaces: []
-  # -- URL prefix appended to actionable Ready messages as (runbook: <base>/<reason>/).
-  # Defaults to the documentation site; override to a fork or an internal mirror,
-  # or set empty to disable the runbook links.
-  runbookBaseURL: https://stageset.projects.metio.wtf/runbooks
+  # -- OpenTelemetry tracing for the controller. When endpoint is empty (the
+  # default), no spans are emitted and the OTel SDK is in no-op mode. Set the
+  # endpoint to ship spans to an OTLP gRPC collector:
+  #   tracing:
+  #     endpoint: otel-collector.observability.svc:4317
+  #     insecure: true
+  tracing:
+    # -- OTLP gRPC collector host:port. Empty disables tracing entirely.
+    endpoint: ""
+    # -- Skip TLS when dialing the OTLP collector. Use only for in-cluster
+    # collectors that don't terminate TLS themselves.
+    insecure: false
+    # @schema
+    # type: number
+    # minimum: 0
+    # maximum: 1
+    # @schema
+    # -- TraceID-ratio sampling (0.0..1.0). 1.0 samples every trace.
+    sampleRatio: 1.0
 
 # -- Controller RBAC. The default grant is deliberately minimal: the controller
 # impersonates each StageSet's spec.serviceAccountName for cluster writes, so a
@@ -183,8 +198,11 @@ rollbackStore:
     sse: s3
     # KMS key ARN/ID for sse: kms; empty uses the bucket's default KMS key.
     sseKmsKeyId: ""
-    # Secret holding accessKey / secretKey / sessionToken keys. Empty static
-    # creds engage minio-go's IAM/IRSA discovery chain.
+    # Existing Secret carrying AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and
+    # optionally AWS_SESSION_TOKEN. It is wired into the pod via envFrom.secretRef;
+    # the controller's AWS credential chain picks the keys up automatically. Leave
+    # empty to engage the IAM/IRSA discovery chain (AWS_* env vars, EKS
+    # web-identity, EC2 metadata).
     existingSecret: ""
 
 # -- Prometheus integration.
@@ -207,9 +225,6 @@ metrics:
     # Labels merged onto EVERY rendered alert — route all stageset alerts through
     # one Alertmanager receiver (e.g. team: platform).
     extraAlertLabels: {}
-    # Prefix for per-alert runbook page links. Defaults to the documentation site;
-    # the per-reason alert appends /<reason>/, fixed alerts append /<page>/.
-    runbookBaseURL: https://stageset.projects.metio.wtf/runbooks
     # Annotation key the runbook URL lands under (runbook_url is the
     # Prometheus-operator convention).
     runbookAnnotationKey: runbook_url

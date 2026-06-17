@@ -55,8 +55,8 @@ jobs:
           fi
 
   static:
-    # One independent job per changed chart, so a stale artifact in one chart
-    # (e.g. a drifted values.schema.json) never blocks an unrelated chart's PR.
+    # One independent job per changed chart, so a failing gate in one chart
+    # never blocks an unrelated chart's PR.
     name: Static gates (${{ matrix.chart }})
     needs: changed
     if: needs.changed.outputs.any == 'true'
@@ -85,16 +85,6 @@ jobs:
           c="charts/${{ matrix.chart }}/"
           if [ -d "${c}tests" ]; then
             helm unittest "$c"
-          fi
-      - id: schema_drift
-        name: helm-schema drift gate
-        run: |
-          curl -fsSL https://github.com/dadav/helm-schema/releases/download/0.23.4/helm-schema_0.23.4_Linux_x86_64.tar.gz | tar -xz -C /usr/local/bin helm-schema
-          c="charts/${{ matrix.chart }}/"
-          [ -f "${c}values.yaml" ] && helm-schema -c "$c" -k additionalProperties
-          if ! git diff --exit-code -- "${c}values.schema.json"; then
-            echo "::error::charts/${{ matrix.chart }}/values.schema.json is stale. Run 'ilo bash -c \"helm-schema -c charts/${{ matrix.chart }} -k additionalProperties\"' and commit."
-            exit 1
           fi
       - id: docs_render
         name: helm-docs render check

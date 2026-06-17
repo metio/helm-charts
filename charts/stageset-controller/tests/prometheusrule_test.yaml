@@ -68,15 +68,14 @@ tests:
           path: spec.groups[1].rules[3].annotations.runbook_url
           value: "https://stageset.projects.metio.wtf/runbooks/webhook-cert-renewal/"
 
-  - it: honors a custom runbook base URL and annotation key
+  - it: honors a custom runbook annotation key
     set:
       metrics.prometheusRule.enabled: true
-      metrics.prometheusRule.runbookBaseURL: https://docs.internal/ss/
       metrics.prometheusRule.runbookAnnotationKey: runbook
     asserts:
       - equal:
           path: spec.groups[1].rules[0].annotations.runbook
-          value: "https://docs.internal/ss/workqueue-saturation/"
+          value: "https://stageset.projects.metio.wtf/runbooks/workqueue-saturation/"
 
   - it: substitutes thresholds into the alert expressions
     set:

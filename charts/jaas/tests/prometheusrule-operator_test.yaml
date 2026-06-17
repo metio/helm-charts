@@ -165,21 +165,20 @@ tests:
           path: spec.groups[0].rules[0].expr
           pattern: 'reason!~"Synced\|Suspended\|Pending"'
 
-  - it: eval-saturation alerts honor runbookBaseURL
+  - it: eval-saturation alerts point at the docs site runbook page
     set:
       operator:
         enabled: true
         metrics:
           prometheusRule:
             enabled: true
-            runbookBaseURL: https://internal.example.com/runbooks/
     asserts:
-      - matchRegex:
+      - equal:
           path: spec.groups[1].rules[8].annotations.runbook_url
-          pattern: 'https://internal\.example\.com/runbooks/eval-saturation\.md$'
-      - matchRegex:
+          value: https://jaas.projects.metio.wtf/runbooks/eval-saturation/
+      - equal:
           path: spec.groups[1].rules[9].annotations.runbook_url
-          pattern: 'https://internal\.example\.com/runbooks/eval-saturation\.md$'
+          value: https://jaas.projects.metio.wtf/runbooks/eval-saturation/
 
   - it: applies extra labels and annotations to the PrometheusRule object
     set:
@@ -231,41 +230,22 @@ tests:
     asserts:
       # The reconcile-errors alert templates its URL on $labels.reason,
       # so the rendered annotation contains the Prometheus expansion
-      # marker rather than a fixed filename.
+      # marker rather than a fixed page name.
       - matchRegex:
           path: spec.groups[0].rules[0].annotations.runbook_url
-          pattern: 'docs/runbooks/\{\{ \$labels\.reason \| toLower \}\}\.md$'
+          pattern: '^https://jaas\.projects\.metio\.wtf/runbooks/\{\{ \$labels\.reason \| toLower \}\}/$'
       - equal:
           path: spec.groups[0].rules[1].annotations.runbook_url
-          value: https://github.com/metio/jaas/blob/main/docs/runbooks/artifacttoolarge.md
+          value: https://jaas.projects.metio.wtf/runbooks/artifacttoolarge/
       - equal:
           path: spec.groups[1].rules[0].annotations.runbook_url
-          value: https://github.com/metio/jaas/blob/main/docs/runbooks/workqueue-saturation.md
+          value: https://jaas.projects.metio.wtf/runbooks/workqueue-saturation/
       - equal:
           path: spec.groups[1].rules[1].annotations.runbook_url
-          value: https://github.com/metio/jaas/blob/main/docs/runbooks/reconcile-latency.md
+          value: https://jaas.projects.metio.wtf/runbooks/reconcile-latency/
       - equal:
           path: spec.groups[1].rules[2].annotations.runbook_url
-          value: https://github.com/metio/jaas/blob/main/docs/runbooks/operator-pod-down.md
-
-  - it: runbookBaseURL prefixes every per-alert runbook annotation
-    set:
-      operator:
-        enabled: true
-        metrics:
-          prometheusRule:
-            enabled: true
-            runbookBaseURL: https://internal.example.com/runbooks/
-    asserts:
-      - matchRegex:
-          path: spec.groups[0].rules[0].annotations.runbook_url
-          pattern: ^https://internal\.example\.com/runbooks/
-      - equal:
-          path: spec.groups[0].rules[1].annotations.runbook_url
-          value: https://internal.example.com/runbooks/artifacttoolarge.md
-      - equal:
-          path: spec.groups[1].rules[2].annotations.runbook_url
-          value: https://internal.example.com/runbooks/operator-pod-down.md
+          value: https://jaas.projects.metio.wtf/runbooks/operator-pod-down/
 
   - it: runbookAnnotationKey moves the URL onto a custom annotation key
     set:
@@ -279,10 +259,10 @@ tests:
       # The custom key carries the URL.
       - equal:
           path: spec.groups[0].rules[1].annotations.runbook
-          value: https://github.com/metio/jaas/blob/main/docs/runbooks/artifacttoolarge.md
+          value: https://jaas.projects.metio.wtf/runbooks/artifacttoolarge/
       - equal:
           path: spec.groups[1].rules[1].annotations.runbook
-          value: https://github.com/metio/jaas/blob/main/docs/runbooks/reconcile-latency.md
+          value: https://jaas.projects.metio.wtf/runbooks/reconcile-latency/
       # And the default key is gone — only one runbook annotation
       # per alert, matching the operator's chosen convention.
       - notExists:

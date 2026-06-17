@@ -59,9 +59,11 @@ RUN curl -fsSL https://github.com/orhun/git-cliff/releases/download/v${GIT_CLIFF
     && mv /tmp/git-cliff-${GIT_CLIFF_VERSION}/git-cliff /usr/local/bin/git-cliff \
     && rm -rf /tmp/git-cliff-${GIT_CLIFF_VERSION}
 
-# helm-schema (dadav/helm-schema): regenerate values.schema.json from the
-# `# @schema` annotations in values.yaml. The drift gate fails on any diff.
-# Regenerate via: ilo bash -c 'helm-schema -c charts/<name> -k additionalProperties'
+# helm-schema (dadav/helm-schema): generate values.schema.json from the
+# `# @schema` annotations in values.yaml. The schema is generated into the
+# package at release time (gitignored, never committed), so there's no drift
+# gate; this binary lets you preview the generated schema locally via:
+#   ilo bash -c 'helm-schema -c charts/<name> -k additionalProperties'
 # dadav/helm-schema release tags carry no `v` prefix (e.g. 0.23.4).
 RUN curl -fsSL https://github.com/dadav/helm-schema/releases/download/${GO_HELM_SCHEMA_VERSION}/helm-schema_${GO_HELM_SCHEMA_VERSION}_Linux_x86_64.tar.gz | tar -xz -C /usr/local/bin helm-schema
 

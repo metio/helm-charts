@@ -72,13 +72,65 @@ tests:
       - equal:
           path: spec.secretRef.name
           value: mirror-creds
-  - it: renders only the curated default-enabled libraries
+  - it: renders exactly the curated default-enabled set plus its real closure
     template: templates/ocirepository.yaml
     asserts:
-      # grafonnet, xtd, docsonnet, k8s-libsonnet are enabled by default; the
-      # other ~97 ship disabled.
+      # docsonnet, grafonnet, xtd ship enabled. grafonnet's closure pulls in
+      # testonnet (closure: [docsonnet, testonnet, xtd]) even though testonnet
+      # itself ships enabled:false — so the effective set is exactly these four,
+      # and the count being 4 proves nothing else leaks in.
       - hasDocuments:
           count: 4
+  - it: renders the docsonnet OCIRepository by default
+    template: templates/ocirepository.yaml
+    documentSelector:
+      path: metadata.name
+      value: docsonnet
+    asserts:
+      - equal:
+          path: spec.url
+          value: oci://ghcr.io/metio/joi-jsonnet-libs-docsonnet
+  - it: renders the grafonnet OCIRepository by default
+    template: templates/ocirepository.yaml
+    documentSelector:
+      path: metadata.name
+      value: grafonnet
+    asserts:
+      - equal:
+          path: spec.url
+          value: oci://ghcr.io/metio/joi-grafana-grafonnet
+  - it: renders the xtd OCIRepository by default
+    template: templates/ocirepository.yaml
+    documentSelector:
+      path: metadata.name
+      value: xtd
+    asserts:
+      - equal:
+          path: spec.url
+          value: oci://ghcr.io/metio/joi-jsonnet-libs-xtd
+  - it: renders the OCIRepository for a closure dep that itself ships disabled
+    template: templates/ocirepository.yaml
+    documentSelector:
+      path: metadata.name
+      value: testonnet
+    asserts:
+      # testonnet is enabled:false in values, reached only via grafonnet/xtd's
+      # closure — its OCIRepository must still render.
+      - equal:
+          path: spec.url
+          value: oci://ghcr.io/metio/joi-jsonnet-libs-testonnet
+  - it: renders the JsonnetLibrary for a closure dep that itself ships disabled
+    template: templates/jsonnetlibrary.yaml
+    documentSelector:
+      path: metadata.name
+      value: testonnet
+    asserts:
+      - equal:
+          path: spec.sourceRef.kind
+          value: OCIRepository
+      - equal:
+          path: spec.sourceRef.name
+          value: testonnet
   - it: renders a disabled library once it is enabled
     template: templates/ocirepository.yaml
     set:
@@ -105,7 +157,7 @@ tests:
       - equal:
           path: spec.url
           value: oci://ghcr.io/metio/joi-jsonnet-libs-argo-cd-libsonnet
-  - it: honors a namespace override on both kinds
+  - it: honors a namespace override on the JsonnetLibrary
     template: templates/jsonnetlibrary.yaml
     set:
       namespace: platform
@@ -116,3 +168,76 @@ tests:
       - equal:
           path: metadata.namespace
           value: platform
+  - it: honors a namespace override on the OCIRepository
+    template: templates/ocirepository.yaml
+    set:
+      namespace: platform
+    documentSelector:
+      path: metadata.name
+      value: docsonnet
+    asserts:
+      - equal:
+          path: metadata.namespace
+          value: platform
+  - it: renders an OCIRepository and JsonnetLibrary for a user-added library entry
+    set:
+      libraries.mylib:
+        enabled: true
+        image: ghcr.io/acme/x
+        tag: "1.2.3"
+        path: sub/dir
+    documentSelector:
+      path: metadata.name
+      value: mylib
+    asserts:
+      - equal:
+          path: spec.url
+          value: oci://ghcr.io/acme/x
+        template: templates/ocirepository.yaml
+      - equal:
+          path: spec.ref.tag
+          value: "1.2.3"
+        template: templates/ocirepository.yaml
+      - equal:
+          path: spec.sourceRef.kind
+          value: OCIRepository
+        template: templates/jsonnetlibrary.yaml
+      - equal:
+          path: spec.sourceRef.name
+          value: mylib
+        template: templates/jsonnetlibrary.yaml
+      - equal:
+          path: spec.sourceRef.path
+          value: sub/dir
+        template: templates/jsonnetlibrary.yaml
+  - it: uses the global interval default on the OCIRepository
+    template: templates/ocirepository.yaml
+    documentSelector:
+      path: metadata.name
+      value: grafonnet
+    asserts:
+      - equal:
+          path: spec.interval
+          value: 60m
+  - it: lets a per-library interval override win over the global default
+    template: templates/ocirepository.yaml
+    set:
+      libraries.grafonnet.interval: 5m
+    documentSelector:
+      path: metadata.name
+      value: grafonnet
+    asserts:
+      - equal:
+          path: spec.interval
+          value: 5m
+  - it: pins a non-default tag into ref.tag
+    template: templates/ocirepository.yaml
+    set:
+      libraries.grafonnet.tag: 2026.6.16
+    documentSelector:
+      path: metadata.name
+      value: grafonnet
+    asserts:
+      - equal:
+          path: spec.ref.tag
+          value: "2026.6.16"

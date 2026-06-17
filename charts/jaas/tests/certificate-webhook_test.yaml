@@ -16,6 +16,7 @@ tests:
         enabled: true
         webhook:
           enabled: true
+          certMode: cert-manager
           certManager:
             enabled: false
     asserts:
@@ -39,6 +40,7 @@ tests:
         enabled: true
         webhook:
           enabled: true
+          certMode: cert-manager
           certManager:
             enabled: true
             issuerRef:
@@ -53,6 +55,7 @@ tests:
         enabled: true
         webhook:
           enabled: true
+          certMode: cert-manager
           certManager:
             enabled: true
             issuerRef:
@@ -70,6 +73,7 @@ tests:
         enabled: true
         webhook:
           enabled: true
+          certMode: cert-manager
           secretName: my-cert-secret
           certManager:
             enabled: true
@@ -89,6 +93,7 @@ tests:
         enabled: true
         webhook:
           enabled: true
+          certMode: cert-manager
           certManager:
             enabled: true
             issuerRef:
@@ -108,6 +113,7 @@ tests:
         enabled: true
         webhook:
           enabled: true
+          certMode: cert-manager
           certManager:
             enabled: true
             issuerRef:

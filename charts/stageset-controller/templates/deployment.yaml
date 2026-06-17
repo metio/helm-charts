@@ -86,8 +86,10 @@ spec:
             {{- if .Values.controller.watchNamespaces }}
             - --watch-namespaces={{ join "," .Values.controller.watchNamespaces }}
             {{- end }}
-            {{- if .Values.controller.runbookBaseURL }}
-            - --runbook-base-url={{ .Values.controller.runbookBaseURL }}
+            {{- with .Values.controller.tracing.endpoint }}
+            - --tracing-endpoint={{ . }}
+            - --tracing-insecure={{ $.Values.controller.tracing.insecure }}
+            - --tracing-sample-ratio={{ $.Values.controller.tracing.sampleRatio }}
             {{- end }}
             {{- if .Values.gate.enabled }}
             - --gate-bind-address=:{{ .Values.ports.gate }}
