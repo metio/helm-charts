@@ -17,6 +17,16 @@ helm upgrade --install stageset-controller oci://ghcr.io/metio/helm-charts/stage
   --namespace stageset-system --create-namespace
 ```
 
+## Requirements
+
+The default install needs nothing beyond a Kubernetes cluster — the CRDs ship with the chart and the webhook self-provisions TLS. Individual features add prerequisites:
+
+- **Flux sources.** The controller boots without Flux; its source watches engage once the CRDs are present. A `StageSet` that references a Flux source via `spec.stages[].sourceRef`, or consumes a producer's `ExternalArtifact`, requires Flux source-controller — the `ExternalArtifact` CRD ships in Flux v2.7.0 and later.
+- **Tenant ServiceAccount RBAC.** In the default multi-tenant model the controller applies each `StageSet` impersonating its `spec.serviceAccountName`, which must exist and hold RBAC to apply the resources that StageSet manages. See [Multi-cluster and tenancy](https://stageset.projects.metio.wtf/usage/multi-cluster/); for a single-tenant cluster, set `rbac.clusterAdmin: true` instead.
+- **Admission webhook.** The default `webhook.certMode: self-signed` needs nothing extra. Setting `webhook.certMode: cert-manager` requires [cert-manager](https://cert-manager.io/) and an issuer.
+- **Metrics integration.** `metrics.serviceMonitor.enabled` and `metrics.prometheusRule.enabled` render `monitoring.coreos.com` resources and require the Prometheus Operator CRDs.
+- **S3 rollback store.** `rollbackStore.backend: s3` requires `rollbackStore.s3.endpoint` and `rollbackStore.s3.bucket`; the install fails fast without them.
+
 ## What it installs
 
 - the controller `Deployment` (PSS-restricted), `ServiceAccount`, and cluster

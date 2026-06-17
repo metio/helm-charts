@@ -21,6 +21,15 @@ helm install SOME_RELEASE oci://ghcr.io/metio/helm-charts/jaas --version SOME_VE
 
 Replace `SOME_RELEASE` and `SOME_VERSION` with appropriate values for your environment. In general, we recommend to run the latest available version.
 
+## Requirements
+
+The default install — the HTTP-only renderer — needs nothing beyond a Kubernetes cluster. Individual features add prerequisites:
+
+- **Operator mode** (`operator.enabled: true`) boots without Flux installed; the Flux source watches engage only once their CRDs are present. Snippets that set `spec.sourceRef`, and any downstream consumer of the published `ExternalArtifact`, require Flux source-controller — the `ExternalArtifact` CRD ships in Flux v2.7.0 and later.
+- **Tenant ServiceAccount RBAC.** In operator mode every snippet reconciles under the ServiceAccount in `spec.serviceAccountName`, which must exist and hold the tenant Role, or the first reconcile fails with `Forbidden`. See [Tenancy and RBAC](https://jaas.projects.metio.wtf/usage/tenancy-and-rbac/).
+- **Admission webhook** (`operator.webhook.enabled: true`) in the default `operator.webhook.certMode: cert-manager` requires [cert-manager](https://cert-manager.io/). The `self-signed` cert mode provisions its own certificate in-pod and needs nothing extra.
+- **Metrics integration.** `operator.metrics.serviceMonitor.enabled` and `operator.metrics.prometheusRule.enabled` render `monitoring.coreos.com` resources and require the Prometheus Operator CRDs.
+
 ## Usage with grafana-operator
 
 JaaS is intended to be used together with the grafana-operator to manage Grafana dashboards using Jsonnet. However, it can evaluate any kind of Jsonnet, so using it for something else is fine too. See the [official upstream documentation](https://grafana.github.io/grafana-operator/docs/examples/dashboard/jaas/readme/) on how to integrate with the grafana-operator.
