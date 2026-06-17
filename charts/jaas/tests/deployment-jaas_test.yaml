@@ -150,8 +150,30 @@ tests:
       - equal:
           path: spec.revisionHistoryLimit
           value: 1
-  - it: does not set spec.replicas (HPA manages scale)
+  - it: pins spec.replicas to replicas.min at the non-autoscaling default
     asserts:
+      # replicas.min is the fixed Deployment count unless an HPA is rendered
+      # (replicas.max > replicas.min). At the 1/1 default that is one replica.
+      - equal:
+          path: spec.replicas
+          value: 1
+  - it: pins spec.replicas to replicas.min for a fixed multi-replica install
+    set:
+      replicas.min: 2
+      replicas.max: 2
+    asserts:
+      # min == max: no HPA, so the Deployment owns a fixed count — the two pods
+      # an HA (leader-election failover) install relies on.
+      - equal:
+          path: spec.replicas
+          value: 2
+  - it: omits spec.replicas when autoscaling so the HPA owns the count
+    set:
+      replicas.min: 2
+      replicas.max: 5
+    asserts:
+      # max > min renders the HPA, which owns the replica count from
+      # minReplicas; the Deployment must not set spec.replicas and fight it.
       - notExists:
           path: spec.replicas
 

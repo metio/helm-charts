@@ -25,9 +25,14 @@ metadata:
     #     replicas.max > replicas.min.
     kube-score/ignore: container-image-pull-policy,pod-networkpolicy,deployment-has-host-podantiaffinity,deployment-replicas,deployment-has-poddisruptionbudget
 spec:
-  {{- /* spec.replicas is intentionally omitted: when scaling (replicas.max >
-         replicas.min) the HPA owns the count from replicas.min; otherwise the
-         Deployment defaults to a single replica. */}}
+  {{- /* When autoscaling (replicas.max > replicas.min) the HPA owns the replica
+         count starting at replicas.min, so spec.replicas is omitted to avoid
+         fighting the HPA on every apply. Otherwise replicas.min is a fixed
+         count and must be set explicitly — at the 1/1 default that is a single
+         replica; replicas.min/max=2 pins two. */}}
+  {{- if not (include "stageset.scaling" .) }}
+  replicas: {{ .Values.replicas.min }}
+  {{- end }}
   revisionHistoryLimit: {{ .Values.deployment.revisionHistoryLimit }}
   selector:
     matchLabels:
