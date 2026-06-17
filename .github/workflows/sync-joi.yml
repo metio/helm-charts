@@ -40,6 +40,10 @@ jobs:
           libnames() { awk '/^libraries:/{f=1;next} f && /^  [A-Za-z0-9]/{sub(/:[[:space:]]*$/,"");gsub(/^[[:space:]]+/,"");print}' "$1" | sort; }
           libnames charts/joi/values.yaml > /tmp/old-libs.txt
           bash hack/gen-joi-values.sh /tmp/libraries.json > charts/joi/values.yaml
+          # Per-library helm-unittest coverage from the same source — one
+          # automated path (libraries.json -> values.yaml -> test) so the cases
+          # can't drift from the shipped set; no separate drift gate needed.
+          bash hack/gen-joi-tests.sh /tmp/libraries.json > charts/joi/tests/libraries-generated_test.yaml
           # Shrink-guard: a transient discovery failure upstream can leave the
           # JOI manifest missing healthy libraries; mirroring it would silently
           # drop them from the chart. Abort if any currently-shipped library
@@ -50,17 +54,17 @@ jobs:
             echo "::error::sync would drop libraries the chart currently ships:"
             echo "$dropped" | sed 's/^/::error::  - /'
             echo "::error::if these were genuinely removed from the JOI manifest, re-run with allow_shrink=true; otherwise this is a transient upstream discovery failure — fix JOI and re-run."
-            git checkout -- charts/joi/values.yaml
+            git checkout -- charts/joi/values.yaml charts/joi/tests/libraries-generated_test.yaml
             exit 1
           fi
           curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 https://github.com/dadav/helm-schema/releases/download/0.23.4/helm-schema_0.23.4_Linux_x86_64.tar.gz | tar -xz -C /usr/local/bin helm-schema
           helm-schema -c charts/joi -k additionalProperties >/dev/null
       - name: Commit if the library set changed
         run: |
-          if ! git diff --quiet -- charts/joi/values.yaml charts/joi/values.schema.json; then
+          if ! git diff --quiet -- charts/joi/values.yaml charts/joi/values.schema.json charts/joi/tests/libraries-generated_test.yaml; then
             git config user.name 'github-actions[bot]'
             git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git add charts/joi/values.yaml charts/joi/values.schema.json
+            git add charts/joi/values.yaml charts/joi/values.schema.json charts/joi/tests/libraries-generated_test.yaml
             git commit -m 'chore: sync joi chart with jsonnet-oci-images library set'
             git push
           fi
