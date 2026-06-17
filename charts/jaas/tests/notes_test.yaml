@@ -1,0 +1,24 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+suite: test jaas NOTES
+templates:
+  - NOTES.txt
+tests:
+  - it: operator mode links the tenancy/RBAC docs page and drops the dead README anchor
+    set:
+      operator:
+        enabled: true
+    asserts:
+      - matchRegexRaw:
+          pattern: https://jaas\.projects\.metio\.wtf/usage/tenancy-and-rbac/
+      - notMatchRegexRaw:
+          pattern: tenant-serviceaccount-rbac
+
+  - it: uses long-form --namespace, not -n
+    set:
+      operator:
+        enabled: true
+    asserts:
+      - notMatchRegexRaw:
+          pattern: "kubectl -n "

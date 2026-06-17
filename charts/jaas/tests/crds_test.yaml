@@ -1,0 +1,48 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+suite: test jaas CRDs
+templates:
+  - crd-jsonnetsnippets.yaml
+  - crd-jsonnetlibraries.yaml
+tests:
+  - it: renders both CRDs by default
+    asserts:
+      - hasDocuments:
+          count: 1
+        template: crd-jsonnetsnippets.yaml
+      - hasDocuments:
+          count: 1
+        template: crd-jsonnetlibraries.yaml
+      - isKind:
+          of: CustomResourceDefinition
+        template: crd-jsonnetsnippets.yaml
+      - isKind:
+          of: CustomResourceDefinition
+        template: crd-jsonnetlibraries.yaml
+
+  - it: snippets CRD carries the resource-policy keep annotation
+    template: crd-jsonnetsnippets.yaml
+    asserts:
+      - equal:
+          path: metadata.annotations["helm.sh/resource-policy"]
+          value: keep
+
+  - it: libraries CRD carries the resource-policy keep annotation
+    template: crd-jsonnetlibraries.yaml
+    asserts:
+      - equal:
+          path: metadata.annotations["helm.sh/resource-policy"]
+          value: keep
+
+  - it: omits both CRDs when crds.create is false
+    set:
+      crds:
+        create: false
+    asserts:
+      - hasDocuments:
+          count: 0
+        template: crd-jsonnetsnippets.yaml
+      - hasDocuments:
+          count: 0
+        template: crd-jsonnetlibraries.yaml

@@ -1,0 +1,13 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+suite: test stageset NOTES
+templates:
+  - NOTES.txt
+tests:
+  - it: warns the controller impersonates the deployer SA and links the tenancy docs
+    asserts:
+      - matchRegexRaw:
+          pattern: it impersonates
+      - matchRegexRaw:
+          pattern: https://stageset\.projects\.metio\.wtf/usage/multi-cluster/

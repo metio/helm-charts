@@ -1,0 +1,13 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+suite: test joi NOTES
+templates:
+  - NOTES.txt
+tests:
+  - it: warns that the renderer SA needs the JaaS tenant Role and links the docs
+    asserts:
+      - matchRegexRaw:
+          pattern: tenant ServiceAccount
+      - matchRegexRaw:
+          pattern: https://jaas\.projects\.metio\.wtf/usage/tenancy-and-rbac/
