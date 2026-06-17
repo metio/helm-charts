@@ -272,6 +272,14 @@ metrics:
       # hour before paging.
       webhookCertRenewalFailuresPerHour: 1
       webhookCertRenewalFailuresDuration: 30m
+      # -- StageSetWatchEngagementFailing: hourly increase on the producer-watch
+      # engagement failure counter. The retry pipeline eventually re-engages, but a
+      # sustained inability to engage means dependent StageSets aren't
+      # re-triggering on upstream producer republishes.
+      watchEngagementFailuresPerHour: 1
+      # -- How long the per-hour watch-engagement failure increase must stay above
+      # the threshold before the alert fires.
+      watchEngagementFailuresDuration: 30m
 
 # -- Opt-in NetworkPolicy. Inert without a NetworkPolicy controller.
 networkPolicy:

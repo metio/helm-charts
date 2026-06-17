@@ -48,6 +48,23 @@ tests:
       - equal:
           path: spec.groups[1].rules[3].alert
           value: StageSetWebhookCertRenewalFailing
+      - equal:
+          path: spec.groups[1].rules[4].alert
+          value: StageSetWatchEngagementFailing
+
+  - it: alerts on producer-watch engagement failures via the watch-engagement runbook
+    set:
+      metrics.prometheusRule.enabled: true
+    asserts:
+      - equal:
+          path: spec.groups[1].rules[4].alert
+          value: StageSetWatchEngagementFailing
+      - matchRegex:
+          path: spec.groups[1].rules[4].expr
+          pattern: "increase\\(stageset_watch_engagement_failures_total\\[1h\\]\\)"
+      - equal:
+          path: spec.groups[1].rules[4].annotations.runbook_url
+          value: "https://stageset.projects.metio.wtf/runbooks/watch-engagement/"
 
   - it: templates the per-reason runbook URL on the documentation site
     set:

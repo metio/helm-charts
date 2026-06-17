@@ -124,6 +124,34 @@ spec:
               works until its natural expiry, which is the deadline.
             {{ $rbKey }}: {{ printf "%s/webhook-cert-renewal/" $rbBase | quote }}
 
+        - alert: StageSetWatchEngagementFailing
+          # When a previously-missing producer source CRD becomes
+          # Established, the watcher engages a runtime watch on it. If
+          # that engagement keeps failing, the apiextensions informer
+          # fires no further events on a stable CRD, so the watch stays
+          # un-engaged. Dependent StageSets stop re-triggering on
+          # upstream republishes of that producer kind, with no
+          # per-StageSet signal.
+          expr: |
+            increase(stageset_watch_engagement_failures_total[1h]) > {{ .Values.metrics.prometheusRule.thresholds.watchEngagementFailuresPerHour }}
+          for: {{ .Values.metrics.prometheusRule.thresholds.watchEngagementFailuresDuration }}
+          labels:
+            severity: warning
+            {{- with .Values.metrics.prometheusRule.extraAlertLabels }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          annotations:
+            summary: 'StageSet cannot engage producer watch for {{ "{{" }} $labels.gvk {{ "}}" }}'
+            description: |
+              stageset_watch_engagement_failures_total has been
+              increasing for {{ "{{" }} $labels.gvk {{ "}}" }}. The
+              producer source CRD is installed and Established but the
+              controller's attempt to register the watch keeps erroring
+              (transient controller-runtime cache reconnect, or a missing
+              ClusterRole verb on the source kind). StageSets depending on
+              this kind aren't re-triggering on upstream producer updates.
+            {{ $rbKey }}: {{ printf "%s/watch-engagement/" $rbBase | quote }}
+
     {{- with .Values.metrics.prometheusRule.extraRules }}
     - name: stageset-extras
       interval: {{ $.Values.metrics.prometheusRule.interval }}
