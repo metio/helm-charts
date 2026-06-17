@@ -134,6 +134,7 @@ spec:
             - --management-read-timeout={{ .Values.arguments.managementReadTimeout }}
             - --management-write-timeout={{ .Values.arguments.managementWriteTimeout }}
             - --log-level={{ .Values.arguments.logLevel }}
+            - --log-format={{ .Values.arguments.logFormat }}
             - --jsonnet-endpoint-path={{ .Values.arguments.jsonnetEndpointPath }}
             - --evaluation-timeout={{ .Values.arguments.evaluationTimeout }}
             - --max-stack={{ .Values.arguments.maxStack }}

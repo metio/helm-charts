@@ -277,6 +277,11 @@ tests:
       - contains:
           path: spec.template.spec.containers[0].args
           content: --management-port=9091
+  - it: passes the default arguments.logLevel via --log-level
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --log-level=info
   - it: passes arguments.logLevel via --log-level
     set:
       arguments:
@@ -285,6 +290,19 @@ tests:
       - contains:
           path: spec.template.spec.containers[0].args
           content: --log-level=debug
+  - it: passes the default arguments.logFormat via --log-format
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --log-format=json
+  - it: passes arguments.logFormat via --log-format
+    set:
+      arguments:
+        logFormat: text
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --log-format=text
   - it: passes paths.snippets via --snippet-directory
     set:
       paths:

@@ -52,6 +52,28 @@ tests:
       - contains:
           path: spec.template.spec.containers[0].args
           content: --enable-webhook=true
+  - it: passes the default controller.logLevel and logFormat
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --log-level=info
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --log-format=json
+  - it: honors a controller.logLevel override
+    set:
+      controller.logLevel: debug
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --log-level=debug
+  - it: honors a controller.logFormat override
+    set:
+      controller.logFormat: text
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --log-format=text
   - it: defaults to self-signed webhook flags
     release:
       namespace: stageset-system

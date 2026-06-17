@@ -77,6 +77,14 @@ arguments:
   # @schema
   # -- Log verbosity for the jaas binary (debug, info, warn, error).
   logLevel: info
+  # @schema
+  # type: string
+  # enum:
+  #   - json
+  #   - text
+  # @schema
+  # -- Log output format for the jaas binary (json, text).
+  logFormat: json
   # -- Write timeout on the jsonnet HTTP server.
   writeTimeout: 10s
   # -- Read timeout on the jsonnet HTTP server.

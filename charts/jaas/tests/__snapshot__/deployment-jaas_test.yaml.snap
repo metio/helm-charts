@@ -9,6 +9,7 @@ matches its arguments snapshot:
     - --management-read-timeout=10s
     - --management-write-timeout=10s
     - --log-level=info
+    - --log-format=json
     - --jsonnet-endpoint-path=jsonnet
     - --evaluation-timeout=5s
     - --max-stack=500

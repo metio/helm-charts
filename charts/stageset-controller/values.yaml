@@ -56,6 +56,24 @@ ports:
 
 # -- Controller behaviour (maps onto the binary's flags).
 controller:
+  # @schema
+  # type: string
+  # enum:
+  #   - debug
+  #   - info
+  #   - warn
+  #   - error
+  # @schema
+  # -- Log verbosity for the controller binary (debug, info, warn, error).
+  logLevel: info
+  # @schema
+  # type: string
+  # enum:
+  #   - json
+  #   - text
+  # @schema
+  # -- Log output format for the controller binary (json, text).
+  logFormat: json
   # -- Leader election for HA replicas. Keep on; harmless single-replica.
   leaderElect: true
   # -- Reconcile cadence for StageSets that omit spec.interval. Most StageSets can
