@@ -45,9 +45,6 @@ tests:
           content: --leader-elect
       - contains:
           path: spec.template.spec.containers[0].args
-          content: --inventory-mode=hybrid
-      - contains:
-          path: spec.template.spec.containers[0].args
           content: --gate-bind-address=:8082
       - contains:
           path: spec.template.spec.containers[0].args

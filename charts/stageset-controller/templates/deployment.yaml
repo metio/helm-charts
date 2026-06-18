@@ -82,7 +82,6 @@ spec:
             - --log-level={{ .Values.controller.logLevel }}
             - --log-format={{ .Values.controller.logFormat }}
             - --default-interval={{ .Values.controller.defaultInterval }}
-            - --inventory-mode={{ .Values.controller.inventoryMode }}
             - --inventory-shard-cap={{ .Values.controller.inventoryShardCap }}
             {{- range .Values.controller.allowedActionHosts }}
             - --allowed-action-hosts={{ . }}

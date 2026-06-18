@@ -79,15 +79,6 @@ controller:
   # -- Reconcile cadence for StageSets that omit spec.interval. Most StageSets can
   # leave spec.interval unset and inherit this.
   defaultInterval: 10m
-  # @schema
-  # type: string
-  # enum:
-  #   - entries
-  #   - hybrid
-  #   - applyset
-  # @schema
-  # -- Inventory strategy for tracking applied objects.
-  inventoryMode: hybrid
   # -- Maximum entries per StageInventory shard.
   inventoryShardCap: 5000
   # -- Host globs permitted for http actions (SSRF guard). Loopback/link-local are
