@@ -17,6 +17,8 @@ helm upgrade --install stageset-controller oci://ghcr.io/metio/helm-charts/stage
   --namespace stageset-system --create-namespace
 ```
 
+The chart is also listed on [ArtifactHub](https://artifacthub.io/packages/helm/stageset-controller/stageset-controller).
+
 ## Requirements
 
 The default install needs nothing beyond a Kubernetes cluster — the CRDs ship with the chart and the webhook self-provisions TLS. Individual features add prerequisites:
