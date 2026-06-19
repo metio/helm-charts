@@ -89,6 +89,9 @@ spec:
             {{- if .Values.controller.noCrossNamespaceRefs }}
             - --no-cross-namespace-refs
             {{- end }}
+            {{- if .Values.controller.objectLevelKMS }}
+            - --object-level-kms
+            {{- end }}
             {{- if .Values.controller.watchNamespaces }}
             - --watch-namespaces={{ join "," .Values.controller.watchNamespaces }}
             {{- end }}

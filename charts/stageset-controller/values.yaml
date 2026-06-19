@@ -86,6 +86,12 @@ controller:
   allowedActionHosts: []
   # -- Deny cross-namespace sourceRef / dependsOn references.
   noCrossNamespaceRefs: false
+  # -- Decrypt SOPS cloud KMS keys under each StageSet's serviceAccountName
+  # federated to a cloud identity, instead of the controller's ambient
+  # credentials. Opt-in per-tenant KMS identity: the tenant ServiceAccount must
+  # be federated (IRSA / Workload Identity) to a cloud identity granted KMS
+  # decrypt. Off by default (ambient credentials).
+  objectLevelKMS: false
   # -- Namespaces this controller watches. Empty (the default) means cluster-wide.
   # When set, the manager's cache only observes StageSets and sources in these
   # namespaces, and RBAC pivots from a cluster-wide ClusterRoleBinding to one

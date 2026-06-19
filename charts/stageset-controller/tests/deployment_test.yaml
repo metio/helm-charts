@@ -269,6 +269,20 @@ tests:
           path: spec.template.spec.containers[0].args
           content: --no-cross-namespace-refs
 
+  - it: omits --object-level-kms by default
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].args
+          content: --object-level-kms
+  - it: adds --object-level-kms when enabled
+    set:
+      controller:
+        objectLevelKMS: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --object-level-kms
+
   # ------------------------------------------------------------------
   # OpenTelemetry tracing — args render only when an endpoint is set
   # ------------------------------------------------------------------

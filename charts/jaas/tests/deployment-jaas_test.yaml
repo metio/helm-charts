@@ -75,6 +75,28 @@ tests:
           of: Deployment
       - matchSnapshot:
           path: spec.template.spec.containers[0].env
+  - it: quotes external variable values so colon-bearing and numeric values stay valid strings
+    set:
+      externalVariables:
+        url: "https://x:8080"
+        port: 8080
+    documentSelector:
+      path: metadata.name
+      value: jaas
+      skipEmptyTemplates: true
+    asserts:
+      - isKind:
+          of: Deployment
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: JAAS_EXT_VAR_url
+            value: "https://x:8080"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: JAAS_EXT_VAR_port
+            value: "8080"
   - it: supports loading env variables from config maps and secrets
     set:
       externalVariablesFrom:
