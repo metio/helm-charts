@@ -130,6 +130,53 @@ rbac:
   # serviceAccountName and the controller only impersonates those scoped SAs.
   clusterAdmin: false
 
+# -- Pre-delete cleanup hook. StageSets carry a finalizer
+# (stages.metio.wtf/finalizer) that tears down the objects a StageSet applied.
+# A plain `helm uninstall` removes the controller while StageSets still hold
+# that finalizer, so their delete never completes and uninstall hangs. When
+# enabled, a pre-delete Job bulk-deletes every StageSet so the controller's
+# finalizer runs (tearing down applied objects) BEFORE Helm removes the
+# controller itself.
+#
+# Disable when uninstall is driven by something other than Helm (e.g., ArgoCD
+# with hooks off) — the manual cleanup pattern is:
+#
+#   kubectl delete stageset --all -A --wait=true --timeout=2m
+#   helm uninstall stageset-controller -n <ns>
+cleanupOnDelete:
+  enabled: true
+  # -- Maximum wall-clock time the pre-delete Job waits for StageSet finalizers
+  # to run before it strips them forcibly and proceeds. Bigger when StageSets
+  # tear down many objects or talk to slow remote clusters.
+  kubectlTimeout: 2m
+  # -- Job-level safety net. activeDeadlineSeconds caps the Job's total runtime;
+  # if the controller is wedged, Helm won't be blocked forever.
+  activeDeadlineSeconds: 600
+  # -- backoffLimit on the pre-delete Job.
+  backoffLimit: 2
+  # -- Image for the pre-delete cleanup Job (a kubectl image).
+  image:
+    registry: registry.k8s.io
+    repository: kubectl
+    tag: v1.34.0
+    # @schema
+    # type: string
+    # enum:
+    #   - Always
+    #   - IfNotPresent
+    #   - Never
+    # @schema
+    pullPolicy: IfNotPresent
+  # -- Resource requests/limits for the cleanup Job container.
+  resources:
+    cpu: 100m
+    memory: 64Mi
+    # -- Ephemeral-storage requests/limits. The cleanup Job runs a few `kubectl`
+    # calls then exits — disk usage is negligible. Sized small to satisfy
+    # kube-score's resource-completeness check without crowding cluster
+    # ephemeral-storage budgets.
+    ephemeralStorage: 16Mi
+
 # -- Flagger stage-gate endpoint (GET /gate/{ns}/{stageset}/{stage}). Renders a
 # dedicated Service when enabled.
 gate:
@@ -167,6 +214,62 @@ webhook:
       # @schema
       kind: Issuer
       name: ""
+  # @schema
+  # type: string
+  # enum:
+  #   - Fail
+  #   - Ignore
+  # @schema
+  # -- Failure policy for the ValidatingWebhookConfiguration. Fail is the safer
+  # default — a webhook outage blocks StageSet writes cluster-wide until the
+  # controller is back. Switch to Ignore only when you're willing to accept
+  # invalid StageSets reaching the reconciler.
+  #
+  # During a controller restart (rolling update, crash-loop, eviction) the
+  # webhook is briefly unreachable and Fail blocks every StageSet create/update
+  # for that window. If your CI/GitOps tooling can't tolerate that, scope the
+  # webhook with objectSelector / namespaceSelector to limit the blast radius,
+  # or set failurePolicy: Ignore.
+  failurePolicy: Fail
+  # @schema
+  # type: string
+  # enum:
+  #   - None
+  #   - NoneOnDryRun
+  #   - Some
+  #   - Unknown
+  # @schema
+  # -- Side-effect mode for the ValidatingWebhookConfiguration.
+  sideEffects: None
+  # @schema
+  # type: integer
+  # minimum: 1
+  # maximum: 30
+  # @schema
+  # -- Webhook call timeout in seconds. The apiserver aborts the admission call
+  # after this and applies failurePolicy. Keep low so a wedged controller fails
+  # fast instead of stalling every StageSet apply.
+  timeoutSeconds: 10
+  # -- objectSelector restricts the webhook to StageSets carrying the listed
+  # labels. Useful when only some StageSets are controller-managed (the rest
+  # live in Argo or kustomize).
+  # Example:
+  #   objectSelector:
+  #     matchLabels:
+  #       stages.metio.wtf/managed: "true"
+  objectSelector: {}
+  # -- namespaceSelector restricts the webhook to Namespaces carrying the listed
+  # labels. A common pattern: opt-in per namespace via a label so the apiserver
+  # doesn't dial the webhook for unrelated namespaces during controller outages.
+  # Example:
+  #   namespaceSelector:
+  #     matchLabels:
+  #       stages.metio.wtf/admission: enforce
+  namespaceSelector: {}
+  # -- matchConditions are CEL expressions evaluated server-side before the
+  # webhook is dialed. Lets operators short-circuit admission checks for
+  # specific StageSet shapes without a round trip. Requires Kubernetes 1.30+.
+  matchConditions: []
 
 # -- Optional rollback store for bit-exact, GC-independent rollbacks.
 rollbackStore:

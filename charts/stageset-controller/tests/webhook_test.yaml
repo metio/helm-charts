@@ -65,3 +65,80 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: webhook.certManager.issuerRef.name is required in cert-manager mode
+  - it: defaults to failurePolicy Fail with a bounded timeout
+    template: templates/validatingwebhookconfiguration.yaml
+    asserts:
+      - equal:
+          path: webhooks[0].failurePolicy
+          value: Fail
+      - equal:
+          path: webhooks[0].timeoutSeconds
+          value: 10
+      - equal:
+          path: webhooks[0].sideEffects
+          value: None
+  - it: honors failurePolicy Ignore and a custom timeout
+    set:
+      webhook.failurePolicy: Ignore
+      webhook.timeoutSeconds: 5
+    template: templates/validatingwebhookconfiguration.yaml
+    asserts:
+      - equal:
+          path: webhooks[0].failurePolicy
+          value: Ignore
+      - equal:
+          path: webhooks[0].timeoutSeconds
+          value: 5
+  - it: omits selectors and matchConditions by default
+    template: templates/validatingwebhookconfiguration.yaml
+    asserts:
+      - notExists:
+          path: webhooks[0].objectSelector
+      - notExists:
+          path: webhooks[0].namespaceSelector
+      - notExists:
+          path: webhooks[0].matchConditions
+  - it: renders objectSelector, namespaceSelector, and matchConditions when set
+    set:
+      webhook.objectSelector:
+        matchLabels:
+          stages.metio.wtf/managed: "true"
+      webhook.namespaceSelector:
+        matchLabels:
+          stages.metio.wtf/admission: enforce
+      webhook.matchConditions:
+        - name: skip-kube-system
+          expression: "object.metadata.namespace != 'kube-system'"
+    template: templates/validatingwebhookconfiguration.yaml
+    asserts:
+      - equal:
+          path: webhooks[0].objectSelector.matchLabels["stages.metio.wtf/managed"]
+          value: "true"
+      - equal:
+          path: webhooks[0].namespaceSelector.matchLabels["stages.metio.wtf/admission"]
+          value: enforce
+      - equal:
+          path: webhooks[0].matchConditions[0].name
+          value: skip-kube-system
+  - it: fails render on an unrecognised certMode
+    set:
+      webhook.certMode: bogus
+    template: templates/validatingwebhookconfiguration.yaml
+    asserts:
+      - failedTemplate:
+          errorMessage: webhook.certMode must be 'cert-manager' or 'self-signed', got "bogus"
+  - it: renders for both valid certMode values
+    template: templates/validatingwebhookconfiguration.yaml
+    set:
+      webhook.certMode: self-signed
+    asserts:
+      - hasDocuments:
+          count: 1
+  - it: renders in cert-manager certMode with an issuer
+    set:
+      webhook.certMode: cert-manager
+      webhook.certManager.issuerRef.name: my-issuer
+    template: templates/validatingwebhookconfiguration.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
