@@ -20,3 +20,37 @@ half-applied.
 {{- if and .Values.operator.enabled (or (not (empty .Values.snippets)) (not (empty .Values.additionalLibraries)) $anyLibraryEnabled) -}}
 {{- fail "operator.enabled (Flux integration) is mutually exclusive with static OCI volume mounts. Either clear `snippets`, `additionalLibraries`, and any enabled `libraries` (Flux mode: snippets/libraries come from CRs), or set operator.enabled=false (standalone renderer: use the OCI mounts)." -}}
 {{- end -}}
+
+{{- /* Multi-replica jaas with a local artifact backend is a silent 404 trap.
+       Only the leader writes tarballs, but the storage Service load-balances
+       reads across every replica, so a downstream Flux consumer that hits a
+       non-leader pod 404s on ExternalArtifact.status.artifact.url. A local
+       backend is single-writer: an emptyDir is per-pod, and an RWO PVC attaches
+       to one pod only. Multi-replica HA needs either the S3 backend (every
+       replica reads the same bucket) or an RWX PVC (every replica mounts the
+       same volume). Anything else is rejected at render time. */ -}}
+{{- $multiReplica := or (gt (.Values.replicas.max | int) 1) (gt (.Values.replicas.min | int) 1) -}}
+{{- if and .Values.operator.enabled $multiReplica (eq .Values.operator.storage.backend "local") -}}
+{{- $persistence := .Values.operator.storage.persistence -}}
+{{- $rwx := false -}}
+{{- if $persistence.enabled -}}
+{{- range $persistence.accessModes -}}
+{{- if eq . "ReadWriteMany" -}}
+{{- $rwx = true -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- if not $rwx -}}
+{{- fail "operator.enabled with more than one replica and operator.storage.backend=local serves stale 404s from non-leader pods — only the leader writes tarballs while the storage Service reads from every replica. Use operator.storage.backend=s3 (every replica reads the same bucket), or set operator.storage.persistence.enabled=true with an accessMode of ReadWriteMany (RWX) so every replica mounts the same volume." -}}
+{{- end -}}
+{{- end -}}
+
+{{- /* Scaling the operator with leader election off double-reconciles every
+       JsonnetSnippet: each replica runs the reconciler independently, so two
+       pods render and publish the same snippet at once, racing the
+       ExternalArtifact write. Leader election MUST stay on whenever the
+       Deployment can run more than one replica. */ -}}
+{{- $scaling := or (gt (.Values.replicas.max | int) (.Values.replicas.min | int)) (gt (.Values.replicas.min | int) 1) -}}
+{{- if and .Values.operator.enabled $scaling (not .Values.operator.leaderElection.enabled) -}}
+{{- fail "operator.enabled with scaling (replicas.max > replicas.min, or replicas.min > 1) requires operator.leaderElection.enabled=true. Without leader election every replica reconciles every JsonnetSnippet independently, double-rendering and racing the ExternalArtifact write. Keep leader election on, or pin replicas.min=replicas.max=1." -}}
+{{- end -}}

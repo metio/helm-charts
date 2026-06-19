@@ -53,3 +53,90 @@ tests:
     asserts:
       - hasDocuments:
           count: 0
+  # C3 — multi-replica + local storage fail-fast
+  - it: rejects multi-replica operator on the local backend (emptyDir)
+    set:
+      operator.enabled: true
+      operator.defaultServiceAccount: default
+      replicas.max: 3
+    asserts:
+      - failedTemplate:
+          errorMessage: "operator.enabled with more than one replica and operator.storage.backend=local serves stale 404s from non-leader pods — only the leader writes tarballs while the storage Service reads from every replica. Use operator.storage.backend=s3 (every replica reads the same bucket), or set operator.storage.persistence.enabled=true with an accessMode of ReadWriteMany (RWX) so every replica mounts the same volume."
+  - it: rejects multi-replica operator on a local RWO PVC
+    set:
+      operator.enabled: true
+      operator.defaultServiceAccount: default
+      replicas.min: 2
+      replicas.max: 2
+      operator.storage.persistence.enabled: true
+      operator.storage.persistence.accessModes:
+        - ReadWriteOnce
+    asserts:
+      - failedTemplate:
+          errorMessage: "operator.enabled with more than one replica and operator.storage.backend=local serves stale 404s from non-leader pods — only the leader writes tarballs while the storage Service reads from every replica. Use operator.storage.backend=s3 (every replica reads the same bucket), or set operator.storage.persistence.enabled=true with an accessMode of ReadWriteMany (RWX) so every replica mounts the same volume."
+  - it: allows multi-replica operator on the S3 backend
+    set:
+      operator.enabled: true
+      operator.defaultServiceAccount: default
+      replicas.max: 3
+      operator.storage.backend: s3
+      operator.storage.s3.endpoint: minio.minio.svc:9000
+      operator.storage.s3.bucket: jaas
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: allows multi-replica operator on a local RWX PVC
+    set:
+      operator.enabled: true
+      operator.defaultServiceAccount: default
+      replicas.max: 3
+      operator.storage.persistence.enabled: true
+      operator.storage.persistence.accessModes:
+        - ReadWriteMany
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: allows single-replica operator on the local backend (default)
+    set:
+      operator.enabled: true
+      operator.defaultServiceAccount: default
+    asserts:
+      - hasDocuments:
+          count: 0
+  # C4 — scaling with leader election off fail-fast
+  - it: rejects scaling the operator with leader election off
+    set:
+      operator.enabled: true
+      operator.defaultServiceAccount: default
+      operator.storage.backend: s3
+      operator.storage.s3.endpoint: minio.minio.svc:9000
+      operator.storage.s3.bucket: jaas
+      replicas.max: 3
+      operator.leaderElection.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: "operator.enabled with scaling (replicas.max > replicas.min, or replicas.min > 1) requires operator.leaderElection.enabled=true. Without leader election every replica reconciles every JsonnetSnippet independently, double-rendering and racing the ExternalArtifact write. Keep leader election on, or pin replicas.min=replicas.max=1."
+  - it: rejects replicas.min > 1 with leader election off
+    set:
+      operator.enabled: true
+      operator.defaultServiceAccount: default
+      operator.storage.backend: s3
+      operator.storage.s3.endpoint: minio.minio.svc:9000
+      operator.storage.s3.bucket: jaas
+      replicas.min: 2
+      replicas.max: 2
+      operator.leaderElection.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: "operator.enabled with scaling (replicas.max > replicas.min, or replicas.min > 1) requires operator.leaderElection.enabled=true. Without leader election every replica reconciles every JsonnetSnippet independently, double-rendering and racing the ExternalArtifact write. Keep leader election on, or pin replicas.min=replicas.max=1."
+  - it: allows scaling the operator with leader election on (default)
+    set:
+      operator.enabled: true
+      operator.defaultServiceAccount: default
+      operator.storage.backend: s3
+      operator.storage.s3.endpoint: minio.minio.svc:9000
+      operator.storage.s3.bucket: jaas
+      replicas.max: 3
+    asserts:
+      - hasDocuments:
+          count: 0
