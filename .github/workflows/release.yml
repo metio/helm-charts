@@ -139,11 +139,11 @@ jobs:
 
             # Inject an Artifact Hub `artifacthub.io/changes` annotation, computed by
             # git-cliff over this chart's commit range (the same range the release
-            # notes use). cliff-artifacthub.toml renders a YAML list of {kind,
+            # notes use). The shared cliff-artifacthub.toml renders a YAML list of {kind,
             # description}; the edit is to the ephemeral CI checkout's Chart.yaml only
             # (never committed) so the annotation ships inside the packaged .tgz. An
             # empty range (no new commits) yields no annotation, which is correct.
-            changes="$(CHART="$name" VERSION="$version" git-cliff --config cliff-artifacthub.toml --include-path "charts/${name}/**" --tag-pattern "^${name}-" ${prev:+"${prev}..HEAD"} 2>/dev/null | sed '/^[[:space:]]*$/d')"
+            changes="$(CHART="$name" VERSION="$version" git-cliff --config-url "https://raw.githubusercontent.com/metio/git-cliff-config/6fcc0b65dde726f59c09066fae227cec236ffd76/cliff-artifacthub.toml" --include-path "charts/${name}/**" --tag-pattern "^${name}-" ${prev:+"${prev}..HEAD"} 2>/dev/null | sed '/^[[:space:]]*$/d')"
             if [ -n "$changes" ]; then
               CHANGES="$changes" yq -i '.annotations."artifacthub.io/changes" = strenv(CHANGES)' "$chart/Chart.yaml"
             fi
@@ -163,10 +163,10 @@ jobs:
 
             # Per-chart, path-scoped release notes since this chart's last tag
             # ($prev, computed above). --tag labels the (still uncreated) release so
-            # the cliff.toml header renders this chart+version; --tag-pattern scopes
+            # the shared cliff.toml header renders this chart+version; --tag-pattern scopes
             # release boundaries to this chart so another chart's tag inside the range
             # can't split the notes into multiple sections.
-            cliff_args=(--config cliff.toml --include-path "charts/${name}/**"
+            cliff_args=(--config-url "https://raw.githubusercontent.com/metio/git-cliff-config/6fcc0b65dde726f59c09066fae227cec236ffd76/cliff.toml" --include-path "charts/${name}/**"
               --tag "${name}-${version}" --tag-pattern "^${name}-")
             # A bare "HEAD" positional is rejected as a range; for the first
             # release omit the positional so git-cliff walks full history.

@@ -23,6 +23,16 @@
       "matchStrings": [
         "#\\s*renovate:\\s*datasource=(?<datasource>\\S+)\\s+depName=(?<depName>\\S+)\\s*\\n\\s*appVersion:\\s*\"?(?<currentValue>[^\"\\n]+)\"?"
       ]
+    },
+    {
+      "description": "Bump the pinned commit SHA of the shared metio/git-cliff-config repo whose cliff.toml / cliff-artifacthub.toml the release workflow loads via --config-url. Both URLs embed the same SHA, so one matcher capturing the digest updates every occurrence.",
+      "customType": "regex",
+      "managerFilePatterns": ["/^\\.github/workflows/release\\.yml$/"],
+      "matchStrings": ["git-cliff-config/(?<currentDigest>[0-9a-f]{40})/"],
+      "currentValueTemplate": "main",
+      "depNameTemplate": "metio/git-cliff-config",
+      "packageNameTemplate": "https://github.com/metio/git-cliff-config",
+      "datasourceTemplate": "git-refs"
     }
   ]
 }
