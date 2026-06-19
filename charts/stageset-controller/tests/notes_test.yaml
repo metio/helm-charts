@@ -11,3 +11,16 @@ tests:
           pattern: it impersonates
       - matchRegexRaw:
           pattern: https://stageset\.projects\.metio\.wtf/usage/multi-cluster/
+  - it: mentions the pre-delete cleanup Job when cleanup is enabled
+    asserts:
+      - matchRegexRaw:
+          pattern: pre-delete Job that bulk-deletes every\n?\s*StageSet
+  - it: gives manual uninstall steps when cleanup is disabled
+    set:
+      cleanupOnDelete:
+        enabled: false
+    asserts:
+      - matchRegexRaw:
+          pattern: kubectl delete stageset --all
+      - matchRegexRaw:
+          pattern: strip the finalizers by hand

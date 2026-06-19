@@ -2,6 +2,15 @@
 # SPDX-License-Identifier: 0BSD
 
 {{- if .Values.webhook.enabled }}
+{{- /* Preflight: certMode drives both the TLS wiring (caBundle source) and the
+       controller's --webhook-cert-mode flag. An unrecognised value renders a
+       Deployment that passes a bogus flag and a webhook with no caBundle source
+       — the apiserver then 503s every admission call. There is no committed
+       values.schema.json to catch this on an install-from-source, so fail-fast
+       at render time. */ -}}
+{{- if and (ne .Values.webhook.certMode "cert-manager") (ne .Values.webhook.certMode "self-signed") -}}
+{{- fail (printf "webhook.certMode must be 'cert-manager' or 'self-signed', got %q" .Values.webhook.certMode) -}}
+{{- end -}}
 # The name is referenced by the controller's --webhook-validating-config-name in
 # self-signed mode (the controller patches this object's caBundle in-pod). In
 # cert-manager mode the CA is injected via the cert-manager.io/inject-ca-from
@@ -19,8 +28,9 @@ metadata:
 webhooks:
   - name: vstageset.stages.metio.wtf
     admissionReviewVersions: [v1]
-    sideEffects: None
-    failurePolicy: Fail
+    sideEffects: {{ .Values.webhook.sideEffects }}
+    failurePolicy: {{ .Values.webhook.failurePolicy }}
+    timeoutSeconds: {{ .Values.webhook.timeoutSeconds }}
     clientConfig:
       service:
         name: {{ include "stageset.name" . }}-webhook
@@ -32,4 +42,16 @@ webhooks:
         apiVersions: [v1]
         operations: [CREATE, UPDATE]
         resources: [stagesets]
+    {{- with .Values.webhook.objectSelector }}
+    objectSelector:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- with .Values.webhook.namespaceSelector }}
+    namespaceSelector:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- with .Values.webhook.matchConditions }}
+    matchConditions:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
 {{- end }}

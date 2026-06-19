@@ -1,0 +1,164 @@
+{{- /*
+SPDX-FileCopyrightText: The helm-charts Authors
+SPDX-License-Identifier: 0BSD
+*/ -}}
+{{- if .Values.cleanupOnDelete.enabled -}}
+# pre-delete hook: bulk-delete every StageSet so the controller's finalizer
+# (stages.metio.wtf/finalizer) runs — tearing down the objects each StageSet
+# applied — BEFORE Helm removes the controller itself. Otherwise the controller
+# goes away first, its finalizer never runs, and every StageSet is stuck in
+# Terminating, which hangs `helm uninstall`.
+#
+# Lives as a pre-delete hook so the controller pod is still alive when the
+# StageSets get deleted. The RBAC objects carry hook-weight -10 so they are
+# created before the Job (weight 0) that consumes them; lower weights run first
+# within the pre-delete batch.
+#
+# If the controller is already unreachable when uninstall runs, the
+# kubectl-delete will eventually time out and Helm proceeds with the uninstall.
+# Operators in that state must manually patch off finalizers afterwards:
+#
+#   kubectl get stageset -A -o name | xargs -I{} \
+#     kubectl patch {} --type=merge -p '{"metadata":{"finalizers":[]}}'
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "stageset.name" . }}-cleanup
+  namespace: {{ include "stageset.namespace" . }}
+  labels:
+    {{- include "stageset.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: pre-delete
+    helm.sh/hook-weight: "-10"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "stageset.name" . }}-{{ include "stageset.namespace" . }}-cleanup
+  labels:
+    {{- include "stageset.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: pre-delete
+    helm.sh/hook-weight: "-10"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+rules:
+  - apiGroups:
+      - stages.metio.wtf
+    resources:
+      - stagesets
+    verbs:
+      - get
+      - list
+      - delete
+      - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "stageset.name" . }}-{{ include "stageset.namespace" . }}-cleanup
+  labels:
+    {{- include "stageset.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: pre-delete
+    helm.sh/hook-weight: "-10"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "stageset.name" . }}-cleanup
+    namespace: {{ include "stageset.namespace" . }}
+roleRef:
+  kind: ClusterRole
+  name: {{ include "stageset.name" . }}-{{ include "stageset.namespace" . }}-cleanup
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "stageset.name" . }}-cleanup
+  namespace: {{ include "stageset.namespace" . }}
+  labels:
+    {{- include "stageset.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: pre-delete
+    helm.sh/hook-weight: "0"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+    # kube-score ignores:
+    #   container-image-pull-policy — kubectl image is tagged; IfNotPresent
+    #     avoids a registry round-trip on every uninstall.
+    #   pod-networkpolicy — the cleanup Job runs briefly during uninstall
+    #     and the chart's NetworkPolicy doesn't (and shouldn't) target it.
+    kube-score/ignore: container-image-pull-policy,pod-networkpolicy
+spec:
+  backoffLimit: {{ .Values.cleanupOnDelete.backoffLimit }}
+  activeDeadlineSeconds: {{ .Values.cleanupOnDelete.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+        {{- include "stageset.selectorLabels" . | nindent 8 }}
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: {{ include "stageset.name" . }}-cleanup
+      # Pod-level securityContext for PSS restricted compliance — mirrors the
+      # container-level fields so admission controllers validate the pod outright
+      # instead of recursing into the container set.
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+          {{- toYaml . | nindent 8 }}
+      {{- end }}
+      volumes:
+        # Writable cache for kubectl's discovery client. The container's root
+        # filesystem is read-only, so without this kubectl cannot write its
+        # cache and the run errors instead of cleaning up.
+        - name: cache
+          emptyDir: {}
+      containers:
+        - name: cleanup
+          image: "{{ .Values.cleanupOnDelete.image.registry }}/{{ .Values.cleanupOnDelete.image.repository }}:{{ .Values.cleanupOnDelete.image.tag }}"
+          imagePullPolicy: {{ .Values.cleanupOnDelete.image.pullPolicy }}
+          # registry.k8s.io/kubectl is distroless: its entrypoint is
+          # /bin/kubectl and there is no /bin/sh, so the Job passes kubectl args
+          # directly rather than wrapping a shell script. --wait lets the
+          # controller's finalizer tear down each StageSet's applied objects
+          # before Helm removes the controller; --ignore-not-found makes the
+          # no-StageSet case (and any re-run) a clean no-op. If the controller is
+          # already unreachable the delete times out and the Job fails — recover
+          # by stripping finalizers as documented in the chart NOTES.
+          args:
+            - delete
+            - stagesets.stages.metio.wtf
+            - --all
+            - --all-namespaces
+            - --wait=true
+            - --timeout={{ .Values.cleanupOnDelete.kubectlTimeout }}
+            - --ignore-not-found
+            - --cache-dir=/tmp/kubecache
+          volumeMounts:
+            - name: cache
+              mountPath: /tmp
+          securityContext:
+            runAsNonRoot: true
+            runAsGroup: 65532
+            runAsUser: 65532
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
+          resources:
+            requests:
+              cpu: {{ .Values.cleanupOnDelete.resources.cpu }}
+              memory: {{ .Values.cleanupOnDelete.resources.memory }}
+              ephemeral-storage: {{ .Values.cleanupOnDelete.resources.ephemeralStorage }}
+            limits:
+              cpu: {{ .Values.cleanupOnDelete.resources.cpu }}
+              memory: {{ .Values.cleanupOnDelete.resources.memory }}
+              ephemeral-storage: {{ .Values.cleanupOnDelete.resources.ephemeralStorage }}
+{{- end }}

@@ -37,3 +37,23 @@ Flagger gate endpoint: http://{{ include "stageset.name" . }}-gate.{{ .Release.N
 {{- end }}
 
 Rollback store: {{ .Values.rollbackStore.backend }}{{ if eq .Values.rollbackStore.backend "none" }} (best-effort via producer retention){{ end }}.
+
+{{ if .Values.cleanupOnDelete.enabled -}}
+Uninstall: `helm uninstall` runs a pre-delete Job that bulk-deletes every
+StageSet so the controller's finalizer tears down their applied objects BEFORE
+the controller pod is removed — otherwise StageSets stick in Terminating and the
+uninstall hangs. If the controller is already unreachable the Job times out
+(default {{ .Values.cleanupOnDelete.kubectlTimeout }}) and Helm proceeds.
+{{- else -}}
+Uninstall: the pre-delete cleanup Job is DISABLED. StageSets carry a finalizer,
+so a plain `helm uninstall` removes the controller while StageSets still hold it
+and uninstall hangs. Delete the StageSets first, then uninstall:
+
+  kubectl delete stageset --all -A --wait=true --timeout=2m
+  helm uninstall {{ .Release.Name }} -n {{ .Release.Namespace }}
+
+If the controller is already gone, strip the finalizers by hand:
+
+  kubectl get stageset -A -o name | xargs -I{} \
+    kubectl patch {} --type=merge -p '{"metadata":{"finalizers":[]}}'
+{{- end }}
