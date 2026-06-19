@@ -10,9 +10,9 @@ SPDX-License-Identifier: 0BSD
 # Flux consumers are left referencing orphaned ExternalArtifacts.
 #
 # Lives as a pre-delete hook so the operator pod is still alive when
-# the snippets get deleted. The hook-weight is set high (positive
-# number → runs late in the pre-delete batch) so any RBAC the cleanup
-# Job needs is still present.
+# the snippets get deleted. The RBAC objects carry hook-weight -10 so
+# they are created before the Job (weight 0) that consumes them; lower
+# weights run first within the pre-delete batch.
 #
 # If the operator is already unreachable when uninstall runs, the
 # kubectl-delete will eventually time out and Helm proceeds with the
