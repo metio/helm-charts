@@ -29,23 +29,27 @@ tests:
         dashboards: ghcr.io/metio/joi-grafana-grafonnet:v11.4.0
     asserts:
       - failedTemplate:
-          errorMessage: "operator.enabled (Flux integration) is mutually exclusive with static OCI volume mounts. Either clear `snippets`, `additionalLibraries`, and any enabled `libraries` (Flux mode: snippets/libraries come from CRs), or set operator.enabled=false (standalone renderer: use the OCI mounts)."
-  - it: rejects Flux mode combined with library OCI mounts
+          errorMessage: "operator.enabled (Flux integration) is mutually exclusive with the static `snippets` OCI mount: in Flux mode the published units come from JsonnetSnippet CRs. Either clear `snippets`, or set operator.enabled=false (standalone renderer). OCI library mounts (`additionalLibraries`, `libraries`) are allowed in both modes."
+  - it: allows Flux mode combined with library OCI mounts
+    # The operator folds OCI-mounted libraries into its --library-path search
+    # additively after JsonnetLibrary CR refs, so shared libraries can ship
+    # cluster-wide via image volumes without a JsonnetLibrary CR per tenant.
     set:
       operator.enabled: true
       operator.defaultServiceAccount: default
       additionalLibraries:
         grafonnet: ghcr.io/metio/joi-grafana-grafonnet:v11.4.0
     asserts:
-      - failedTemplate: {}
-  - it: rejects Flux mode combined with an enabled well-known library
+      - hasDocuments:
+          count: 0
+  - it: allows Flux mode combined with an enabled well-known library
     set:
       operator.enabled: true
       operator.defaultServiceAccount: default
       libraries.grafonnet.enabled: true
     asserts:
-      - failedTemplate:
-          errorMessage: "operator.enabled (Flux integration) is mutually exclusive with static OCI volume mounts. Either clear `snippets`, `additionalLibraries`, and any enabled `libraries` (Flux mode: snippets/libraries come from CRs), or set operator.enabled=false (standalone renderer: use the OCI mounts)."
+      - hasDocuments:
+          count: 0
   - it: allows Flux mode with all well-known libraries disabled (default)
     set:
       operator.enabled: true
