@@ -174,6 +174,15 @@ The text linters live in **separate, always-running jobs** (not per-chart):
 its own `reuse.yml`). They mirror the configs the source repos use so charts lint
 the same way the code does.
 
+`actionlint` is a **failing gate** — the `github-actions` job runs
+`reviewdog/action-actionlint` with `fail_on_error: true` + `filter_mode: nofilter`,
+so findings block the merge across the whole tree, not just changed lines.
+actionlint shells out to `shellcheck` to lint `run:` blocks, so the dev image
+(`dev/Containerfile`) installs `shellcheck`; without it `actionlint` silently skips
+shell linting and the local gate diverges from CI. shellcheck findings are fixed at
+the source (quote expansions, `find` over `ls`, grouped redirects), not suppressed.
+Kept identical across jaas / stageset-controller / helm-charts.
+
 ### Operator e2e smoke (angle 2 of the two-angle strategy)
 
 There is **one smoke workflow per controller chart**: `operator-smoke.yml` (jaas)
