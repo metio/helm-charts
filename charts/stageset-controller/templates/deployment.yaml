@@ -92,6 +92,12 @@ spec:
             {{- if .Values.controller.objectLevelKMS }}
             - --object-level-kms
             {{- end }}
+            {{- if .Values.controller.requireVerifiedMigrationSources }}
+            - --require-verified-migration-sources
+            {{- end }}
+            {{- if .Values.controller.requirePinnedMigrationSources }}
+            - --require-pinned-migration-sources
+            {{- end }}
             {{- if .Values.controller.watchNamespaces }}
             - --watch-namespaces={{ join "," .Values.controller.watchNamespaces }}
             {{- end }}
