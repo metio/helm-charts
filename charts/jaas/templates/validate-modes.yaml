@@ -2,23 +2,20 @@
 SPDX-FileCopyrightText: The helm-charts Authors
 SPDX-License-Identifier: 0BSD
 
-Static OCI volume mounts (`snippets`, `additionalLibraries`, and any enabled
-well-known `libraries`) and Flux integration (`operator.enabled`) are mutually
-exclusive. The OCI mounts feed the standalone HTTP renderer — a high-DX,
-cluster-free way to render jsonnet from pre-baked library/snippet image
-bundles. In Flux/operator mode, snippets and libraries instead come from
-JsonnetSnippet / JsonnetLibrary CRs. Mixing the two in one release is a
-configuration mistake, so it is rejected at render time rather than silently
-half-applied.
+The static `snippets` OCI mount and Flux integration (`operator.enabled`) are
+mutually exclusive. `snippets` pre-bakes rendered units into the standalone HTTP
+renderer; in Flux/operator mode the published units come from JsonnetSnippet CRs
+instead, so two snippet sources in one release is a configuration mistake and is
+rejected at render time rather than silently half-applied.
+
+OCI library mounts (`additionalLibraries` and the well-known `libraries`) are NOT
+mutually exclusive with the operator: it folds them into its --library-path
+search additively after any JsonnetLibrary CR refs, and rejects an import-path
+collision at admission. They are the supported way to ship shared libraries
+(e.g. grafonnet) cluster-wide to the operator without a CR per tenant.
 */ -}}
-{{- $anyLibraryEnabled := false -}}
-{{- range .Values.libraries -}}
-{{- if .enabled -}}
-{{- $anyLibraryEnabled = true -}}
-{{- end -}}
-{{- end -}}
-{{- if and .Values.operator.enabled (or (not (empty .Values.snippets)) (not (empty .Values.additionalLibraries)) $anyLibraryEnabled) -}}
-{{- fail "operator.enabled (Flux integration) is mutually exclusive with static OCI volume mounts. Either clear `snippets`, `additionalLibraries`, and any enabled `libraries` (Flux mode: snippets/libraries come from CRs), or set operator.enabled=false (standalone renderer: use the OCI mounts)." -}}
+{{- if and .Values.operator.enabled (not (empty .Values.snippets)) -}}
+{{- fail "operator.enabled (Flux integration) is mutually exclusive with the static `snippets` OCI mount: in Flux mode the published units come from JsonnetSnippet CRs. Either clear `snippets`, or set operator.enabled=false (standalone renderer). OCI library mounts (`additionalLibraries`, `libraries`) are allowed in both modes." -}}
 {{- end -}}
 
 {{- /* Multi-replica jaas with a local artifact backend is a silent 404 trap.
