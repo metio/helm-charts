@@ -26,10 +26,12 @@ jobs:
         run: |
           changed="$(ct list-changed --config ct.yaml || true)"
           if [ -z "$changed" ]; then
-            echo "any=false" >> "$GITHUB_OUTPUT"
-            echo "charts=[]" >> "$GITHUB_OUTPUT"
-            echo "installable_any=false" >> "$GITHUB_OUTPUT"
-            echo "excluded=" >> "$GITHUB_OUTPUT"
+            {
+              echo "any=false"
+              echo "charts=[]"
+              echo "installable_any=false"
+              echo "excluded="
+            } >> "$GITHUB_OUTPUT"
           else
             echo "any=true" >> "$GITHUB_OUTPUT"
             # chart dir paths -> JSON array of chart names
@@ -106,14 +108,15 @@ jobs:
           c="charts/${{ matrix.chart }}/"
           name="${{ matrix.chart }}"
           render() {
-            echo "::group::kube-score $name ${1:-default}"
-            helm template release-x "$c" ${2:-} | kube-score score - --exit-one-on-warning=false
+            label="$1"; shift
+            echo "::group::kube-score $name ${label:-default}"
+            helm template release-x "$c" "$@" | kube-score score - --exit-one-on-warning=false
             echo "::endgroup::"
           }
-          render default ""
+          render default
           for vf in "$c"ci/*-values.yaml; do
             [ -e "$vf" ] || continue
-            render "$(basename "$vf")" "-f $vf"
+            render "$(basename "$vf")" -f "$vf"
           done
       - id: kubeconform
         name: kubeconform (rendered manifests, incl. CRDs)
@@ -278,6 +281,9 @@ jobs:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
       - name: Lint workflows (actionlint)
         uses: reviewdog/action-actionlint@6fb7acc99f4a1008869fa8a0f09cfca740837d9d # v1
+        with:
+          fail_on_error: true
+          filter_mode: nofilter
   markdown:
     runs-on: ubuntu-latest
     steps:
