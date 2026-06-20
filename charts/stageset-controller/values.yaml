@@ -92,6 +92,18 @@ controller:
   # be federated (IRSA / Workload Identity) to a cloud identity granted KMS
   # decrypt. Off by default (ambient credentials).
   objectLevelKMS: false
+  # -- Require a spec.migrationsSourceRef source to be signature-verified
+  # (status.conditions[SourceVerified]=True from the source's spec.verify
+  # cosign/notation config) before its destructive migration ladder runs. A
+  # source whose verification FAILED is always refused; this additionally refuses
+  # sources that configure no verification at all. Recommended in production.
+  requireVerifiedMigrationSources: false
+  # -- Require a spec.migrationsSourceRef source to be pinned to an immutable
+  # revision (OCIRepository spec.ref.digest / GitRepository spec.ref.commit)
+  # before its destructive migration ladder runs, so a tag/branch overwrite can't
+  # auto-roll new destructive content. When off, a mutable-pinned source still
+  # runs but emits a Warning event. Recommended in production.
+  requirePinnedMigrationSources: false
   # -- Namespaces this controller watches. Empty (the default) means cluster-wide.
   # When set, the manager's cache only observes StageSets and sources in these
   # namespaces, and RBAC pivots from a cluster-wide ClusterRoleBinding to one

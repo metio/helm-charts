@@ -282,6 +282,30 @@ tests:
       - contains:
           path: spec.template.spec.containers[0].args
           content: --object-level-kms
+  - it: omits the migration-source gate flags by default
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].args
+          content: --require-verified-migration-sources
+      - notContains:
+          path: spec.template.spec.containers[0].args
+          content: --require-pinned-migration-sources
+  - it: adds --require-verified-migration-sources when enabled
+    set:
+      controller:
+        requireVerifiedMigrationSources: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --require-verified-migration-sources
+  - it: adds --require-pinned-migration-sources when enabled
+    set:
+      controller:
+        requirePinnedMigrationSources: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --require-pinned-migration-sources
 
   # ------------------------------------------------------------------
   # OpenTelemetry tracing — args render only when an endpoint is set
