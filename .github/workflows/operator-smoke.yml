@@ -408,10 +408,10 @@ jobs:
           cluster_name: jaas-chart-chain
           node_image: kindest/node:${{ needs.discover.outputs.k8s_latest }}
           wait: 180s
-      - name: Cluster prereqs (Flux + MinIO bucket)
+      - name: Cluster prereqs (Flux + SeaweedFS bucket)
         run: |
           jaas-src/hack/smoke/setup-flux.sh ${{ needs.discover.outputs.flux_latest }}
-          jaas-src/hack/smoke/setup-minio.sh
+          jaas-src/hack/smoke/setup-seaweedfs.sh
       - name: Open source-controller artifact port across namespaces
         # Release-lag bridge: the released setup-flux.sh predates this policy.
         # Flux's default NetworkPolicies admit ingress to source-controller only

@@ -1,12 +1,15 @@
 # SPDX-FileCopyrightText: The helm-charts Authors
 # SPDX-License-Identifier: 0BSD
-# Operator mode (Flux integration) with multi-replica HA + leader election.
+# Operator mode (Flux integration), single replica.
+#
+# ct install runs in a kind cluster with neither an S3 endpoint nor an RWX
+# StorageClass, so multi-replica HA — which the mode guard requires one of (a
+# local backend is single-writer) — can't be installed here. Multi-replica
+# rendering is covered by the validate-modes helm-unittest suite, and real
+# multi-replica HA by the operator-smoke scale scenario against actual infra.
 operator:
   enabled: true
   defaultServiceAccount: default
-replicas:
-  min: 2
-  max: 3
 
 # CI installs the chart once per values file; the CRDs are provisioned
 # out-of-band (see verify.yml) so a kept cluster-scoped CRD owned by one
