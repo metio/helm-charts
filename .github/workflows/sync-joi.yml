@@ -52,7 +52,9 @@ jobs:
           dropped="$(comm -23 /tmp/old-libs.txt /tmp/new-libs.txt)"
           if [ -n "$dropped" ] && [ "$ALLOW_SHRINK" != "true" ]; then
             echo "::error::sync would drop libraries the chart currently ships:"
-            echo "$dropped" | sed 's/^/::error::  - /'
+            while IFS= read -r lib; do
+              echo "::error::  - $lib"
+            done <<< "$dropped"
             echo "::error::if these were genuinely removed from the JOI manifest, re-run with allow_shrink=true; otherwise this is a transient upstream discovery failure — fix JOI and re-run."
             git checkout -- charts/joi/values.yaml charts/joi/tests/libraries-generated_test.yaml
             exit 1

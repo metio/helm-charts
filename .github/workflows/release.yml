@@ -62,7 +62,7 @@ jobs:
         name: Determine charts to release
         run: |
           # All chart dirs except the never-published common library chart.
-          all_charts() { ls -d charts/*/ 2>/dev/null | awk -F/ '{print $2}' | grep -v '^common$' || true; }
+          all_charts() { find charts -mindepth 1 -maxdepth 1 -type d -printf '%f\n' 2>/dev/null | grep -v '^common$' || true; }
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             sel='${{ github.event.inputs.chart }}'
             # Empty input releases every chart (the package loop skips any whose

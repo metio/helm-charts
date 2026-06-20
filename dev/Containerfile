@@ -10,7 +10,7 @@ FROM docker.io/library/debian:trixie-slim@sha256:4e401d95de7083948053197a9c39133
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates curl git jq bash \
         python3 python3-pip pipx \
-        reuse \
+        reuse shellcheck \
     && rm -rf /var/lib/apt/lists/*
 
 # Pin tool versions so a rebuild is reproducible; bump by hand.
@@ -89,7 +89,9 @@ RUN curl -fsSL https://github.com/crate-ci/typos/releases/download/v${TYPOS_VERS
 
 # actionlint: GitHub Actions workflow linter. CI runs it via
 # reviewdog/action-actionlint; this static binary reproduces that gate locally
-# (`actionlint .github/workflows/*.yml`).
+# (`actionlint .github/workflows/*.yml`). actionlint shells out to shellcheck
+# (installed above) to lint `run:` blocks — without it those findings are
+# silently skipped, so the local gate would diverge from CI.
 ARG ACTIONLINT_VERSION=1.7.7
 RUN curl -fsSL https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz | tar -xz -C /usr/local/bin actionlint
 
