@@ -5,14 +5,14 @@
 # Emit the static footer appended to every chart's GitHub Release body:
 # cosign verification instructions + a link to the chart's migration notes.
 #
-#   hack/release-footer.sh <chart-name> <oci-tag> <repo> >> notes.md
+#   hack/release-footer.sh <chart-name> <version> <repo> >> notes.md
 #
-# <oci-tag> is the OCI tag form of the chart version (Helm renders SemVer
-# build-metadata '+' as '_'), e.g. 2026.6.16_142305.
+# <version> is the chart's CalVer (e.g. 2026.6.20143022); it doubles as the OCI
+# tag verbatim, since the version carries no characters Helm rewrites for OCI.
 set -euo pipefail
 
 name="${1:?chart name}"
-oci_tag="${2:?oci tag}"
+oci_tag="${2:?version}"
 repo="${3:?owner/repo}"
 
 cat <<EOF

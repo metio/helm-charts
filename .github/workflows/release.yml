@@ -92,6 +92,15 @@ jobs:
             echo "charts=$(echo "$changed" | tr '\n' ' ')" >> "$GITHUB_OUTPUT"
           fi
 
+      - id: version
+        name: Compute the next version
+        if: steps.changed.outputs.charts != ''
+        # Shared metio CalVer: YYYY.M.D with the UTC time-of-day appended to the
+        # day (e.g. 2026.6.20143022). Every chart released in one push shares this
+        # version. Unlike a SemVer '+build' suffix — which SemVer ignores for
+        # precedence, so two same-day releases would rank equal — the time lands
+        # in the patch component, so a later release always sorts higher.
+        uses: metio/ci/calver@2026.6.20225709
       - name: Package, push, sign, and release each chart
         if: steps.changed.outputs.charts != ''
         env:
@@ -102,10 +111,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          # %-m/%-d/%-H drop leading zeros (so June is 6, not 06); minutes and
-          # seconds keep theirs — stripping them would let e.g. 01:23:45 and
-          # 12:34:05 both collapse to 12345 and collide.
-          version="$(date +'%Y.%-m.%-d+%-H%M%S')"
+          version="${{ steps.version.outputs.version }}"
           for name in ${{ steps.changed.outputs.charts }}; do
             chart="charts/$name"
             [ -f "$chart/Chart.yaml" ] || { echo "no such chart: $name"; continue; }
@@ -155,7 +161,6 @@ jobs:
             push_out="$(helm push "$pkg" oci://ghcr.io/metio/helm-charts 2>&1)"
             echo "$push_out"
             digest="$(echo "$push_out" | grep -oP 'Digest:\s*\K\S+')"
-            oci_tag="${version//+/_}"   # Helm renders SemVer build-metadata '+' as '_' in the OCI tag
             cosign sign --yes \
               --annotations "repo=${{ github.repository }}" \
               --annotations "chart=$name" \
@@ -174,7 +179,7 @@ jobs:
             CHART="$name" VERSION="$version" git-cliff "${cliff_args[@]}" > notes.md
 
             # Static footer: cosign verification + migration notes link.
-            hack/release-footer.sh "$name" "$oci_tag" "${{ github.repository }}" >> notes.md
+            hack/release-footer.sh "$name" "$version" "${{ github.repository }}" >> notes.md
 
             tag="${name}-${version}"
             git tag "$tag" "${{ github.sha }}"

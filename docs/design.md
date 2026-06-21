@@ -88,24 +88,29 @@ the library chart is a strong default, not a hard requirement.
 Two version fields, decoupled (Helm best practice, and necessary here because
 the image is built in another repo):
 
-- **Chart `version`** — the chart's own version,
-  **`%Y.%-m.%-d+%H%M%S`** (e.g. `2026.6.16+142305`), stamped at release time,
+- **Chart `version`** — the chart's own version, the shared metio CalVer
+  **`%Y.%-m.%-d%H%M%S`** (e.g. `2026.6.20143022`), stamped at release time,
   **per chart, only when that chart changed**. The committed `Chart.yaml` keeps
-  a `0.0.0` placeholder; the release pipeline rewrites it. The
-  `%Y.%-m.%-d` core is the metio calendar version (day granularity, sorts
-  correctly across days); the `+%H%M%S` is **SemVer build metadata** giving each
-  release a unique identity down to the second — comfortably past the
-  "multiple releases per day, ≥1/minute" requirement.
+  a `0.0.0` placeholder; the release pipeline rewrites it. `%Y.%-m` are the
+  calendar year and month; the `PATCH` segment packs the day immediately
+  followed by the UTC time-of-day (`HHMMSS`), giving each release a unique,
+  **monotonically increasing** identity down to the second — comfortably past
+  the "multiple releases per day, ≥1/minute" requirement.
 
-  Why build metadata rather than a fourth segment or time-in-`PATCH`: Helm
-  enforces SemVer 2.0.0, which is exactly three numeric segments and forbids
-  leading zeros in them — so `2026.6.16.1423` is invalid (four segments) and a
-  `PATCH` like `0905` (09:05) is invalid (leading zero). Build metadata has
-  neither restriction, is valid SemVer, and Helm renders it into the OCI tag by
-  replacing `+` with `_` (`2026.6.16_142305`), so each release is a distinct,
-  pullable artifact. Build metadata is ignored for SemVer precedence, which is
-  irrelevant for OCI (artifacts are addressed by exact tag, not range-resolved
-  through a `helm repo index`).
+  Why the time lives in `PATCH` rather than a `+build` suffix or a fourth
+  segment: Helm enforces SemVer 2.0.0 — exactly three numeric segments, no
+  leading zeros. A fourth segment (`2026.6.20.1423`) is invalid, and a bare
+  time `PATCH` like `0905` (09:05) is invalid (leading zero). Prefixing the time
+  with the day — which `%-d` renders without a leading zero (1–31) — yields a
+  `PATCH` like `20143022` (day 20, 14:30:22) or `1090503` (day 1, 09:05:03):
+  always a valid leading-zero-free integer, and one that sorts correctly because
+  the day dominates and the zero-padded `HHMMSS` orders within a day. Crucially,
+  unlike SemVer build metadata — which is *ignored* for precedence — a
+  time-in-`PATCH` version **is** ordered by `helm repo index` and Renovate, so a
+  later same-day release always resolves as newer. The version carries no
+  characters Helm rewrites for OCI, so it doubles as the OCI tag verbatim. This
+  is produced by the shared `metio/ci/calver` action, so chart versions order
+  identically to the binaries' versions across every metio repo.
 - **Chart `appVersion`** — the controller image version the chart deploys
   (also calendar, e.g. `2026.6.16`). **Committed** in `Chart.yaml` (it is
   meaningful state: "this chart deploys image X") and bumped by automation when
@@ -120,9 +125,9 @@ same run. A chart is re-released when its templates change **or** its
 The `common` library chart is versioned the same way but, being a `file://`
 dependency, is never pushed — consuming charts vendor it at build time.
 
-Per-second build metadata makes same-day (indeed same-minute) re-releases
-distinct artifacts, so no collision guard is needed; two releases of one chart
-in the same second is not reachable from event-driven CI.
+Per-second precision makes same-day (indeed same-minute) re-releases distinct,
+correctly ordered artifacts, so no collision guard is needed; two releases of
+one chart in the same second is not reachable from event-driven CI.
 
 ## CRD provenance
 
@@ -339,8 +344,9 @@ locally exactly as in CI. No host toolchain required.
   `oci://ghcr.io/metio/jaas`; breaking for jaas chart users — migration note
   above).
 - **Release trigger**: event-driven on merge to `main` touching `charts/**`.
-- **Versioning**: chart `version` = `%Y.%-m.%-d+%H%M%S` (build-metadata time,
-  multiple releases/day); `appVersion` = the image's `%Y.%-m.%-d`.
+- **Versioning**: chart `version` = `%Y.%-m.%-d%H%M%S` (time-in-`PATCH`, ordered,
+  multiple releases/day) via the shared `metio/ci/calver` action; `appVersion` =
+  the image's `%Y.%-m.%-d`.
 - **Release notes**: per-chart tags `<chart>-<version>` + `git-cliff
   --include-path "charts/<name>/**"` generate each GitHub Release body, with a
   static footer carrying cosign-verify instructions and a link to
