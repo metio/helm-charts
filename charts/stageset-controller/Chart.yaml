@@ -98,4 +98,4 @@ version: 0.0.0
 # (not the ghcr image) so the bump only fires once the release/tag exists — see
 # renovate.json.
 # renovate: datasource=github-releases depName=metio/stageset-controller
-appVersion: "2026.6.21082535"
+appVersion: "2026.6.21090219"
