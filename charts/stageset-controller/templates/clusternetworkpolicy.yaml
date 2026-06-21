@@ -54,6 +54,16 @@ spec:
             destinationPort:
               number: {{ .Values.ports.gate }}
     {{- end }}
+    {{- if .Values.mcp.enabled }}
+    - name: mcp
+      action: Accept
+      from:
+        - namespaces: {}
+      protocols:
+        - tcp:
+            destinationPort:
+              number: {{ .Values.ports.mcp }}
+    {{- end }}
     {{- with .Values.networkPolicy.clusterNetworkPolicy.ingress }}
     {{- toYaml . | nindent 4 }}
     {{- end }}

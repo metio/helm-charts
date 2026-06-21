@@ -51,6 +51,8 @@ ports:
   health: 8081
   # -- read-only Flagger stage-gate endpoint
   gate: 8082
+  # -- MCP (Model Context Protocol) server (mcp.enabled only)
+  mcp: 8084
   # -- validating admission webhook
   webhook: 9443
 
@@ -193,6 +195,20 @@ cleanupOnDelete:
 # dedicated Service when enabled.
 gate:
   enabled: true
+
+# -- MCP (Model Context Protocol) server. Exposes the controller's read-only
+# introspection tools over a streamable-HTTP endpoint. Renders the server flag,
+# container port, and a dedicated Service when enabled.
+mcp:
+  # -- Render the MCP server flag, container port, and Service.
+  enabled: false
+  # -- Additionally register the gated write tools. Off keeps the server
+  # read-only.
+  allowMutations: false
+  # -- Dedicated MCP Service. Rendered with the rest of the MCP wiring when
+  # mcp.enabled.
+  service:
+    enabled: true
 
 # -- Validating admission webhook for StageSet.
 webhook:
@@ -446,6 +462,10 @@ networkPolicy:
   # -- Sources allowed to reach the gate port. Empty = all (e.g. Flagger for the
   # gate).
   gate:
+    from: []
+  # -- Sources allowed to reach the MCP server port. Empty = all. Only rendered
+  # when mcp.enabled.
+  mcp:
     from: []
   # -- Cilium engine (engine=cilium) raw passthrough. Entries are merged verbatim
   # into the CiliumNetworkPolicy's spec.ingress / spec.egress. This is how you
