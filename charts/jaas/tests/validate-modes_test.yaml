@@ -144,3 +144,60 @@ tests:
     asserts:
       - hasDocuments:
           count: 0
+  # Egress guard — operator egress with no allow-list wedges the operator
+  - it: rejects operator egress with an empty egress.to allow-list
+    set:
+      operator.enabled: true
+      operator.defaultServiceAccount: default
+      networkPolicy.enabled: true
+      networkPolicy.egress.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "operator.enabled with networkPolicy.egress.enabled but an empty networkPolicy.egress.to denies the operator's egress to the kube-apiserver (and source-controller / S3), so its cache never syncs and it never becomes ready — only cluster DNS is auto-allowed. Populate networkPolicy.egress.to with the kube-apiserver (an ipBlock CIDR — it can't be selected by label), the flux-system namespace, and any S3/OTLP endpoints; or set networkPolicy.egress.enabled=false."
+  - it: allows operator egress when egress.to is populated
+    set:
+      operator.enabled: true
+      operator.defaultServiceAccount: default
+      networkPolicy.enabled: true
+      networkPolicy.egress.enabled: true
+      networkPolicy.egress.to:
+        - ipBlock:
+            cidr: 10.0.0.1/32
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: allows the operator with egress disabled (default)
+    set:
+      operator.enabled: true
+      operator.defaultServiceAccount: default
+      networkPolicy.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: allows egress with an empty egress.to outside operator mode
+    set:
+      operator.enabled: false
+      networkPolicy.enabled: true
+      networkPolicy.egress.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 0
+  # shutdownDelay must be whole seconds so the grace-period math is correct
+  - it: rejects a sub-second shutdownDelay
+    set:
+      arguments.shutdownDelay: 500ms
+    asserts:
+      - failedTemplate:
+          errorMessage: 'arguments.shutdownDelay must be a whole number of seconds like "5s" or "30s" (got "500ms"): the Deployment derives terminationGracePeriodSeconds from it by stripping the trailing "s", and a sub-second or minute form would silently collapse the grace period to the 65s floor.'
+  - it: rejects a minute-form shutdownDelay
+    set:
+      arguments.shutdownDelay: 1m30s
+    asserts:
+      - failedTemplate:
+          errorMessage: 'arguments.shutdownDelay must be a whole number of seconds like "5s" or "30s" (got "1m30s"): the Deployment derives terminationGracePeriodSeconds from it by stripping the trailing "s", and a sub-second or minute form would silently collapse the grace period to the 65s floor.'
+  - it: allows a whole-seconds shutdownDelay
+    set:
+      arguments.shutdownDelay: 30s
+    asserts:
+      - hasDocuments:
+          count: 0
