@@ -27,7 +27,7 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
       - uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2 # v5
         with:
-          version: v4.2.1
+          version: v4.2.2
       - name: Regenerate charts/joi from the JOI manifest
         env:
           ALLOW_SHRINK: ${{ github.event.inputs.allow_shrink }}
