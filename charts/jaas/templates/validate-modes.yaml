@@ -51,3 +51,24 @@ collision at admission. They are the supported way to ship shared libraries
 {{- if and .Values.operator.enabled $scaling (not .Values.operator.leaderElection.enabled) -}}
 {{- fail "operator.enabled with scaling (replicas.max > replicas.min, or replicas.min > 1) requires operator.leaderElection.enabled=true. Without leader election every replica reconciles every JsonnetSnippet independently, double-rendering and racing the ExternalArtifact write. Keep leader election on, or pin replicas.min=replicas.max=1." -}}
 {{- end -}}
+
+{{- /* Egress on in operator mode with no egress.to allow-list silently wedges
+       the operator. An Egress policy denies everything not allowed, and the
+       built-in rule only opens cluster DNS — but the operator MUST also reach
+       the kube-apiserver (informers, status writes, TokenRequest), and usually
+       source-controller and S3. With egress.to empty those are all denied and
+       the cache never syncs, so the operator never goes ready. Block it at
+       render time: the operator deployment can't recover from this at runtime.
+       The apiserver isn't label-selectable, so the allow must be an ipBlock. */ -}}
+{{- if and .Values.operator.enabled .Values.networkPolicy.enabled .Values.networkPolicy.egress.enabled (empty .Values.networkPolicy.egress.to) -}}
+{{- fail "operator.enabled with networkPolicy.egress.enabled but an empty networkPolicy.egress.to denies the operator's egress to the kube-apiserver (and source-controller / S3), so its cache never syncs and it never becomes ready — only cluster DNS is auto-allowed. Populate networkPolicy.egress.to with the kube-apiserver (an ipBlock CIDR — it can't be selected by label), the flux-system namespace, and any S3/OTLP endpoints; or set networkPolicy.egress.enabled=false." -}}
+{{- end -}}
+
+{{- /* terminationGracePeriodSeconds is derived from arguments.shutdownDelay by
+       stripping the trailing "s" — so a value that isn't a whole number of
+       seconds ("500ms", "1m30s", "2m") parses to 0 and silently collapses the
+       grace period to the 65s floor instead of shutdownDelay + 65, cutting the
+       drain short. Reject anything but an integer-seconds form at render time. */ -}}
+{{- if not (regexMatch "^[0-9]+s$" .Values.arguments.shutdownDelay) -}}
+{{- fail (printf "arguments.shutdownDelay must be a whole number of seconds like \"5s\" or \"30s\" (got %q): the Deployment derives terminationGracePeriodSeconds from it by stripping the trailing \"s\", and a sub-second or minute form would silently collapse the grace period to the 65s floor." .Values.arguments.shutdownDelay) -}}
+{{- end -}}

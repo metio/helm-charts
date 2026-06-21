@@ -117,7 +117,12 @@ arguments:
   # (process-side) is max(GOMAXPROCS*4, 16).
   maxConcurrentEvals: 32
   # -- Grace period readiness stays false before in-flight requests are aborted
-  # on SIGTERM, so endpoint controllers can drain the pod first.
+  # on SIGTERM, so endpoint controllers can drain the pod first. Whole seconds
+  # only (e.g. "5s", "30s"): the Deployment derives terminationGracePeriodSeconds
+  # from this value by stripping the trailing "s", and a sub-second or minute
+  # form ("500ms", "1m30s") can't be parsed in-template — it would silently
+  # collapse the grace period to the 65s floor instead of shutdownDelay + 65, so
+  # it is rejected at render time.
   shutdownDelay: 5s
   # -- Bind address for the jsonnet HTTP and management servers. `::`
   # listens on every IPv6 interface and — because Go opens
