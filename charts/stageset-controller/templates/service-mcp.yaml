@@ -1,0 +1,24 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+{{- if and .Values.mcp.enabled .Values.mcp.service.enabled }}
+# Exposes the read-only MCP (Model Context Protocol) server over
+# streamable-HTTP so an MCP client can reach the controller's introspection
+# tools. Write tools are gated behind mcp.allowMutations.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "stageset.name" . }}-mcp
+  namespace: {{ include "stageset.namespace" . }}
+  labels:
+    {{- include "stageset.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "stageset.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: mcp
+      port: {{ .Values.ports.mcp }}
+      targetPort: mcp
+      protocol: TCP
+{{- end }}

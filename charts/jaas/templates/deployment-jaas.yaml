@@ -208,6 +208,13 @@ spec:
             {{- else }}
             - --metrics-bind-address=0
             {{- end }}
+            {{- if .Values.operator.mcp.enabled }}
+            - --enable-mcp
+            - --mcp-bind-address=:{{ .Values.ports.mcp }}
+            {{- if .Values.operator.mcp.allowMutations }}
+            - --mcp-allow-mutations
+            {{- end }}
+            {{- end }}
           {{- end }}
           {{ if .Values.libraries.grafonnet.enabled }}
             - --library-path={{ .Values.paths.libraries }}/grafonnet
@@ -298,6 +305,11 @@ spec:
           {{- if and .Values.operator.enabled .Values.operator.metrics.enabled }}
             - containerPort: {{ .Values.ports.metrics }}
               name: metrics
+              protocol: TCP
+          {{- end }}
+          {{- if and .Values.operator.enabled .Values.operator.mcp.enabled }}
+            - containerPort: {{ .Values.ports.mcp }}
+              name: mcp
               protocol: TCP
           {{- end }}
           {{- if and .Values.operator.enabled .Values.operator.webhook.enabled }}

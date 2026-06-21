@@ -85,6 +85,18 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
     {{- end }}
+    {{- if and .Values.operator.enabled .Values.operator.mcp.enabled }}
+    # MCP server — read-only operator introspection over streamable-HTTP.
+    # Default scope is open (any pod); restrict it via
+    # .Values.networkPolicy.mcp.from.
+    - ports:
+        - protocol: TCP
+          port: {{ .Values.ports.mcp }}
+      {{- with .Values.networkPolicy.mcp.from }}
+      from:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    {{- end }}
     {{- with .Values.networkPolicy.additionalIngress }}
     {{- toYaml . | nindent 4 }}
     {{- end }}

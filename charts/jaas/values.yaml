@@ -24,6 +24,11 @@ ports:
   metrics: 8083
   # -- Used by the validating admission webhook (operator.webhook.enabled only)
   webhook: 9443
+  # -- Used by the MCP (Model Context Protocol) server
+  # (operator.mcp.enabled only). Exposes read-only operator introspection
+  # tools over streamable-HTTP; write tools are gated behind
+  # operator.mcp.allowMutations.
+  mcp: 8084
 
 # -- Container image for the jaas workload. Overwrite these in case you want to
 # use an internal registry mirror.
@@ -767,6 +772,23 @@ operator:
         forceDropsPerHour: 0
         forceDropsDuration: 5m
 
+  # -- MCP (Model Context Protocol) server (operator mode). Exposes the
+  # operator's read-only introspection tools (list_snippets, get_snippet)
+  # plus the eval tools over a streamable-HTTP endpoint. Requires
+  # operator.enabled (the binary's --enable-mcp gate additionally requires
+  # --enable-flux-integration). The chart wires the endpoint to a dedicated
+  # Service.
+  mcp:
+    # -- Render the MCP server flag, container port, and Service.
+    enabled: false
+    # -- Additionally register the gated write tools (reconcile_snippet,
+    # suspend_snippet, resume_snippet). Off keeps the server read-only.
+    allowMutations: false
+    # -- Dedicated MCP Service. Rendered with the rest of the MCP wiring when
+    # mcp.enabled.
+    service:
+      enabled: true
+
   # -- Validating admission webhook (operator mode). Rejects JsonnetSnippets
   # whose spec.externalVariables collide with the operator's extVars.
   webhook:
@@ -929,6 +951,10 @@ networkPolicy:
   # (typically your Prometheus). Only rendered in operator mode with metrics
   # enabled.
   metrics:
+    from: []
+  # -- Sources allowed to reach the MCP server port. Empty = all. Only rendered
+  # in operator mode with operator.mcp.enabled.
+  mcp:
     from: []
   # -- Cilium engine (engine=cilium) raw passthrough. Entries are merged verbatim
   # into the CiliumNetworkPolicy's spec.ingress / spec.egress. This is how you

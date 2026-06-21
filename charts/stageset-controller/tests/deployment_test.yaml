@@ -212,6 +212,62 @@ tests:
           content: --metrics-bind-address=:9090
 
   # ------------------------------------------------------------------
+  # MCP server (--enable-mcp) — opt-in
+  # ------------------------------------------------------------------
+  - it: omits MCP args + port by default
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].args
+          content: --enable-mcp
+      - notContains:
+          path: spec.template.spec.containers[0].args
+          content: --mcp-bind-address=:8084
+      - notContains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: mcp
+            containerPort: 8084
+  - it: passes --enable-mcp and the bind address when mcp is enabled
+    set:
+      mcp.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --enable-mcp
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --mcp-bind-address=:8084
+      - notContains:
+          path: spec.template.spec.containers[0].args
+          content: --mcp-allow-mutations
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: mcp
+            containerPort: 8084
+  - it: adds --mcp-allow-mutations only when allowMutations is set
+    set:
+      mcp.enabled: true
+      mcp.allowMutations: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --mcp-allow-mutations
+  - it: honors a custom mcp port for --mcp-bind-address
+    set:
+      mcp.enabled: true
+      ports.mcp: 9099
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --mcp-bind-address=:9099
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: mcp
+            containerPort: 9099
+
+  # ------------------------------------------------------------------
   # watchNamespaces
   # ------------------------------------------------------------------
   - it: omits --watch-namespaces when watchNamespaces is empty (cluster-wide)

@@ -34,6 +34,12 @@ spec:
             - port: {{ .Values.ports.gate | quote }}
               protocol: TCP
     {{- end }}
+    {{- if .Values.mcp.enabled }}
+    - toPorts:
+        - ports:
+            - port: {{ .Values.ports.mcp | quote }}
+              protocol: TCP
+    {{- end }}
     {{- with .Values.networkPolicy.cilium.ingress }}
     {{- toYaml . | nindent 4 }}
     {{- end }}

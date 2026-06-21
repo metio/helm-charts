@@ -41,6 +41,13 @@ spec:
         ports:
           - {{ .Values.ports.gate }}
     {{- end }}
+    {{- if .Values.mcp.enabled }}
+    - action: Allow
+      protocol: TCP
+      destination:
+        ports:
+          - {{ .Values.ports.mcp }}
+    {{- end }}
     {{- with .Values.networkPolicy.calico.ingress }}
     {{- toYaml . | nindent 4 }}
     {{- end }}

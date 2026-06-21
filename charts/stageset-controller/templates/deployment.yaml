@@ -111,6 +111,13 @@ spec:
             {{- else }}
             - --gate-bind-address=
             {{- end }}
+            {{- if .Values.mcp.enabled }}
+            - --enable-mcp
+            - --mcp-bind-address=:{{ .Values.ports.mcp }}
+            {{- if .Values.mcp.allowMutations }}
+            - --mcp-allow-mutations
+            {{- end }}
+            {{- end }}
             - --enable-webhook={{ .Values.webhook.enabled }}
             {{- if .Values.webhook.enabled }}
             - --webhook-cert-mode={{ .Values.webhook.certMode }}
@@ -149,6 +156,10 @@ spec:
             {{- if .Values.gate.enabled }}
             - name: gate
               containerPort: {{ .Values.ports.gate }}
+            {{- end }}
+            {{- if .Values.mcp.enabled }}
+            - name: mcp
+              containerPort: {{ .Values.ports.mcp }}
             {{- end }}
             {{- if .Values.webhook.enabled }}
             - name: webhook

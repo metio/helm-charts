@@ -1123,6 +1123,101 @@ tests:
           path: spec.template.spec.containers[0].args
           content: --metrics-bind-address=:8083
 
+  # ------------------------------------------------------------------
+  # MCP server (--enable-mcp) — opt-in, operator mode only
+  # ------------------------------------------------------------------
+
+  - it: omits MCP args + port when mcp is disabled (default)
+    set:
+      operator:
+        enabled: true
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].args
+          content: --enable-mcp
+      - notContains:
+          path: spec.template.spec.containers[0].args
+          content: --mcp-bind-address=:8084
+      - notContains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            containerPort: 8084
+            name: mcp
+            protocol: TCP
+
+  - it: omits MCP args + port when operator is disabled even if mcp.enabled
+    set:
+      operator:
+        mcp:
+          enabled: true
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].args
+          content: --enable-mcp
+      - notContains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            containerPort: 8084
+            name: mcp
+            protocol: TCP
+
+  - it: passes --enable-mcp and the bind address when operator + mcp are enabled
+    set:
+      operator:
+        enabled: true
+        mcp:
+          enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --enable-mcp
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --mcp-bind-address=:8084
+      - notContains:
+          path: spec.template.spec.containers[0].args
+          content: --mcp-allow-mutations
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            containerPort: 8084
+            name: mcp
+            protocol: TCP
+
+  - it: adds --mcp-allow-mutations only when allowMutations is set
+    set:
+      operator:
+        enabled: true
+        mcp:
+          enabled: true
+          allowMutations: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --enable-mcp
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --mcp-allow-mutations
+
+  - it: honors a custom mcp port
+    set:
+      operator:
+        enabled: true
+        mcp:
+          enabled: true
+      ports:
+        mcp: 9099
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --mcp-bind-address=:9099
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            containerPort: 9099
+            name: mcp
+            protocol: TCP
+
   - it: passes --storage-backend=local and --storage-path by default
     set:
       operator:

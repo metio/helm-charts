@@ -60,6 +60,13 @@ spec:
             - port: {{ .Values.ports.metrics | quote }}
               protocol: TCP
     {{- end }}
+    {{- if and .Values.operator.enabled .Values.operator.mcp.enabled }}
+    # MCP server — read-only operator introspection over streamable-HTTP.
+    - toPorts:
+        - ports:
+            - port: {{ .Values.ports.mcp | quote }}
+              protocol: TCP
+    {{- end }}
     {{- with .Values.networkPolicy.cilium.ingress }}
     {{- toYaml . | nindent 4 }}
     {{- end }}

@@ -88,6 +88,17 @@ spec:
             destinationPort:
               number: {{ .Values.ports.metrics }}
     {{- end }}
+    {{- if and .Values.operator.enabled .Values.operator.mcp.enabled }}
+    # MCP server — read-only operator introspection over streamable-HTTP.
+    - name: mcp
+      action: Accept
+      from:
+        - namespaces: {}
+      protocols:
+        - tcp:
+            destinationPort:
+              number: {{ .Values.ports.mcp }}
+    {{- end }}
     {{- with .Values.networkPolicy.clusterNetworkPolicy.ingress }}
     {{- toYaml . | nindent 4 }}
     {{- end }}

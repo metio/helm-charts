@@ -65,6 +65,14 @@ spec:
         ports:
           - {{ .Values.ports.metrics }}
     {{- end }}
+    {{- if and .Values.operator.enabled .Values.operator.mcp.enabled }}
+    # MCP server — read-only operator introspection over streamable-HTTP.
+    - action: Allow
+      protocol: TCP
+      destination:
+        ports:
+          - {{ .Values.ports.mcp }}
+    {{- end }}
     {{- with .Values.networkPolicy.calico.ingress }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
