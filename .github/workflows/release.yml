@@ -20,6 +20,14 @@ permissions:
   contents: write   # create tags + GitHub Releases
   packages: write   # push OCI charts to ghcr.io
   id-token: write   # cosign keyless signing
+# Serialize release runs. A chart's release notes are scoped to the range since
+# its previous tag; two runs that touch the same chart in quick succession would
+# otherwise race on creating that tag and produce overlapping notes. Queueing
+# (no cancel) lets the earlier run tag first, so the next run's notes start there
+# and carry only that chart's own new commits.
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
 jobs:
   release:
     name: Release changed charts
