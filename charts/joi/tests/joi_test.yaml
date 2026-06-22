@@ -196,6 +196,16 @@ tests:
       - matchRegex:
           path: metadata.name
           pattern: ^(a|b|c)$
+  - it: rejects a library key that is not a valid DNS-1123 label
+    # The key is the resource name; an invalid one would otherwise pass
+    # `helm template` and fail opaquely at apply time.
+    template: templates/ocirepository.yaml
+    set:
+      libraries:
+        BadName: { enabled: true, image: ghcr.io/x/y, tag: latest }
+    asserts:
+      - failedTemplate:
+          errorMessage: 'joi: library key "BadName" is not a valid DNS-1123 label (lowercase alphanumeric and ''-''); it is used as the OCIRepository/JsonnetLibrary name'
   - it: honors a namespace override on the JsonnetLibrary
     template: templates/jsonnetlibrary.yaml
     set:

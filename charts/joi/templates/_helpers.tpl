@@ -43,6 +43,17 @@ SPDX-License-Identifier: 0BSD
 {{- end -}}
 {{- end -}}
 {{- end -}}
+{{- /* The library key is used verbatim as the OCIRepository / JsonnetLibrary
+       metadata.name (and the JsonnetLibrary import alias), so it must be a valid
+       DNS-1123 label — otherwise `helm template` succeeds and the apiserver
+       rejects it at apply time with an opaque error. Fail early with a clear
+       message naming the offending key (the extension point invites
+       user-supplied keys). */ -}}
+{{- range $name := (keys $set) -}}
+{{- if not (regexMatch "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" $name) -}}
+{{- fail (printf "joi: library key %q is not a valid DNS-1123 label (lowercase alphanumeric and '-'); it is used as the OCIRepository/JsonnetLibrary name" $name) -}}
+{{- end -}}
+{{- end -}}
 {{- keys $set | sortAlpha | join " " -}}
 {{- end -}}
 
