@@ -63,11 +63,16 @@ replicas:
   max: 1
 
 # -- Per-container resource requests/limits. Smallest possible values here,
-# increase if you have more resources to spare.
+# increase if you have more resources to spare. ephemeralStorage must exceed
+# the `/tmp` emptyDir sizeLimit (256Mi): in operator mode the source fetcher
+# streams each compressed artifact (capped at the binary's 64Mi download limit)
+# through a tempfile under `/tmp`, and that emptyDir's usage counts against this
+# container ephemeral-storage limit. Sizing it below the emptyDir would let the
+# kubelet evict the pod mid-fetch on any artifact larger than the limit.
 resources:
   memory: 64Mi
   cpu: 32m
-  ephemeralStorage: 10Mi
+  ephemeralStorage: 320Mi
 
 # -- CLI flags for the jaas binary. These arguments map directly to their
 # corresponding CLI flag.

@@ -533,6 +533,28 @@ tests:
           path: spec.template.spec.containers[0].resources.limits["ephemeral-storage"]
           value: 100Mi
 
+  - it: default ephemeral-storage limit exceeds the /tmp emptyDir sizeLimit
+    # The source fetcher streams each compressed artifact through a tempfile
+    # under the /tmp emptyDir, whose usage counts against this ephemeral-storage
+    # limit. The default must comfortably exceed the emptyDir sizeLimit (256Mi)
+    # so the kubelet does not evict the pod mid-fetch.
+    set:
+      operator:
+        enabled: true
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits["ephemeral-storage"]
+          value: 320Mi
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests["ephemeral-storage"]
+          value: 320Mi
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: tmp
+            emptyDir:
+              sizeLimit: 256Mi
+
   # ------------------------------------------------------------------
   # Probes — wired against the management port
   # ------------------------------------------------------------------
