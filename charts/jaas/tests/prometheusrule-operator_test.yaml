@@ -46,6 +46,30 @@ tests:
           path: metadata.name
           value: jaas-operator
 
+  - it: PodDown alert selects pods by release labels, not a name prefix
+    release:
+      name: my-jaas
+      namespace: jaas-prod
+    set:
+      operator:
+        enabled: true
+        metrics:
+          prometheusRule:
+            enabled: true
+    asserts:
+      # Must scope to this release's instance + jaas component via
+      # kube_pod_labels, so a non-default release name is still covered.
+      - matchRegex:
+          path: spec.groups[1].rules[?(@.alert=="JaaSOperatorPodDown")].expr
+          pattern: 'label_app_kubernetes_io_instance="my-jaas"'
+      - matchRegex:
+          path: spec.groups[1].rules[?(@.alert=="JaaSOperatorPodDown")].expr
+          pattern: 'label_app_kubernetes_io_component="jaas"'
+      # Must NOT fall back to a hardcoded pod-name regex.
+      - notMatchRegex:
+          path: spec.groups[1].rules[?(@.alert=="JaaSOperatorPodDown")].expr
+          pattern: 'pod=~"jaas'
+
   - it: namespace-scoped to the release namespace
     release:
       namespace: jaas-prod
