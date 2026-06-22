@@ -68,11 +68,16 @@ jobs:
 
       - id: changed
         name: Determine charts to release
+        env:
+          # Via env, never inlined into the script: a dispatch input containing a
+          # single quote would otherwise close the shell string and inject
+          # arbitrary commands into a job holding contents/packages/id-token write.
+          CHART_INPUT: ${{ github.event.inputs.chart }}
         run: |
           # All chart dirs except the never-published common library chart.
           all_charts() { find charts -mindepth 1 -maxdepth 1 -type d -printf '%f\n' 2>/dev/null | grep -v '^common$' || true; }
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            sel='${{ github.event.inputs.chart }}'
+            sel="$CHART_INPUT"
             # Empty input releases every chart (the package loop skips any whose
             # appVersion is still the 0.0.0 placeholder), which flushes a backlog
             # of already-bumped charts in one run.
@@ -168,7 +173,12 @@ jobs:
             # Push and capture the pushed digest for keyless signing.
             push_out="$(helm push "$pkg" oci://ghcr.io/metio/helm-charts 2>&1)"
             echo "$push_out"
-            digest="$(echo "$push_out" | grep -oP 'Digest:\s*\K\S+')"
+            # A failed grep in a command substitution does NOT trip set -e (the
+            # assignment masks the exit status), so validate explicitly — otherwise
+            # a changed helm-push output format would leave digest empty and we'd
+            # sign a malformed "...@" reference.
+            digest="$(printf '%s\n' "$push_out" | grep -oP 'Digest:\s*\K\S+' || true)"
+            [ -n "$digest" ] || { echo "::error::could not parse digest from helm push output for $name"; exit 1; }
             cosign sign --yes \
               --annotations "repo=${{ github.repository }}" \
               --annotations "chart=$name" \
