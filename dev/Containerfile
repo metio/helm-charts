@@ -83,7 +83,10 @@ RUN pipx install --global yamllint \
 
 # typos: spell-checker, distributed as a static binary. markdownlint runs in
 # CI via its Node action rather than bloating this image with a Node toolchain.
-ARG TYPOS_VERSION=1.30.2
+# Keep this in step with the version the crate-ci/typos action ships so a local
+# run catches exactly what CI does — Renovate bumps it from upstream releases.
+# renovate: datasource=github-releases depName=crate-ci/typos
+ARG TYPOS_VERSION=1.47.2
 RUN curl -fsSL https://github.com/crate-ci/typos/releases/download/v${TYPOS_VERSION}/typos-v${TYPOS_VERSION}-x86_64-unknown-linux-musl.tar.gz | tar -xz -C /usr/local/bin ./typos \
     && chmod +x /usr/local/bin/typos
 
