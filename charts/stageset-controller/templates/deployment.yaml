@@ -207,14 +207,21 @@ spec:
             {{- end }}
       volumes:
         - name: tmp
-          emptyDir: {}
+          emptyDir:
+            # Holds the streamed compressed artifact (capped at the binary's
+            # 64Mi download limit) plus the decrypted kustomize build tree. The
+            # sizeLimit stays below resources.ephemeralStorage so this volume is
+            # the bound that trips — with a clear message — before the kubelet's
+            # ephemeral-storage eviction.
+            sizeLimit: {{ .Values.tmpSizeLimit }}
         {{- if .Values.webhook.enabled }}
         - name: webhook-certs
           {{- if eq .Values.webhook.certMode "cert-manager" }}
           secret:
             secretName: {{ include "stageset.name" . }}-webhook-cert
           {{- else }}
-          emptyDir: {}
+          emptyDir:
+            sizeLimit: 1Mi
           {{- end }}
         {{- end }}
         {{- if eq .Values.rollbackStore.backend "pvc" }}
