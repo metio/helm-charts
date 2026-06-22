@@ -86,4 +86,4 @@ version: 0.0.0
 # to this value. Tracked via the source repo's GitHub releases (not the ghcr
 # image) so the bump only fires once the release/tag exists — see renovate.json.
 # renovate: datasource=github-releases depName=metio/jaas
-appVersion: "2026.6.22080842"
+appVersion: "2026.6.22094318"
