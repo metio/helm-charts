@@ -4,11 +4,13 @@
 {{- if and .Values.networkPolicy.enabled .Values.networkPolicy.defaultDeny.enabled }}
 {{- if or (not .Values.networkPolicy.engine) (eq .Values.networkPolicy.engine "kubernetes") }}
 # Namespace-wide default-deny: selects EVERY pod in the namespace (empty
-# podSelector) and lists Ingress + Egress in policyTypes with no rules, so all
-# traffic is denied. The per-workload allowlist NetworkPolicy is additive — a
-# pod allowed by it wins, because NetworkPolicy rules across policies are a
-# union of allows. Turns the namespace zero-trust; the allowlists are the only
-# exceptions.
+# podSelector) and denies all traffic in the listed directions. The per-workload
+# allowlist NetworkPolicy is additive — a pod allowed by it wins, because
+# NetworkPolicy rules across policies are a union of allows. Egress is denied
+# only when networkPolicy.egress.enabled is set, mirroring the allowlist (which
+# carries egress allow rules only then): denying egress here without those
+# exceptions would cut every pod — including the controller — off from DNS and
+# the apiserver.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -20,7 +22,9 @@ spec:
   podSelector: {}
   policyTypes:
     - Ingress
+    {{- if .Values.networkPolicy.egress.enabled }}
     - Egress
+    {{- end }}
 {{- else if eq .Values.networkPolicy.engine "cilium" }}
 # Namespace-wide default-deny in Cilium's dialect: an empty endpointSelector
 # selects every endpoint in the namespace. The presence of an ingress (resp.
@@ -39,7 +43,9 @@ metadata:
 spec:
   endpointSelector: {}
   ingress: []
+  {{- if .Values.networkPolicy.egress.enabled }}
   egress: []
+  {{- end }}
 {{- else if eq .Values.networkPolicy.engine "calico" }}
 # Namespace-wide default-deny in Calico's dialect: selector all() matches every
 # pod in the namespace, types Ingress + Egress with no Allow rules denies all.
@@ -58,7 +64,9 @@ spec:
   selector: all()
   types:
     - Ingress
+    {{- if .Values.networkPolicy.egress.enabled }}
     - Egress
+    {{- end }}
 {{- else if eq .Values.networkPolicy.engine "clusterNetworkPolicy" }}
 # Namespace-wide default-deny in the Network Policy API dialect. Baseline tier
 # yields to any developer NetworkPolicy; the subject pins every pod in this
@@ -85,10 +93,12 @@ spec:
       action: Deny
       from:
         - namespaces: {}
+  {{- if .Values.networkPolicy.egress.enabled }}
   egress:
     - name: deny-all
       action: Deny
       to:
         - namespaces: {}
+  {{- end }}
 {{- end }}
 {{- end }}
