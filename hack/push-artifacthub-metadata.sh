@@ -17,8 +17,12 @@ set -euo pipefail
 registry="ghcr.io/metio/helm-charts"
 charts=("$@")
 if [ ${#charts[@]} -eq 0 ]; then
-  # Every chart that ships an artifacthub-repo.yml.
-  mapfile -t charts < <(ls charts/*/artifacthub-repo.yml 2>/dev/null | awk -F/ '{print $2}')
+  # Every chart that ships an artifacthub-repo.yml. Glob directly rather than
+  # parsing ls (SC2012) — the [ -e ] guard handles the no-match literal-glob.
+  for meta in charts/*/artifacthub-repo.yml; do
+    [ -e "$meta" ] || continue
+    charts+=("$(basename "$(dirname "$meta")")")
+  done
 fi
 
 for chart in "${charts[@]}"; do
