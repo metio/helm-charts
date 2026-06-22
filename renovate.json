@@ -25,6 +25,14 @@
       ]
     },
     {
+      "description": "Bump auxiliary image tags pinned in a chart's values.yaml that carry an explicit `# renovate: datasource=... depName=...` comment directly above the `tag:` key. The built-in helm-values manager is disabled (controller images are tracked via Chart.yaml appVersion, not values), so this opt-in comment-driven manager keeps the handful of non-controller images pinned in values — e.g. the jaas cleanup Job's registry.k8s.io/kubectl image — from rotting.",
+      "customType": "regex",
+      "managerFilePatterns": ["/^charts/[^/]+/values\\.yaml$/"],
+      "matchStrings": [
+        "#\\s*renovate:\\s*datasource=(?<datasource>\\S+)\\s+depName=(?<depName>\\S+)\\s*\\n\\s*tag:\\s*\"?(?<currentValue>[^\"\\n]+)\"?"
+      ]
+    },
+    {
       "description": "Bump the pinned commit SHA of the shared metio/git-cliff-config repo whose cliff.toml / cliff-artifacthub.toml the release workflow loads via --config-url. Both URLs embed the same SHA, so one matcher capturing the digest updates every occurrence.",
       "customType": "regex",
       "managerFilePatterns": ["/^\\.github/workflows/release\\.yml$/"],

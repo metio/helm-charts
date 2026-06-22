@@ -433,6 +433,7 @@ operator:
     image:
       registry: registry.k8s.io
       repository: kubectl
+      # renovate: datasource=docker depName=registry.k8s.io/kubectl
       tag: v1.34.0
       pullPolicy: IfNotPresent
     # -- Resource requests/limits for the cleanup Job container.
