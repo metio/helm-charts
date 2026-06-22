@@ -178,6 +178,24 @@ tests:
       - equal:
           path: spec.url
           value: oci://ghcr.io/metio/joi-jsonnet-libs-argo-cd-libsonnet
+  - it: resolves the dependency closure transitively (a -> b -> c)
+    # Enabling only `a` must pull in `b` (a's closure) AND `c` (b's closure) —
+    # the closure is resolved to a fixpoint, not one level deep. Synthetic
+    # libraries: the shipped catalog ships pre-flattened closures, so a crafted
+    # chain is needed to exercise transitivity. The default catalog stays
+    # disabled, so exactly a/b/c render.
+    template: templates/jsonnetlibrary.yaml
+    set:
+      libraries:
+        a: { enabled: true, image: ghcr.io/x/a, tag: latest, closure: [b] }
+        b: { enabled: false, image: ghcr.io/x/b, tag: latest, closure: [c] }
+        c: { enabled: false, image: ghcr.io/x/c, tag: latest, closure: [] }
+    asserts:
+      - hasDocuments:
+          count: 3
+      - matchRegex:
+          path: metadata.name
+          pattern: ^(a|b|c)$
   - it: honors a namespace override on the JsonnetLibrary
     template: templates/jsonnetlibrary.yaml
     set:

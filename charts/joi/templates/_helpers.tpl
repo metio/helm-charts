@@ -21,15 +21,25 @@ SPDX-License-Identifier: 0BSD
 
 {{- /* Space-separated, sorted set of libraries to actually render: every
        enabled library plus the transitive dependency `closure` of each (so
-       enabling grafonnet auto-renders xtd). A dep is only pulled in if it has
-       its own entry in .Values.libraries. */ -}}
+       enabling grafonnet auto-renders xtd, and anything xtd itself requires).
+       A dep is only pulled in if it has its own entry in .Values.libraries.
+
+       The closure is resolved to a fixpoint rather than one level deep:
+       templates have no while-loop, so iterate len(libraries) times — the
+       longest possible dependency chain visits each library at most once, so
+       that many passes always converges. Each pass folds in the closures of
+       everything currently in the set; new entries are picked up on the next
+       pass. */ -}}
 {{- define "joi.effectiveNames" -}}
+{{- $libs := .Values.libraries -}}
 {{- $set := dict -}}
-{{- range $name, $lib := .Values.libraries -}}
-{{- if $lib.enabled -}}
-{{- $_ := set $set $name true -}}
-{{- range $dep := ($lib.closure | default list) -}}
-{{- if hasKey $.Values.libraries $dep -}}{{- $_ := set $set $dep true -}}{{- end -}}
+{{- range $name, $lib := $libs -}}
+{{- if $lib.enabled -}}{{- $_ := set $set $name true -}}{{- end -}}
+{{- end -}}
+{{- range $pass := until (len $libs) -}}
+{{- range $name := (keys $set) -}}
+{{- range $dep := ((index $libs $name).closure | default list) -}}
+{{- if hasKey $libs $dep -}}{{- $_ := set $set $dep true -}}{{- end -}}
 {{- end -}}
 {{- end -}}
 {{- end -}}
