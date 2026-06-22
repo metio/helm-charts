@@ -111,9 +111,17 @@ spec:
       # an admission controller evaluating Pod Security Standards
       # "restricted" sees the strict posture even before recursing into
       # containers. A future sidecar (debug, log shipper) inherits these
-      # by default — defense-in-depth.
+      # by default — defense-in-depth. fsGroup matches the container's
+      # runAsGroup so the kubelet/CSI chowns the storage PVC
+      # (operator.storage.backend=local + persistence.enabled) to the
+      # running group — without it the non-root process (uid/gid 12345)
+      # cannot write a freshly provisioned, root-owned volume and the pod
+      # crashloops; fsGroupChangePolicy OnRootMismatch skips the recursive
+      # chown when the volume root already matches.
       securityContext:
         runAsNonRoot: true
+        fsGroup: 12345
+        fsGroupChangePolicy: OnRootMismatch
         seccompProfile:
           type: RuntimeDefault
       {{- with .Values.imagePullSecrets }}

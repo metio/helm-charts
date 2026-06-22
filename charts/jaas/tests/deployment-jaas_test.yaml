@@ -1515,6 +1515,14 @@ tests:
       - equal:
           path: spec.template.spec.securityContext.seccompProfile.type
           value: RuntimeDefault
+      # fsGroup must match the container's runAsGroup so a local-storage PVC is
+      # writable by the non-root process (otherwise the pod crashloops).
+      - equal:
+          path: spec.template.spec.securityContext.fsGroup
+          value: 12345
+      - equal:
+          path: spec.template.spec.securityContext.fsGroupChangePolicy
+          value: OnRootMismatch
 
   - it: defaults bind addresses to dual-stack-friendly `::`
     asserts:
