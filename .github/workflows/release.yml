@@ -32,27 +32,42 @@ jobs:
   release:
     name: Release changed charts
     runs-on: ubuntu-latest
+    env:
+      # Tool versions kept current by Renovate via the `# renovate:` markers (the
+      # shared metio/renovate-config workflow customManager matches a marker
+      # directly above each …_VERSION key in an env block). The literal installs
+      # below read them through `env.` indirection so no version is hand-pinned.
+      # renovate: datasource=github-releases depName=helm/helm
+      HELM_VERSION: 4.2.2
+      # renovate: datasource=github-releases depName=orhun/git-cliff
+      GIT_CLIFF_VERSION: 2.10.1
+      # renovate: datasource=github-releases depName=norwoodj/helm-docs
+      HELM_DOCS_VERSION: 1.14.2
+      # renovate: datasource=github-releases depName=dadav/helm-schema
+      GO_HELM_SCHEMA_VERSION: 0.23.4
+      # renovate: datasource=github-releases depName=mikefarah/yq
+      YQ_VERSION: 4.45.1
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           fetch-depth: 0
       - uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2 # v5
         with:
-          version: v4.2.2
+          version: v${{ env.HELM_VERSION }}
       - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
       - name: Install git-cliff
         run: |
-          curl -fsSL https://github.com/orhun/git-cliff/releases/download/v2.10.1/git-cliff-2.10.1-x86_64-unknown-linux-gnu.tar.gz | tar -xz -C /tmp
-          sudo mv /tmp/git-cliff-2.10.1/git-cliff /usr/local/bin/git-cliff
+          curl -fsSL "https://github.com/orhun/git-cliff/releases/download/v${GIT_CLIFF_VERSION}/git-cliff-${GIT_CLIFF_VERSION}-x86_64-unknown-linux-gnu.tar.gz" | tar -xz -C /tmp
+          sudo mv "/tmp/git-cliff-${GIT_CLIFF_VERSION}/git-cliff" /usr/local/bin/git-cliff
       - name: Install helm-docs
         run: |
-          curl -fsSL https://github.com/norwoodj/helm-docs/releases/download/v1.14.2/helm-docs_1.14.2_Linux_x86_64.tar.gz | tar -xz -C /usr/local/bin helm-docs
+          curl -fsSL "https://github.com/norwoodj/helm-docs/releases/download/v${HELM_DOCS_VERSION}/helm-docs_${HELM_DOCS_VERSION}_Linux_x86_64.tar.gz" | tar -xz -C /usr/local/bin helm-docs
       - name: Install helm-schema
         run: |
-          curl -fsSL https://github.com/dadav/helm-schema/releases/download/0.23.4/helm-schema_0.23.4_Linux_x86_64.tar.gz | tar -xz -C /usr/local/bin helm-schema
+          curl -fsSL "https://github.com/dadav/helm-schema/releases/download/${GO_HELM_SCHEMA_VERSION}/helm-schema_${GO_HELM_SCHEMA_VERSION}_Linux_x86_64.tar.gz" | tar -xz -C /usr/local/bin helm-schema
       - name: Install yq
         run: |
-          curl -fsSL -o /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v4.45.1/yq_linux_amd64
+          curl -fsSL -o /usr/local/bin/yq "https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_amd64"
           sudo chmod +x /usr/local/bin/yq
       - name: Log in to GHCR (Helm OCI)
         run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin

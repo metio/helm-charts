@@ -13,15 +13,26 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         reuse shellcheck \
     && rm -rf /var/lib/apt/lists/*
 
-# Pin tool versions so a rebuild is reproducible; bump by hand.
+# Pin tool versions so a rebuild is reproducible. Renovate owns every bump via
+# the `# renovate:` markers below (the shared metio/renovate-config Containerfile
+# customManager matches a marker directly above each ARG …_VERSION line).
+# renovate: datasource=github-releases depName=helm/helm
 ARG HELM_VERSION=4.1.4
+# renovate: datasource=github-releases depName=helm-unittest/helm-unittest
 ARG HELM_UNITTEST_VERSION=1.1.1
+# renovate: datasource=github-releases depName=helm/chart-testing
 ARG CT_VERSION=3.14.0
+# renovate: datasource=github-releases depName=zegl/kube-score
 ARG KUBE_SCORE_VERSION=1.20.0
+# renovate: datasource=github-releases depName=yannh/kubeconform
 ARG KUBECONFORM_VERSION=0.7.0
+# renovate: datasource=github-releases depName=sigstore/cosign
 ARG COSIGN_VERSION=2.6.0
+# renovate: datasource=github-releases depName=orhun/git-cliff
 ARG GIT_CLIFF_VERSION=2.10.1
+# renovate: datasource=github-releases depName=dadav/helm-schema
 ARG GO_HELM_SCHEMA_VERSION=0.23.4
+# renovate: datasource=github-releases depName=norwoodj/helm-docs
 ARG HELM_DOCS_VERSION=1.14.2
 
 # helm (v4) + the helm-unittest plugin (per-template assertions + snapshots).
@@ -95,12 +106,14 @@ RUN curl -fsSL https://github.com/crate-ci/typos/releases/download/v${TYPOS_VERS
 # (`actionlint .github/workflows/*.yml`). actionlint shells out to shellcheck
 # (installed above) to lint `run:` blocks — without it those findings are
 # silently skipped, so the local gate would diverge from CI.
+# renovate: datasource=github-releases depName=rhysd/actionlint
 ARG ACTIONLINT_VERSION=1.7.7
 RUN curl -fsSL https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz | tar -xz -C /usr/local/bin actionlint
 
 # yq: YAML processor. The release workflow uses it to inject the
 # `artifacthub.io/changes` annotation into a chart's Chart.yaml before packaging;
 # the dev shell provides it so that step can be exercised locally.
+# renovate: datasource=github-releases depName=mikefarah/yq
 ARG YQ_VERSION=4.45.1
 RUN curl -fsSL -o /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_amd64 \
     && chmod +x /usr/local/bin/yq

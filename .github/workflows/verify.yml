@@ -67,13 +67,28 @@ jobs:
       fail-fast: false
       matrix:
         chart: ${{ fromJSON(needs.changed.outputs.charts) }}
+    env:
+      # Tool versions kept current by Renovate via the `# renovate:` markers (the
+      # shared metio/renovate-config workflow customManager matches a marker
+      # directly above each …_VERSION key in an env block). The literal installs
+      # below read them through `env.` indirection so no version is hand-pinned.
+      # renovate: datasource=github-releases depName=helm/helm
+      HELM_VERSION: 4.2.2
+      # renovate: datasource=github-releases depName=helm-unittest/helm-unittest
+      HELM_UNITTEST_VERSION: 1.1.1
+      # renovate: datasource=github-releases depName=norwoodj/helm-docs
+      HELM_DOCS_VERSION: 1.14.2
+      # renovate: datasource=github-releases depName=zegl/kube-score
+      KUBE_SCORE_VERSION: 1.20.0
+      # renovate: datasource=github-releases depName=yannh/kubeconform
+      KUBECONFORM_VERSION: 0.7.0
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           fetch-depth: 0
       - uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2 # v5
         with:
-          version: v4.2.2
+          version: v${{ env.HELM_VERSION }}
       - uses: helm/chart-testing-action@6ec842c01de15ebb84c8627d2744a0c2f2755c9f # v2
       - name: Vendor CRDs (build artifact, regenerated per run)
         # CRDs aren't committed; the chart's CRDs are vendored from its
@@ -90,7 +105,7 @@ jobs:
         run: |
           # helm v4 verifies plugin provenance on install; the helm-unittest
           # plugin ships none, so pass --verify=false (>= 1.1.0 installs on v4).
-          helm plugin install https://github.com/helm-unittest/helm-unittest --version v1.1.1 --verify=false
+          helm plugin install https://github.com/helm-unittest/helm-unittest --version "v${HELM_UNITTEST_VERSION}" --verify=false
           c="charts/${{ matrix.chart }}/"
           if [ -d "${c}tests" ]; then
             helm unittest "$c"
@@ -98,7 +113,7 @@ jobs:
       - id: docs_render
         name: helm-docs render check
         run: |
-          curl -fsSL https://github.com/norwoodj/helm-docs/releases/download/v1.14.2/helm-docs_1.14.2_Linux_x86_64.tar.gz | tar -xz -C /usr/local/bin helm-docs
+          curl -fsSL "https://github.com/norwoodj/helm-docs/releases/download/v${HELM_DOCS_VERSION}/helm-docs_${HELM_DOCS_VERSION}_Linux_x86_64.tar.gz" | tar -xz -C /usr/local/bin helm-docs
           c="charts/${{ matrix.chart }}/"
           # The README is rendered into the package at release time, not committed,
           # so there's nothing to drift. This step only proves the template still
@@ -110,7 +125,7 @@ jobs:
       - id: kube_score
         name: kube-score (default + every ci/ variant, CRITICAL fails)
         run: |
-          curl -fsSL https://github.com/zegl/kube-score/releases/download/v1.20.0/kube-score_1.20.0_linux_amd64.tar.gz | tar -xz -C /usr/local/bin kube-score
+          curl -fsSL "https://github.com/zegl/kube-score/releases/download/v${KUBE_SCORE_VERSION}/kube-score_${KUBE_SCORE_VERSION}_linux_amd64.tar.gz" | tar -xz -C /usr/local/bin kube-score
           set -e
           c="charts/${{ matrix.chart }}/"
           name="${{ matrix.chart }}"
@@ -128,7 +143,7 @@ jobs:
       - id: kubeconform
         name: kubeconform (rendered manifests, incl. CRDs)
         run: |
-          curl -fsSL https://github.com/yannh/kubeconform/releases/download/v0.7.0/kubeconform-linux-amd64.tar.gz | tar -xz -C /usr/local/bin kubeconform
+          curl -fsSL "https://github.com/yannh/kubeconform/releases/download/v${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" | tar -xz -C /usr/local/bin kubeconform
           c="charts/${{ matrix.chart }}/"
           echo "::group::kubeconform ${{ matrix.chart }}"
           helm template release-x "$c" \
