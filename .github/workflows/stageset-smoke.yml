@@ -111,8 +111,25 @@ jobs:
           cluster_name: stageset-chart-smoke
           node_image: kindest/node:${{ needs.discover.outputs.k8s_latest }}
           wait: 180s
-      - name: Install the ExternalArtifact stub CRD
-        run: stageset-src/hack/smoke/setup-externalartifact-crd.sh
+      - name: Install the Flux source CRDs
+        # This angle-2 smoke checks out the released stageset and runs ITS smoke
+        # setup scripts, whose layout tracks that release: depending on the
+        # release the source CRDs come from setup-externalartifact-crd.sh (the
+        # ExternalArtifact CRD), setup-flux-source-crds.sh (Git/OCI/Bucket — and,
+        # in newer releases, ExternalArtifact too), or both as a complementary
+        # pair. Run whichever exist so the full source-CRD set is installed
+        # regardless of how the checked-out release splits them, keeping this
+        # decoupled from the released repo's internal script layout so a stageset
+        # appVersion bump needs no companion edit here.
+        run: |
+          ran=0
+          for s in setup-externalartifact-crd setup-flux-source-crds; do
+            if [ -f "stageset-src/hack/smoke/${s}.sh" ]; then
+              "stageset-src/hack/smoke/${s}.sh"
+              ran=1
+            fi
+          done
+          [ "$ran" = 1 ] || { echo "::error::no source-CRD setup script found in the released stageset"; exit 1; }
       - name: Install the dev chart with the released image
         run: |
           kubectl create namespace stageset-system
