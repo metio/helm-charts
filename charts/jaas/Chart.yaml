@@ -43,7 +43,7 @@ annotations:
       description: Reusable .libsonnet files referenced by snippets in the same namespace.
   artifacthub.io/recommendations: |
     - url: https://artifacthub.io/packages/helm/stageset-controller/stageset-controller
-    - url: https://artifacthub.io/packages/helm/joi/joi
+    - url: https://artifacthub.io/packages/helm/jsonnet-oci-images/joi
   artifacthub.io/crdsExamples: |
     - apiVersion: jaas.metio.wtf/v1
       kind: JsonnetSnippet
