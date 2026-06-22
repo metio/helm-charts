@@ -123,8 +123,15 @@ spec:
             {{ $rbKey }}: {{ printf "%sreconcile-latency/" $rbBase | quote }}
 
         - alert: JaaSOperatorPodDown
+          # Select this release's jaas pods by their kube-state-metrics labels
+          # rather than a name prefix: a release installed under a non-default
+          # name has pods named "<release>-..." (so a "jaas.*" regex would miss
+          # it entirely), and an unrelated pod whose name starts with "jaas"
+          # would otherwise be swept in.
           expr: |
-            kube_pod_status_ready{namespace="{{ .Release.Namespace }}",condition="true",pod=~"jaas.*"} == 0
+            kube_pod_status_ready{namespace="{{ .Release.Namespace }}",condition="true"} == 0
+            and on (namespace, pod)
+            kube_pod_labels{namespace="{{ .Release.Namespace }}",label_app_kubernetes_io_instance="{{ .Release.Name }}",label_app_kubernetes_io_component="jaas"}
           for: {{ .Values.operator.metrics.prometheusRule.thresholds.podDownDuration }}
           labels:
             severity: critical
