@@ -38,9 +38,10 @@ imagePullSecret: ""
 
 # @schema
 # type: string
-# pattern: ^[0-9]+(m|h|s)$
+# pattern: ^([0-9]+(ns|us|ms|s|m|h))+$
 # @schema
 # OCIRepository re-pull cadence (a moved `latest` tag is picked up here).
+# Accepts composite Go durations (e.g. 1h30m), matching source-controller.
 interval: 60m
 
 # One entry per JOI image. Pick the LIBRARY version in the import path, e.g.
