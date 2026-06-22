@@ -75,6 +75,13 @@ jobs:
         with:
           version: v4.2.2
       - uses: helm/chart-testing-action@6ec842c01de15ebb84c8627d2744a0c2f2755c9f # v2
+      - name: Vendor CRDs (build artifact, regenerated per run)
+        # CRDs aren't committed; the chart's CRDs are vendored from its
+        # controller release on the fly so every gate below (unittest, kube-score,
+        # kubeconform) renders against the same CRDs the package ships.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: hack/vendor-chart-crds.sh "charts/${{ matrix.chart }}"
       - id: ct_lint
         name: ct lint
         run: ct lint --config ct.yaml --charts "charts/${{ matrix.chart }}"
@@ -130,45 +137,6 @@ jobs:
                 -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
           echo "::endgroup::"
 
-  crd-sync:
-    # Per-chart, like the static gates: one chart's CRD drift must not block
-    # another chart's PR.
-    name: CRD sync gate (${{ matrix.chart }})
-    needs: changed
-    if: needs.changed.outputs.any == 'true'
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        chart: ${{ fromJSON(needs.changed.outputs.charts) }}
-    steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-      - id: resync
-        name: Re-vendor CRDs at the chart's committed appVersion and diff
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -e
-          cf="charts/${{ matrix.chart }}/Chart.yaml"
-          image="$(grep -oP '#\s*renovate:\s*image=\K\S+' "$cf" || true)"
-          if [ -z "$image" ]; then
-            echo "::notice::${{ matrix.chart }} has no renovate image marker — no vendored CRDs to check."
-            exit 0
-          fi
-          appVersion="$(grep -oP '^appVersion:\s*"?\K[^"]+' "$cf")"
-          # 0.0.0 is the committed placeholder until the source repo cuts its
-          # first release; there is no such tag to vendor CRDs from yet, so skip.
-          # The gate activates once Renovate bumps appVersion to a real release.
-          if [ "$appVersion" = "0.0.0" ]; then
-            echo "::notice::${{ matrix.chart }} appVersion is the 0.0.0 placeholder — no released $image to vendor CRDs from yet; skipping."
-            exit 0
-          fi
-          hack/vendor-crds.sh "$image" "$appVersion"
-          if ! git diff --exit-code -- "charts/${{ matrix.chart }}/templates/crd-*.yaml"; then
-            echo "::error::${{ matrix.chart }}'s vendored CRDs drifted from its appVersion source. Run hack/vendor-crds.sh $image $appVersion and commit."
-            exit 1
-          fi
-
   k8s-matrix:
     name: Compute Kubernetes matrix
     needs: changed
@@ -207,6 +175,16 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           fetch-depth: 0
+      - name: Vendor CRDs for all charts (build artifact)
+        # The prerequisite step below provisions every chart's CRDs from disk,
+        # and ct install needs each chart's CRDs present, so regenerate them all
+        # before either runs. The wrapper no-ops on charts without a release.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for c in charts/*/; do
+            hack/vendor-chart-crds.sh "${c%/}"
+          done
       - uses: helm/chart-testing-action@6ec842c01de15ebb84c8627d2744a0c2f2755c9f # v2
       - uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1
         with:
@@ -300,7 +278,7 @@ jobs:
         uses: crate-ci/typos@37bb98842b0d8c4ffebdb75301a13db0267cef89 # v1
 
   # Single, stably-named aggregate of every job above. Matrix jobs (install,
-  # static, crd-sync) report one rolled-up result here — success only if every
+  # static) report one rolled-up result here — success only if every
   # leg passed — so this is the one and only check to mark "required" in branch
   # protection. It replaces having to enumerate matrix legs whose names change
   # with the discovered k8s versions / chart set.
@@ -309,7 +287,6 @@ jobs:
     needs:
       - changed
       - static
-      - crd-sync
       - k8s-matrix
       - install
       - yaml
