@@ -40,7 +40,17 @@ app.kubernetes.io/part-of: {{ .Chart.Name }}
 {{- .Release.Namespace -}}
 {{- end -}}
 
-{{- /* Whether HPA/PDB should render (multi-replica installs only). */ -}}
+{{- /* Whether the HPA should render: autoscaling is only meaningful when the
+       ceiling is above the floor. */ -}}
 {{- define "stageset.scaling" -}}
 {{- if gt (.Values.replicas.max | int) (.Values.replicas.min | int) -}}true{{- end -}}
+{{- end -}}
+
+{{- /* Whether more than one replica can run — either the HPA can scale above
+       one (max > min) OR a fixed count is pinned above one (min > 1). The
+       PodDisruptionBudget gates on this, not stageset.scaling, so a fixed
+       multi-replica install (min == max == 2) still gets a PDB; gating on
+       scaling alone would skip it and let a node drain evict every replica. */ -}}
+{{- define "stageset.multiReplica" -}}
+{{- if or (gt (.Values.replicas.max | int) 1) (gt (.Values.replicas.min | int) 1) -}}true{{- end -}}
 {{- end -}}
