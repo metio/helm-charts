@@ -45,15 +45,32 @@ tests:
       - equal:
           path: spec.podSelector
           value: {}
+      # Egress is NOT denied by default: the allowlist only renders egress rules
+      # when networkPolicy.egress.enabled, so denying it here with no re-admit
+      # would cut the operator off from DNS + the apiserver.
+      - equal:
+          path: spec.policyTypes
+          value:
+            - Ingress
+      - notExists:
+          path: spec.ingress
+      - notExists:
+          path: spec.egress
+
+  - it: denies egress too once networkPolicy.egress.enabled (kubernetes)
+    set:
+      networkPolicy:
+        enabled: true
+        defaultDeny:
+          enabled: true
+        egress:
+          enabled: true
+    asserts:
       - equal:
           path: spec.policyTypes
           value:
             - Ingress
             - Egress
-      - notExists:
-          path: spec.ingress
-      - notExists:
-          path: spec.egress
 
   - it: renders a cilium default-deny for the cilium engine
     set:
@@ -70,15 +87,15 @@ tests:
       - equal:
           path: spec.endpointSelector
           value: {}
-      # Empty ingress/egress SECTIONS trigger default deny-mode per direction
-      # while admitting nothing. An empty rule ENTRY (- {}) would instead match
-      # all peers and allow everything, so the sections must be empty lists.
+      # Empty ingress SECTION triggers default deny-mode while admitting nothing.
+      # An empty rule ENTRY (- {}) would instead match all peers and allow
+      # everything, so the section must be an empty list. Egress is omitted by
+      # default (not denied) — see the kubernetes case.
       - equal:
           path: spec.ingress
           value: []
-      - equal:
+      - notExists:
           path: spec.egress
-          value: []
       - notExists:
           path: spec.enableDefaultDeny
 
@@ -107,7 +124,6 @@ tests:
           path: spec.types
           value:
             - Ingress
-            - Egress
       - notExists:
           path: spec.ingress
       - notExists:
@@ -162,13 +178,9 @@ tests:
             action: Deny
             from:
               - namespaces: {}
-      - contains:
+      # Egress omitted by default (not denied) — see the kubernetes case.
+      - notExists:
           path: spec.egress
-          content:
-            name: deny-all
-            action: Deny
-            to:
-              - namespaces: {}
 
   - it: honours a custom order as the clusterNetworkPolicy priority
     set:
