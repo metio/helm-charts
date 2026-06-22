@@ -678,9 +678,31 @@ deployment:
 pod:
   additionalLabels: {}
 
-# -- PodDisruptionBudget (rendered only when replicas.max > replicas.min).
+# -- PodDisruptionBudget (rendered for any multi-replica install — replicas.min
+# above 1, or replicas.max above replicas.min).
 podDisruptionBudget:
+  # @schema
+  # type: string
+  # enum:
+  #   - ""
+  #   - IfHealthyBudget
+  #   - AlwaysAllow
+  # @schema
+  # -- spec.unhealthyPodEvictionPolicy on the PDB. Empty defers to the cluster
+  # default.
+  unhealthyPodEvictionPolicy: ""
+  # @schema
+  # type: [integer, string, "null"]
+  # @schema
+  # -- PDB minAvailable (the default shape). Mutually exclusive with
+  # maxUnavailable — set this to null when using maxUnavailable.
   minAvailable: 1
+  # @schema
+  # type: [integer, string, "null"]
+  # @schema
+  # -- PDB maxUnavailable. Null (default) renders minAvailable instead; set this
+  # (and minAvailable to null) to cap voluntary disruptions to N pods at a time.
+  maxUnavailable: null
 
 # -- HorizontalPodAutoscaler (rendered only when replicas.max > replicas.min).
 autoscaling:

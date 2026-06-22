@@ -10,7 +10,17 @@ metadata:
   labels:
     {{- include "stageset.labels" . | nindent 4 }}
 spec:
+  {{- with .Values.podDisruptionBudget.unhealthyPodEvictionPolicy }}
+  unhealthyPodEvictionPolicy: {{ . }}
+  {{- end }}
+  {{- /* Render maxUnavailable when set, else minAvailable — exactly one, since
+         the apiserver rejects a PDB with both. null (the absent value) is
+         detected via kindIs "invalid". */ -}}
+  {{- if not (kindIs "invalid" .Values.podDisruptionBudget.maxUnavailable) }}
+  maxUnavailable: {{ .Values.podDisruptionBudget.maxUnavailable }}
+  {{- else }}
   minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "stageset.selectorLabels" . | nindent 6 }}

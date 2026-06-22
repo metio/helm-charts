@@ -108,6 +108,35 @@ tests:
       - isKind:
           of: PodDisruptionBudget
         template: templates/poddisruptionbudget.yaml
+  - it: PDB defaults to minAvailable and omits maxUnavailable + policy
+    template: templates/poddisruptionbudget.yaml
+    set:
+      replicas: { min: 2, max: 5 }
+    asserts:
+      - equal:
+          path: spec.minAvailable
+          value: 1
+      - notExists:
+          path: spec.maxUnavailable
+      - notExists:
+          path: spec.unhealthyPodEvictionPolicy
+  - it: PDB renders maxUnavailable and unhealthyPodEvictionPolicy when set
+    template: templates/poddisruptionbudget.yaml
+    set:
+      replicas: { min: 2, max: 5 }
+      podDisruptionBudget:
+        minAvailable: null
+        maxUnavailable: 1
+        unhealthyPodEvictionPolicy: AlwaysAllow
+    asserts:
+      - equal:
+          path: spec.maxUnavailable
+          value: 1
+      - notExists:
+          path: spec.minAvailable
+      - equal:
+          path: spec.unhealthyPodEvictionPolicy
+          value: AlwaysAllow
   - it: renders no rollback PVC by default
     template: templates/pvc-rollback.yaml
     asserts:
