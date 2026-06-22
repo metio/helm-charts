@@ -5,6 +5,10 @@ name: REUSE compliance
 on:
   pull_request:
     branches: [main]
+# Least privilege: the check only reads the tree (matches the other PR gates,
+# which all drop the token to contents: read).
+permissions:
+  contents: read
 jobs:
   reuse:
     runs-on: ubuntu-latest

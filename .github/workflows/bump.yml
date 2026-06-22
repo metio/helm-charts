@@ -12,6 +12,12 @@ on:
     paths: ["charts/*/Chart.yaml"]
 permissions:
   contents: write
+# Renovate force-pushes the branch as it refreshes the PR; two near-simultaneous
+# pushes would otherwise race two vendor runs onto the same branch and the loser
+# fails on a non-fast-forward push. Keep only the latest push's run.
+concurrency:
+  group: bump-${{ github.ref_name }}
+  cancel-in-progress: true
 jobs:
   vendor:
     runs-on: ubuntu-latest
@@ -37,6 +43,7 @@ jobs:
           done
       - name: Commit any CRD changes back to the branch
         run: |
+          set -euo pipefail
           if ! git diff --quiet -- 'charts/*/templates/crd-*.yaml'; then
             git config user.name 'github-actions[bot]'
             git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
