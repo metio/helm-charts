@@ -17,7 +17,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # the `# renovate:` markers below (the shared metio/renovate-config Containerfile
 # customManager matches a marker directly above each ARG …_VERSION line).
 # renovate: datasource=github-releases depName=helm/helm
-ARG HELM_VERSION=4.1.4
+ARG HELM_VERSION=4.2.2
 # renovate: datasource=github-releases depName=helm-unittest/helm-unittest
 ARG HELM_UNITTEST_VERSION=1.1.1
 # renovate: datasource=github-releases depName=helm/chart-testing
