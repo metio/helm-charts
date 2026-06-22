@@ -94,6 +94,20 @@ tests:
           path: spec.minAvailable
           value: 1
         template: templates/poddisruptionbudget.yaml
+  - it: renders a PDB but no HPA for a fixed multi-replica install (min == max > 1)
+    set:
+      replicas.min: 2
+      replicas.max: 2
+    asserts:
+      - hasDocuments:
+          count: 0
+        template: templates/horizontalpodautoscaler.yaml
+      - hasDocuments:
+          count: 1
+        template: templates/poddisruptionbudget.yaml
+      - isKind:
+          of: PodDisruptionBudget
+        template: templates/poddisruptionbudget.yaml
   - it: renders no rollback PVC by default
     template: templates/pvc-rollback.yaml
     asserts:

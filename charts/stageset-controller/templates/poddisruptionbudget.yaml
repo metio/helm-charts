@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: The helm-charts Authors
 # SPDX-License-Identifier: 0BSD
 
-{{- if include "stageset.scaling" . }}
+{{- if include "stageset.multiReplica" . }}
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
