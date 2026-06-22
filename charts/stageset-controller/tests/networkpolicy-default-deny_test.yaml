@@ -75,7 +75,10 @@ tests:
       - isKind:
           of: NetworkPolicy
 
-  - it: selects the whole namespace and denies both directions (kubernetes)
+  - it: denies ingress only by default, leaving egress open (kubernetes)
+    # With no egress allowlist (egress.enabled=false) the default-deny must NOT
+    # deny egress, or every pod — including the controller — loses DNS and the
+    # apiserver.
     templates:
       - networkpolicy-default-deny.yaml
     set:
@@ -88,6 +91,23 @@ tests:
       - equal:
           path: spec.podSelector
           value: {}
+      - equal:
+          path: spec.policyTypes
+          value:
+            - Ingress
+
+  - it: denies egress too once an egress allowlist is enabled (kubernetes)
+    templates:
+      - networkpolicy-default-deny.yaml
+    set:
+      networkPolicy:
+        enabled: true
+        engine: kubernetes
+        defaultDeny:
+          enabled: true
+        egress:
+          enabled: true
+    asserts:
       - equal:
           path: spec.policyTypes
           value:
@@ -120,7 +140,7 @@ tests:
           path: metadata.name
           value: stageset-controller-default-deny
 
-  - it: selects all endpoints and denies both directions (cilium)
+  - it: denies ingress only by default, leaving egress open (cilium)
     templates:
       - networkpolicy-default-deny.yaml
     set:
@@ -133,17 +153,35 @@ tests:
       - equal:
           path: spec.endpointSelector
           value: {}
-      # Empty ingress/egress SECTIONS trigger default deny-mode per direction
-      # while admitting nothing. An empty rule ENTRY (- {}) would instead match
-      # all peers and allow everything, so the sections must be empty lists.
+      # Empty ingress SECTION triggers default deny-mode for ingress while
+      # admitting nothing. The egress section is omitted (egress stays open) so
+      # the controller keeps DNS + apiserver access without an egress allowlist.
+      - equal:
+          path: spec.ingress
+          value: []
+      - notExists:
+          path: spec.egress
+      - notExists:
+          path: spec.enableDefaultDeny
+
+  - it: denies egress too once an egress allowlist is enabled (cilium)
+    templates:
+      - networkpolicy-default-deny.yaml
+    set:
+      networkPolicy:
+        enabled: true
+        engine: cilium
+        defaultDeny:
+          enabled: true
+        egress:
+          enabled: true
+    asserts:
       - equal:
           path: spec.ingress
           value: []
       - equal:
           path: spec.egress
           value: []
-      - notExists:
-          path: spec.enableDefaultDeny
 
   # calico engine -----------------------------------------------------------
   - it: renders a deny-all Calico NetworkPolicy for the calico engine
@@ -167,7 +205,7 @@ tests:
           path: metadata.name
           value: stageset-controller-default-deny
 
-  - it: selects all pods, denies both directions, and sorts after the allowlist (calico)
+  - it: denies ingress only by default and sorts after the allowlist (calico)
     templates:
       - networkpolicy-default-deny.yaml
     set:
@@ -184,7 +222,6 @@ tests:
           path: spec.types
           value:
             - Ingress
-            - Egress
       # Calico evaluates lower order first; the allowlist carries no order
       # (lowest precedence), so the deny-all's high order ranks it last.
       - equal:
@@ -194,6 +231,24 @@ tests:
           path: spec.ingress
       - notExists:
           path: spec.egress
+
+  - it: denies egress too once an egress allowlist is enabled (calico)
+    templates:
+      - networkpolicy-default-deny.yaml
+    set:
+      networkPolicy:
+        enabled: true
+        engine: calico
+        defaultDeny:
+          enabled: true
+        egress:
+          enabled: true
+    asserts:
+      - equal:
+          path: spec.types
+          value:
+            - Ingress
+            - Egress
 
   - it: honours a custom order on the calico deny-all
     templates:
@@ -242,7 +297,7 @@ tests:
       - notExists:
           path: metadata.namespace
 
-  - it: subjects the whole namespace and denies both directions (clusterNetworkPolicy)
+  - it: subjects the whole namespace and denies ingress only by default (clusterNetworkPolicy)
     templates:
       - networkpolicy-default-deny.yaml
     release:
@@ -266,6 +321,23 @@ tests:
               action: Deny
               from:
                 - namespaces: {}
+      - notExists:
+          path: spec.egress
+
+  - it: denies egress too once an egress allowlist is enabled (clusterNetworkPolicy)
+    templates:
+      - networkpolicy-default-deny.yaml
+    release:
+      namespace: stageset-system
+    set:
+      networkPolicy:
+        enabled: true
+        engine: clusterNetworkPolicy
+        defaultDeny:
+          enabled: true
+        egress:
+          enabled: true
+    asserts:
       - equal:
           path: spec.egress
           value:
