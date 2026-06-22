@@ -69,6 +69,35 @@ spec:
               StageSetSpec defines an ordered, gated, multi-stage deployment of
               ExternalArtifact contents.
             properties:
+              decryption:
+                description: |-
+                  Decryption decrypts SOPS-encrypted files in every stage's source before
+                  the manifests are built, so an encrypted Secret rolls out as plaintext.
+                properties:
+                  provider:
+                    description: Provider is the decryption backend. Only "sops" is
+                      supported.
+                    enum:
+                    - sops
+                    type: string
+                  secretRef:
+                    description: |-
+                      SecretRef names a Secret in the StageSet's namespace holding the
+                      decryption keys, using the SOPS key conventions: age private keys under
+                      data entries suffixed ".agekey", armored PGP private keys under ".asc".
+                      The Secret is read under the StageSet's serviceAccountName, so a tenant
+                      can only decrypt with material its ServiceAccount can read. Optional: omit
+                      for a cloud-KMS-only setup that uses the controller's ambient credentials.
+                    properties:
+                      name:
+                        description: Name of the referent.
+                        type: string
+                    required:
+                    - name
+                    type: object
+                required:
+                - provider
+                type: object
               dependsOn:
                 description: |-
                   DependsOn lists StageSets that must be Ready (with observed
@@ -99,7 +128,9 @@ spec:
                   state to heal drift. Leave unset to fold drift correction into Interval.
                 type: string
               interval:
-                description: Interval at which to reconcile the StageSet.
+                description: |-
+                  Interval at which to reconcile the StageSet. Optional: when omitted, the
+                  controller's --default-interval is used.
                 type: string
               kubeConfig:
                 description: KubeConfig selects a remote cluster to apply to.
@@ -175,7 +206,7 @@ spec:
                 description: |-
                   Migrations are version-gated action ladders run when crossing a
                   version boundary, anchored before a named stage's pre-actions.
-                  Requires spec.version.
+                  Requires spec.version. Mutually exclusive with MigrationsSourceRef.
                 items:
                   description: Migration is a version-gated action ladder.
                   properties:
@@ -184,10 +215,10 @@ spec:
                         crossed.
                       items:
                         description: |-
-                          Action is one typed step. Exactly one of Patch, HTTP, Wait, or Job must be
-                          set — enforced by the validating admission webhook (and a reconciler
-                          fallback), not a CRD CEL rule, so spec.stages and the action lists stay
-                          unbounded (CEL cost is multiplied by enclosing array sizes).
+                          Action is one typed step. Exactly one of Patch, HTTP, Wait, Job, Delete, or
+                          Apply must be set — enforced by the validating admission webhook (and a
+                          reconciler fallback), not a CRD CEL rule, so spec.stages and the action lists
+                          stay unbounded (CEL cost is multiplied by enclosing array sizes).
                         properties:
                           apply:
                             description: |-
@@ -291,6 +322,8 @@ spec:
                                   2xx.
                                 items:
                                   format: int32
+                                  maximum: 599
+                                  minimum: 100
                                   type: integer
                                 type: array
                               headersFrom:
@@ -317,6 +350,13 @@ spec:
                                 type: array
                               method:
                                 description: Method defaults to POST.
+                                enum:
+                                - GET
+                                - POST
+                                - PUT
+                                - PATCH
+                                - DELETE
+                                - HEAD
                                 type: string
                               url:
                                 description: URL to call; validated against --allowed-action-hosts.
@@ -406,6 +446,7 @@ spec:
                           retries:
                             description: Retries before the action is considered failed.
                             format: int32
+                            minimum: 0
                             type: integer
                           timeout:
                             description: Timeout for the action.
@@ -452,8 +493,11 @@ spec:
                         type: object
                       type: array
                     from:
-                      description: From optionally constrains the current version
-                        it applies from.
+                      description: |-
+                        From optionally constrains the current version it applies from. Unlike
+                        To, this is a semver *constraint* (e.g. ">=1.0.0, <2.0.0" or "1.x"),
+                        matched against the currently deployed version. Omit to fire on every
+                        crossing up to To.
                       type: string
                     name:
                       description: Name of the migration, for the idempotency ledger
@@ -461,19 +505,67 @@ spec:
                       type: string
                     stage:
                       description: |-
-                        Stage anchors when the migration runs: before this stage's
-                        pre-actions.
+                        Stage anchors when the migration runs: before the pre-actions of the
+                        stage whose MigrationAnchor (preferred) or Name equals this value. Omit
+                        to anchor before the first stage. A value matching no stage in a
+                        consuming StageSet fails closed (reason MigrationStageNotFound) rather
+                        than silently skipping — important for a ladder shared across StageSets
+                        whose stages may be named differently.
                       type: string
                     to:
-                      description: To is the version boundary this migration crosses
-                        up to.
+                      description: |-
+                        To is the exact version boundary this migration crosses up to (a
+                        concrete semver, not a range).
                       type: string
                   required:
                   - name
-                  - stage
                   - to
                   type: object
                 type: array
+              migrationsSourceRef:
+                description: |-
+                  MigrationsSourceRef sources the migration ladder from a Flux source's
+                  artifact instead of inlining it, so one ladder can be authored once and
+                  shared across many StageSets. The artifact holds a serialized
+                  []Migration. Mutually exclusive with Migrations; requires spec.version.
+                properties:
+                  path:
+                    description: |-
+                      Path inside the artifact selecting the migrations file or directory.
+                      Defaults to the artifact root.
+                    type: string
+                  sourceRef:
+                    description: |-
+                      SourceRef references the artifact-producing source (an ExternalArtifact,
+                      or a producer kind resolved via the back-pointer index — the same
+                      reference shape a stage uses). Resolved in the StageSet's namespace;
+                      cross-namespace references are gated by --no-cross-namespace-refs.
+                    properties:
+                      apiVersion:
+                        description: |-
+                          APIVersion of the referent. Defaults to
+                          source.toolkit.fluxcd.io/v1. Required when Kind is set to a
+                          producer kind.
+                        type: string
+                      kind:
+                        description: |-
+                          Kind of the referent. Defaults to ExternalArtifact; any other kind
+                          is treated as a producer and resolved via the back-pointer index.
+                        type: string
+                      name:
+                        description: Name of the referent.
+                        type: string
+                      namespace:
+                        description: |-
+                          Namespace of the referent; defaults to the StageSet's namespace.
+                          Cross-namespace references are gated by --no-cross-namespace-refs.
+                        type: string
+                    required:
+                    - name
+                    type: object
+                required:
+                - sourceRef
+                type: object
               retryInterval:
                 description: RetryInterval overrides Interval after a failed run.
                 type: string
@@ -502,10 +594,10 @@ spec:
                             APPLY onward.
                           items:
                             description: |-
-                              Action is one typed step. Exactly one of Patch, HTTP, Wait, or Job must be
-                              set — enforced by the validating admission webhook (and a reconciler
-                              fallback), not a CRD CEL rule, so spec.stages and the action lists stay
-                              unbounded (CEL cost is multiplied by enclosing array sizes).
+                              Action is one typed step. Exactly one of Patch, HTTP, Wait, Job, Delete, or
+                              Apply must be set — enforced by the validating admission webhook (and a
+                              reconciler fallback), not a CRD CEL rule, so spec.stages and the action lists
+                              stay unbounded (CEL cost is multiplied by enclosing array sizes).
                             properties:
                               apply:
                                 description: |-
@@ -610,6 +702,8 @@ spec:
                                       any 2xx.
                                     items:
                                       format: int32
+                                      maximum: 599
+                                      minimum: 100
                                       type: integer
                                     type: array
                                   headersFrom:
@@ -636,6 +730,13 @@ spec:
                                     type: array
                                   method:
                                     description: Method defaults to POST.
+                                    enum:
+                                    - GET
+                                    - POST
+                                    - PUT
+                                    - PATCH
+                                    - DELETE
+                                    - HEAD
                                     type: string
                                   url:
                                     description: URL to call; validated against --allowed-action-hosts.
@@ -727,6 +828,7 @@ spec:
                                 description: Retries before the action is considered
                                   failed.
                                 format: int32
+                                minimum: 0
                                 type: integer
                               timeout:
                                 description: Timeout for the action.
@@ -777,10 +879,10 @@ spec:
                             only when these succeed.
                           items:
                             description: |-
-                              Action is one typed step. Exactly one of Patch, HTTP, Wait, or Job must be
-                              set — enforced by the validating admission webhook (and a reconciler
-                              fallback), not a CRD CEL rule, so spec.stages and the action lists stay
-                              unbounded (CEL cost is multiplied by enclosing array sizes).
+                              Action is one typed step. Exactly one of Patch, HTTP, Wait, Job, Delete, or
+                              Apply must be set — enforced by the validating admission webhook (and a
+                              reconciler fallback), not a CRD CEL rule, so spec.stages and the action lists
+                              stay unbounded (CEL cost is multiplied by enclosing array sizes).
                             properties:
                               apply:
                                 description: |-
@@ -885,6 +987,8 @@ spec:
                                       any 2xx.
                                     items:
                                       format: int32
+                                      maximum: 599
+                                      minimum: 100
                                       type: integer
                                     type: array
                                   headersFrom:
@@ -911,6 +1015,13 @@ spec:
                                     type: array
                                   method:
                                     description: Method defaults to POST.
+                                    enum:
+                                    - GET
+                                    - POST
+                                    - PUT
+                                    - PATCH
+                                    - DELETE
+                                    - HEAD
                                     type: string
                                   url:
                                     description: URL to call; validated against --allowed-action-hosts.
@@ -1002,6 +1113,7 @@ spec:
                                 description: Retries before the action is considered
                                   failed.
                                 format: int32
+                                minimum: 0
                                 type: integer
                               timeout:
                                 description: Timeout for the action.
@@ -1052,10 +1164,10 @@ spec:
                             untouched.
                           items:
                             description: |-
-                              Action is one typed step. Exactly one of Patch, HTTP, Wait, or Job must be
-                              set — enforced by the validating admission webhook (and a reconciler
-                              fallback), not a CRD CEL rule, so spec.stages and the action lists stay
-                              unbounded (CEL cost is multiplied by enclosing array sizes).
+                              Action is one typed step. Exactly one of Patch, HTTP, Wait, Job, Delete, or
+                              Apply must be set — enforced by the validating admission webhook (and a
+                              reconciler fallback), not a CRD CEL rule, so spec.stages and the action lists
+                              stay unbounded (CEL cost is multiplied by enclosing array sizes).
                             properties:
                               apply:
                                 description: |-
@@ -1160,6 +1272,8 @@ spec:
                                       any 2xx.
                                     items:
                                       format: int32
+                                      maximum: 599
+                                      minimum: 100
                                       type: integer
                                     type: array
                                   headersFrom:
@@ -1186,6 +1300,13 @@ spec:
                                     type: array
                                   method:
                                     description: Method defaults to POST.
+                                    enum:
+                                    - GET
+                                    - POST
+                                    - PUT
+                                    - PATCH
+                                    - DELETE
+                                    - HEAD
                                     type: string
                                   url:
                                     description: URL to call; validated against --allowed-action-hosts.
@@ -1277,6 +1398,7 @@ spec:
                                 description: Retries before the action is considered
                                   failed.
                                 format: int32
+                                minimum: 0
                                 type: integer
                               timeout:
                                 description: Timeout for the action.
@@ -1336,6 +1458,7 @@ spec:
                         toggle (which is sugar for default: Recreate).
                       properties:
                         default:
+                          default: Fail
                           description: Default action for conflicts with no matching
                             rule.
                           enum:
@@ -1383,6 +1506,14 @@ spec:
                     force:
                       description: Force recreates objects on immutable-field conflicts.
                       type: boolean
+                    migrationAnchor:
+                      description: |-
+                        MigrationAnchor declares a stable anchor role this stage fulfils, so a
+                        shared migration ladder can anchor to it by role rather than by this
+                        stage's Name. A migration's Stage value resolves to the stage whose
+                        MigrationAnchor (preferred) or Name matches it. Anchor keys must be
+                        unique across stage Names and MigrationAnchors within a StageSet.
+                      type: string
                     name:
                       description: Name of the stage; unique within the StageSet,
                         used as inventory key.
@@ -1655,7 +1786,9 @@ spec:
                   fromArtifact:
                     description: |-
                       FromArtifact reads a single semver string from a file in a stage's
-                      artifact, so the version moves with the content.
+                      artifact (e.g. a VERSION file committed beside the manifests), so the
+                      version moves with the content. Suited to Git/OCI/Bucket sources that can
+                      carry an extra file.
                     properties:
                       path:
                         description: Path of the version file inside the artifact.
@@ -1667,6 +1800,53 @@ spec:
                     - path
                     - stage
                     type: object
+                  fromObject:
+                    description: |-
+                      FromObject reads the version from a field of a rendered object in a stage
+                      — by default the standard app.kubernetes.io/version label. The version
+                      travels inside the manifests themselves, so it works for every source kind
+                      including a single-document renderer like JaaS, which has no room for a
+                      separate version file.
+                    properties:
+                      apiVersion:
+                        description: |-
+                          APIVersion of the object; empty matches on Kind and Name alone (the
+                          common case, where one Kind+Name pair is unambiguous within a stage).
+                        type: string
+                      fieldPath:
+                        description: |-
+                          FieldPath is a kubectl-style JSONPath to the version string, e.g.
+                          '{.spec.template.spec.containers[0].image}'. Empty defaults to the
+                          app.kubernetes.io/version label — the Kubernetes-recommended place for an
+                          application's version, which well-formed manifests already set.
+                        type: string
+                      kind:
+                        description: Kind of the object to read (e.g. Deployment).
+                        type: string
+                      name:
+                        description: Name of the object to read.
+                        type: string
+                      stage:
+                        description: Stage whose rendered manifests carry the version.
+                        type: string
+                    required:
+                    - kind
+                    - name
+                    - stage
+                    type: object
+                  requireApproval:
+                    description: |-
+                      RequireApproval holds a version transition that has pending migrations
+                      until an operator approves the target version with the
+                      stages.metio.wtf/approved-version annotation, so destructive migrations
+                      don't run unattended. Off by default.
+                    type: boolean
+                  requireMigrationCoverage:
+                    description: |-
+                      RequireMigrationCoverage fails the reconcile when a version transition
+                      crosses a major-version boundary with no migration covering it, instead of
+                      advancing the major change silently. Off by default.
+                    type: boolean
                   value:
                     description: Value pins the version inline, for fully pin-tagged
                       setups.
@@ -1682,7 +1862,6 @@ spec:
                 - All
                 type: string
             required:
-            - interval
             - stages
             type: object
           status:
@@ -1744,20 +1923,29 @@ spec:
                   - type
                   type: object
                 type: array
-              executedMigrations:
+              executedMigrationActions:
                 description: |-
-                  ExecutedMigrations is the in-flight migration ledger: the names of
-                  migrations already completed for the current version transition. It
-                  lets a retry of a partially-applied transition skip finished
-                  migrations, and is cleared once status.version reaches the target.
+                  ExecutedMigrationActions is the per-action migration ledger:
+                  "name@contentDigest/actionName" keys of individual migration actions
+                  already completed. It lets a retry of a partially-applied migration skip
+                  actions that already ran, so a destructive action is never re-executed
+                  after a mid-migration failure. Cleared with ExecutedMigrations once
+                  status.version reaches the target.
                 items:
                   type: string
                 type: array
-              inventoryMode:
+              executedMigrations:
                 description: |-
-                  InventoryMode records which --inventory-mode the stored inventory of
-                  this object currently satisfies; used to sequence mode migrations.
-                type: string
+                  ExecutedMigrations is the in-flight migration ledger: the
+                  "name@contentDigest" keys of migrations fully completed for the current
+                  version transition. Keying on the content digest means an edited
+                  migration (same name, changed content) is treated as a new, unexecuted
+                  migration rather than silently skipped. Lets a retry of a
+                  partially-applied transition skip finished migrations; cleared once
+                  status.version reaches the target.
+                items:
+                  type: string
+                type: array
               lastAppliedRevisions:
                 additionalProperties:
                   type: string
@@ -1822,16 +2010,61 @@ spec:
                   LastHandledUpdateOverride is the value of the most recently honored
                   stages.metio.wtf/update-now annotation, so an override fires once.
                 type: string
+              migrationFailureCount:
+                description: |-
+                  MigrationFailureCount counts consecutive migration failures in the current
+                  transition. Once it reaches the controller's threshold the migration goes
+                  MigrationDirty (auto-retry halts). Reset to zero on a successful transition
+                  or a manual reconcile request.
+                format: int32
+                type: integer
               observedGeneration:
                 description: ObservedGeneration is the last spec generation reconciled.
                 format: int64
                 type: integer
               pendingMigrations:
                 description: |-
-                  PendingMigrations lists the migrations the next run will execute, so
-                  operators see unusual work before it happens.
+                  PendingMigrations lists the migrations the next run will execute, with
+                  enough detail (boundary, resolved anchor stage, action verbs, content
+                  digest) that operators see exactly what destructive work is about to run
+                  — including for a ladder sourced from spec.migrationsSourceRef, whose
+                  content is not in the spec.
                 items:
-                  type: string
+                  description: |-
+                    PendingMigration is a status preview of a migration the next run will execute:
+                    its boundary, the concrete stage it anchors before, the action verbs it runs,
+                    and its content digest — so operators see what is about to happen even when the
+                    ladder is sourced from an artifact rather than the spec.
+                  properties:
+                    actions:
+                      description: Actions lists the action verbs (e.g. delete, apply,
+                        job) in run order.
+                      items:
+                        type: string
+                      type: array
+                    digest:
+                      description: Digest is the migration's resolved content digest,
+                        the idempotency-ledger key.
+                      type: string
+                    from:
+                      description: From is the optional version constraint it applies
+                        from.
+                      type: string
+                    name:
+                      description: Name of the migration.
+                      type: string
+                    stage:
+                      description: Stage is the concrete stage this migration resolved
+                        to anchor before.
+                      type: string
+                    to:
+                      description: To is the version boundary this migration crosses
+                        up to.
+                      type: string
+                  required:
+                  - name
+                  - to
+                  type: object
                 type: array
               pendingUpdate:
                 description: |-
@@ -1872,6 +2105,13 @@ spec:
                       items:
                         type: string
                       type: array
+                    lastHandledReconcileAt:
+                      description: |-
+                        LastHandledReconcileAt is the value of the stages.metio.wtf/reconcile-stage
+                        token this stage most recently acted on. A single-stage force-reconcile
+                        clears this stage's action ledger and re-runs its actions exactly once per
+                        new token, the per-stage analogue of lastHandledReconcileAt.
+                      type: string
                     ledgerRevision:
                       description: |-
                         LedgerRevision is the pinned artifact revision the ExecutedActions ledger
