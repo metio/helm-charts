@@ -114,6 +114,6 @@ RUN curl -fsSL https://github.com/rhysd/actionlint/releases/download/v${ACTIONLI
 # `artifacthub.io/changes` annotation into a chart's Chart.yaml before packaging;
 # the dev shell provides it so that step can be exercised locally.
 # renovate: datasource=github-releases depName=mikefarah/yq
-ARG YQ_VERSION=4.45.1
+ARG YQ_VERSION=4.53.3
 RUN curl -fsSL -o /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_amd64 \
     && chmod +x /usr/local/bin/yq
