@@ -70,10 +70,14 @@ jobs:
           helm-schema -c charts/joi -k additionalProperties >/dev/null
       - name: Commit if the library set changed
         run: |
-          if ! git diff --quiet -- charts/joi/values.yaml charts/joi/values.schema.json charts/joi/tests/libraries-generated_test.yaml; then
+          # values.schema.json is a gitignored build artifact (generated at
+          # package time); helm-schema above only render-validates it. Committing
+          # it would fail `git add` on an ignored path and abort the whole sync —
+          # so the commit tracks only values.yaml + the generated tests.
+          if ! git diff --quiet -- charts/joi/values.yaml charts/joi/tests/libraries-generated_test.yaml; then
             git config user.name 'github-actions[bot]'
             git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git add charts/joi/values.yaml charts/joi/values.schema.json charts/joi/tests/libraries-generated_test.yaml
+            git add charts/joi/values.yaml charts/joi/tests/libraries-generated_test.yaml
             git commit -m 'chore: sync joi chart with jsonnet-oci-images library set'
             git push
           fi
