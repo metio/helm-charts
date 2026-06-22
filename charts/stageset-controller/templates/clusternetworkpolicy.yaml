@@ -26,6 +26,17 @@ spec:
         matchLabels:
           {{- include "stageset.selectorLabels" . | nindent 10 }}
   ingress:
+    # Health/probe port — kubelet liveness/readiness from the node IP (no
+    # podSelector), so admit from any namespace. Without it a probe-enforcing CNI
+    # drops the probes and the pod never becomes Ready.
+    - name: health
+      action: Accept
+      from:
+        - namespaces: {}
+      protocols:
+        - tcp:
+            destinationPort:
+              number: {{ .Values.ports.health }}
     {{- if .Values.webhook.enabled }}
     - name: webhook
       action: Accept

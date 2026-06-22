@@ -18,6 +18,13 @@ spec:
     matchLabels:
       {{- include "stageset.selectorLabels" . | nindent 6 }}
   ingress:
+    # Health/probe port — kubelet liveness/readiness from the node IP (no
+    # podSelector). Without it a probe-enforcing CNI drops the probes and the pod
+    # never becomes Ready.
+    - toPorts:
+        - ports:
+            - port: {{ .Values.ports.health | quote }}
+              protocol: TCP
     {{- if .Values.webhook.enabled }}
     - toPorts:
         - ports:

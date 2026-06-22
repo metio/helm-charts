@@ -172,3 +172,13 @@ tests:
           content:
             toFQDNs:
               - matchName: example.com
+
+  - it: admits the kubelet probe port (health) as the first ingress rule
+    set:
+      networkPolicy:
+        enabled: true
+        engine: cilium
+    asserts:
+      - equal:
+          path: spec.ingress[0].toPorts[0].ports[0].port
+          value: "8081"

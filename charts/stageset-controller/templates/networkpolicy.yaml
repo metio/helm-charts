@@ -22,6 +22,13 @@ spec:
     - Egress
     {{- end }}
   ingress:
+    # Health/probe port — the kubelet sources liveness/readiness from the node
+    # IP, which can't be expressed as a podSelector, so this stays open; only
+    # /healthz + /readyz are served there. Without it a probe-enforcing CNI
+    # drops the probes and the pod never becomes Ready (and liveness crashloops).
+    - ports:
+        - port: health
+          protocol: TCP
     {{- if .Values.webhook.enabled }}
     # Validating webhook — kube-apiserver dials this. The apiserver source
     # cannot be expressed as a podSelector; webhook TLS + the CA bundle on the
