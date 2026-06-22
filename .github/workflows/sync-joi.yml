@@ -30,11 +30,20 @@ concurrency:
 jobs:
   sync:
     runs-on: ubuntu-latest
+    env:
+      # Tool versions kept current by Renovate via the `# renovate:` markers (the
+      # shared metio/renovate-config workflow customManager matches a marker
+      # directly above each …_VERSION key in an env block). The literal installs
+      # below read them through `env.` indirection so no version is hand-pinned.
+      # renovate: datasource=github-releases depName=helm/helm
+      HELM_VERSION: 4.2.2
+      # renovate: datasource=github-releases depName=dadav/helm-schema
+      GO_HELM_SCHEMA_VERSION: 0.23.4
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
       - uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2 # v5
         with:
-          version: v4.2.2
+          version: v${{ env.HELM_VERSION }}
       - name: Regenerate charts/joi from the JOI manifest
         env:
           ALLOW_SHRINK: ${{ github.event.inputs.allow_shrink }}
@@ -66,7 +75,7 @@ jobs:
             git checkout -- charts/joi/values.yaml charts/joi/tests/libraries-generated_test.yaml
             exit 1
           fi
-          curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 https://github.com/dadav/helm-schema/releases/download/0.23.4/helm-schema_0.23.4_Linux_x86_64.tar.gz | tar -xz -C /usr/local/bin helm-schema
+          curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 "https://github.com/dadav/helm-schema/releases/download/${GO_HELM_SCHEMA_VERSION}/helm-schema_${GO_HELM_SCHEMA_VERSION}_Linux_x86_64.tar.gz" | tar -xz -C /usr/local/bin helm-schema
           helm-schema -c charts/joi -k additionalProperties >/dev/null
       - name: Commit if the library set changed
         run: |

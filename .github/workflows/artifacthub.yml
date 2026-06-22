@@ -19,11 +19,18 @@ permissions:
 jobs:
   push:
     runs-on: ubuntu-latest
+    env:
+      # Tool version kept current by Renovate via the `# renovate:` marker (the
+      # shared metio/renovate-config workflow customManager matches a marker
+      # directly above the …_VERSION key in an env block). The install below
+      # reads it through `env.` indirection so the version is not hand-pinned.
+      # renovate: datasource=github-releases depName=oras-project/oras
+      ORAS_VERSION: 1.2.3
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
       - name: Install oras
         run: |
-          curl -fsSL https://github.com/oras-project/oras/releases/download/v1.2.3/oras_1.2.3_linux_amd64.tar.gz \
+          curl -fsSL "https://github.com/oras-project/oras/releases/download/v${ORAS_VERSION}/oras_${ORAS_VERSION}_linux_amd64.tar.gz" \
             | tar -xz -C /usr/local/bin oras
       - name: Log in to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | oras login ghcr.io -u "${{ github.actor }}" --password-stdin
