@@ -39,6 +39,67 @@ metadata:
     helm.sh/hook: pre-delete
     helm.sh/hook-weight: "-10"
     helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+{{- if .Values.operator.watchNamespaces }}
+{{- /* Watch-scoped install: grant + delete only in the watched namespaces, via a
+       Role + RoleBinding per namespace. A cluster-wide grant here would let an
+       uninstall of one scoped instance delete EVERY tenant's JsonnetSnippets and
+       fire their finalizers — dropping other tenants' ExternalArtifacts and
+       their published tarballs. */ -}}
+{{- range $ns := .Values.operator.watchNamespaces }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $.Release.Name }}-cleanup
+  namespace: {{ $ns }}
+  labels:
+    app.kubernetes.io/name: {{ $.Chart.Name }}
+    app.kubernetes.io/component: cleanup
+    app.kubernetes.io/instance: {{ $.Release.Name }}
+    app.kubernetes.io/part-of: {{ $.Chart.Name }}
+    app.kubernetes.io/managed-by: {{ $.Release.Service }}
+    helm.sh/chart: {{ $.Chart.Name }}-{{ $.Chart.Version | replace "+" "_" }}
+  annotations:
+    helm.sh/hook: pre-delete
+    helm.sh/hook-weight: "-10"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+rules:
+  - apiGroups:
+      - jaas.metio.wtf
+    resources:
+      - jsonnetsnippets
+    verbs:
+      - get
+      - list
+      - delete
+      - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $.Release.Name }}-cleanup
+  namespace: {{ $ns }}
+  labels:
+    app.kubernetes.io/name: {{ $.Chart.Name }}
+    app.kubernetes.io/component: cleanup
+    app.kubernetes.io/instance: {{ $.Release.Name }}
+    app.kubernetes.io/part-of: {{ $.Chart.Name }}
+    app.kubernetes.io/managed-by: {{ $.Release.Service }}
+    helm.sh/chart: {{ $.Chart.Name }}-{{ $.Chart.Version | replace "+" "_" }}
+  annotations:
+    helm.sh/hook: pre-delete
+    helm.sh/hook-weight: "-10"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+subjects:
+  - kind: ServiceAccount
+    name: {{ $.Release.Name }}-cleanup
+    namespace: {{ $.Release.Namespace }}
+roleRef:
+  kind: Role
+  name: {{ $.Release.Name }}-cleanup
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}
+{{- else }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -89,6 +150,7 @@ roleRef:
   kind: ClusterRole
   name: {{ .Release.Name }}-cleanup
   apiGroup: rbac.authorization.k8s.io
+{{- end }}
 ---
 apiVersion: batch/v1
 kind: Job
@@ -143,48 +205,20 @@ spec:
         # ~/.kube/cache and the run errors instead of cleaning up.
         - name: cache
           emptyDir: {}
+      # registry.k8s.io/kubectl is distroless (no /bin/sh), so each container runs
+      # exactly one kubectl invocation. --wait lets the operator's finalizer drop
+      # each ExternalArtifact + tarball before Helm removes the operator;
+      # --ignore-not-found makes the no-snippet case (and any re-run) a clean
+      # no-op. If the operator is already unreachable the delete times out and the
+      # Job fails — recover by stripping finalizers as documented in the chart
+      # NOTES. A watch-scoped install runs one --namespace container per watched
+      # namespace; a cluster-wide install uses a single --all-namespaces container.
       containers:
-        - name: cleanup
-          image: "{{ .Values.operator.cleanupOnDelete.image.registry }}/{{ .Values.operator.cleanupOnDelete.image.repository }}:{{ .Values.operator.cleanupOnDelete.image.tag }}"
-          imagePullPolicy: {{ .Values.operator.cleanupOnDelete.image.pullPolicy }}
-          # registry.k8s.io/kubectl is distroless: its entrypoint is
-          # /bin/kubectl and there is no /bin/sh, so the Job passes kubectl
-          # args directly rather than wrapping a shell script. --wait lets the
-          # operator's finalizer drop each ExternalArtifact + tarball before
-          # Helm removes the operator; --ignore-not-found makes the no-snippet
-          # case (and any re-run) a clean no-op. If the operator is already
-          # unreachable the delete times out and the Job fails — recover by
-          # stripping finalizers as documented in the chart NOTES.
-          args:
-            - delete
-            - jsonnetsnippets.jaas.metio.wtf
-            - --all
-            - --all-namespaces
-            - --wait=true
-            - --timeout={{ .Values.operator.cleanupOnDelete.kubectlTimeout }}
-            - --ignore-not-found
-            - --cache-dir=/tmp/kubecache
-          volumeMounts:
-            - name: cache
-              mountPath: /tmp
-          securityContext:
-            runAsNonRoot: true
-            runAsGroup: 65532
-            runAsUser: 65532
-            allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: true
-            capabilities:
-              drop:
-                - ALL
-            seccompProfile:
-              type: RuntimeDefault
-          resources:
-            requests:
-              cpu: {{ .Values.operator.cleanupOnDelete.resources.cpu }}
-              memory: {{ .Values.operator.cleanupOnDelete.resources.memory }}
-              ephemeral-storage: {{ .Values.operator.cleanupOnDelete.resources.ephemeralStorage }}
-            limits:
-              cpu: {{ .Values.operator.cleanupOnDelete.resources.cpu }}
-              memory: {{ .Values.operator.cleanupOnDelete.resources.memory }}
-              ephemeral-storage: {{ .Values.operator.cleanupOnDelete.resources.ephemeralStorage }}
+        {{- if .Values.operator.watchNamespaces }}
+        {{- range $i, $ns := .Values.operator.watchNamespaces }}
+        {{- include "jaas.cleanupContainer" (dict "root" $ "name" (printf "cleanup-%s" $ns | trunc 63 | trimSuffix "-") "scopeArg" (printf "--namespace=%s" $ns) "cacheDir" (printf "/tmp/kubecache-%d" $i)) | nindent 8 }}
+        {{- end }}
+        {{- else }}
+        {{- include "jaas.cleanupContainer" (dict "root" . "name" "cleanup" "scopeArg" "--all-namespaces" "cacheDir" "/tmp/kubecache") | nindent 8 }}
+        {{- end }}
 {{- end }}
