@@ -23,9 +23,9 @@ on:
 # appVersion is the `0.0.0` placeholder, so `discover` emits an empty version and
 # every smoke job skips (green). They activate once appVersion advances.
 #
-# No image build/load here: the released image is pulled from ghcr by kind. The
-# dev chart vendors its CRDs at its appVersion, so they already match the
-# deployed binary — no CRD overlay needed (unlike the jaas-repo angle).
+# No image build/load here: the released image is pulled from ghcr by kind. Each
+# install vendors the chart's CRDs from its appVersion image first, so they match
+# the deployed binary — no separate CRD overlay needed (unlike the jaas-repo angle).
 
 permissions:
   contents: read
@@ -153,6 +153,10 @@ jobs:
           jaas-src/hack/smoke/setup-selfsigned-issuer.sh
       - name: Install the dev chart with the released image
         run: |
+          # CRDs aren't committed; vendor them from the chart's released jaas
+          # image so the install ships its CRDs (gated on crds.create) at the
+          # schema matching the deployed binary.
+          GH_TOKEN='${{ github.token }}' hack/vendor-chart-crds.sh charts/jaas
           helm dependency build charts/jaas
           # kind has no ImageVolume feature gate enabled, so the chart's default
           # JOI library image-volumes (volumes[].image) can't mount and wedge the
@@ -260,6 +264,10 @@ jobs:
       - name: Install the dev chart (self-signed cert mode) with the released image
         run: |
           kubectl create namespace jaas-system
+          # CRDs aren't committed; vendor them from the chart's released jaas
+          # image so the install ships its CRDs (gated on crds.create) at the
+          # schema matching the deployed binary.
+          GH_TOKEN='${{ github.token }}' hack/vendor-chart-crds.sh charts/jaas
           helm dependency build charts/jaas
           # kind has no ImageVolume feature gate enabled, so the chart's default
           # JOI library image-volumes (volumes[].image) can't mount and wedge the
@@ -351,6 +359,10 @@ jobs:
       - name: Install the dev chart (no webhook) with the released image
         run: |
           kubectl create namespace jaas-system
+          # CRDs aren't committed; vendor them from the chart's released jaas
+          # image so the install ships its CRDs (gated on crds.create) at the
+          # schema matching the deployed binary.
+          GH_TOKEN='${{ github.token }}' hack/vendor-chart-crds.sh charts/jaas
           helm dependency build charts/jaas
           # kind has no ImageVolume feature gate enabled, so the chart's default
           # JOI library image-volumes (volumes[].image) can't mount and wedge the
@@ -447,6 +459,10 @@ jobs:
       - name: Install the dev chart (no webhook) with the released image
         run: |
           kubectl create namespace jaas-system
+          # CRDs aren't committed; vendor them from the chart's released jaas
+          # image so the install ships its CRDs (gated on crds.create) at the
+          # schema matching the deployed binary.
+          GH_TOKEN='${{ github.token }}' hack/vendor-chart-crds.sh charts/jaas
           helm dependency build charts/jaas
           # kind has no ImageVolume feature gate enabled, so the chart's default
           # JOI library image-volumes (volumes[].image) can't mount and wedge the
@@ -564,6 +580,10 @@ jobs:
       - name: Install the dev chart (no webhook) with the released image
         run: |
           kubectl create namespace jaas-system
+          # CRDs aren't committed; vendor them from the chart's released jaas
+          # image so the install ships its CRDs (gated on crds.create) at the
+          # schema matching the deployed binary.
+          GH_TOKEN='${{ github.token }}' hack/vendor-chart-crds.sh charts/jaas
           helm dependency build charts/jaas
           # kind has no ImageVolume feature gate enabled, so the chart's default
           # JOI library image-volumes (volumes[].image) can't mount and wedge the
@@ -646,6 +666,10 @@ jobs:
       - name: Install the dev chart with library image-volumes ENABLED
         run: |
           kubectl create namespace jaas-system
+          # CRDs aren't committed; vendor them from the chart's released jaas
+          # image so the install ships its CRDs (gated on crds.create) at the
+          # schema matching the deployed binary.
+          GH_TOKEN='${{ github.token }}' hack/vendor-chart-crds.sh charts/jaas
           helm dependency build charts/jaas
           # No --set libraries.*.enabled=false here: the whole point is to mount
           # the JOI library image-volumes. A failed mount wedges the pod, so

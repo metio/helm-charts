@@ -116,6 +116,10 @@ jobs:
       - name: Install the dev chart with the released image
         run: |
           kubectl create namespace stageset-system
+          # CRDs aren't committed; vendor them from the chart's released image so
+          # the install ships the StageSet/StageInventory CRDs (gated on
+          # crds.create) at the schema matching the deployed binary.
+          GH_TOKEN='${{ github.token }}' hack/vendor-chart-crds.sh charts/stageset-controller
           helm dependency build charts/stageset-controller
           # Disable the validating webhook for the smoke: the scenarios test the
           # data plane (resolve/fetch/apply/prune/impersonate), not admission, and

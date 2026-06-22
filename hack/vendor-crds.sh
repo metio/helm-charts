@@ -3,13 +3,12 @@
 # SPDX-License-Identifier: 0BSD
 #
 # Vendor a controller's CRDs into its chart at the given image version, so the
-# chart's CRDs and the image it deploys move together. Run by the appVersion
-# bump PR (.github/workflows/bump.yml); also runnable by hand:
+# chart's CRDs and the image it deploys move together. CRDs are a build artifact
+# (gitignored): packaging and every CI job that renders or installs a chart runs
+# this on the fly. Prefer the Chart.yaml-driven wrapper hack/vendor-chart-crds.sh
+# over calling this directly; also runnable by hand:
 #
 #   hack/vendor-crds.sh ghcr.io/metio/jaas 2026.6.16
-#
-# The CRD-sync gate in verify.yml re-runs this against the committed appVersion
-# and fails on any diff, so a hand-edited or stale CRD is caught.
 set -euo pipefail
 
 image="${1:?usage: vendor-crds.sh <image> <version>}"
@@ -46,9 +45,10 @@ SPDX-License-Identifier: 0BSD
 CRDs live under templates/ (not crds/) so `helm upgrade` applies schema
 changes automatically. The `helm.sh/resource-policy: keep` annotation keeps
 `helm uninstall` from wiping the CRD (and every bound custom resource) — an
-operator who genuinely wants them gone deletes the CRD by hand. Vendored from
-the source repo by hack/vendor-crds.sh and pinned to the chart's appVersion;
-the verify.yml CRD-sync gate fails on drift. Gated on .Values.crds.create
+operator who genuinely wants them gone deletes the CRD by hand. Vendored at
+package time from the source repo by hack/vendor-crds.sh and pinned to the
+chart's appVersion, so they always match the deployed image. Gated on
+.Values.crds.create
 (default true) so the CRDs can be managed out-of-band — e.g. CI's chart-testing
 installs the same chart once per ci values file, and a cluster-scoped
 keep-policy CRD owned by the first release can't be re-adopted by the next.

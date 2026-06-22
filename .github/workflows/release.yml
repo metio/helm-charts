@@ -139,6 +139,10 @@ jobs:
             fi
 
             echo "::group::release $name $version (appVersion $appVersion)"
+            # CRDs aren't committed — vendor this chart's CRDs from its controller
+            # release so they're baked into the .tgz, matching the appVersion the
+            # chart deploys. No-ops for charts without a release image.
+            hack/vendor-chart-crds.sh "$chart"
             helm dependency build "$chart"
             # Render the README from its template so it lands inside the .tgz.
             # The rendered README is gitignored (a build artifact); it only ever

@@ -22,3 +22,10 @@ charts/*/values.schema.json
 # JetBrains module files
 *.iml
 .cache/
+
+# CRDs are vendored from each controller's release at package time by
+# hack/vendor-chart-crds.sh (CI jobs + the release pipeline regenerate them),
+# so the chart's CRDs always match the appVersion it deploys. They are a build
+# artifact, not committed source. Run hack/vendor-chart-crds.sh charts/<chart>
+# before `helm template`/`helm unittest`/`helm install` from a checkout.
+charts/*/templates/crd-*.yaml
