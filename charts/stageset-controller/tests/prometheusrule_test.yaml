@@ -52,6 +52,23 @@ tests:
           path: spec.groups[1].rules[4].alert
           value: StageSetWatchEngagementFailing
 
+  - it: PodDown alert selects pods by release labels, not a name prefix
+    release:
+      name: my-stageset
+      namespace: stageset-system
+    set:
+      metrics.prometheusRule.enabled: true
+    asserts:
+      - matchRegex:
+          path: spec.groups[1].rules[?(@.alert=="StageSetControllerPodDown")].expr
+          pattern: 'label_app_kubernetes_io_instance="my-stageset"'
+      - matchRegex:
+          path: spec.groups[1].rules[?(@.alert=="StageSetControllerPodDown")].expr
+          pattern: 'label_app_kubernetes_io_name="stageset-controller"'
+      - notMatchRegex:
+          path: spec.groups[1].rules[?(@.alert=="StageSetControllerPodDown")].expr
+          pattern: 'pod=~'
+
   - it: alerts on producer-watch engagement failures via the watch-engagement runbook
     set:
       metrics.prometheusRule.enabled: true

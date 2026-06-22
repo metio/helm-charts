@@ -616,11 +616,20 @@ namespace:
 
 # -- Pod resource sizing. Applied to both requests and limits (cpu, memory, and
 # ephemeral-storage) so the pod is fully constrained — kube-score's
-# resource-completeness checks require all three on both sides.
+# resource-completeness checks require all three on both sides. ephemeralStorage
+# must exceed tmpSizeLimit (the /tmp emptyDir, which holds the streamed artifact
+# capped at the binary's 64Mi download limit plus the decrypted build tree):
+# sizing it below would let the kubelet evict the pod mid-fetch on any artifact
+# larger than the limit.
 resources:
   cpu: 50m
   memory: 256Mi
-  ephemeralStorage: 32Mi
+  ephemeralStorage: 320Mi
+
+# -- Size limit for the writable /tmp emptyDir (artifact download + decrypted
+# kustomize build scratch). Kept below resources.ephemeralStorage so an
+# over-large artifact trips this with a clear message before kubelet eviction.
+tmpSizeLimit: 256Mi
 
 # -- Pod-level securityContext (PSS restricted). fsGroup matches the container's
 # runAsGroup so the kubelet/CSI driver chowns mounted volumes (notably the

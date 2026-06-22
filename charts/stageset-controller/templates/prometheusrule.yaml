@@ -88,8 +88,16 @@ spec:
             {{ $rbKey }}: {{ printf "%s/reconcile-latency/" $rbBase | quote }}
 
         - alert: StageSetControllerPodDown
+          # Select this release's controller pods by their kube-state-metrics
+          # labels rather than a name prefix: a release installed under a
+          # non-default name has pods named "<release>-..." (so a chart-name
+          # regex misses it), and the short-lived pre-delete cleanup Job pod
+          # (stageset-controller-cleanup-*) would otherwise false-page during
+          # uninstall.
           expr: |
-            kube_pod_status_ready{namespace="{{ include "stageset.namespace" . }}",condition="true",pod=~"{{ .Chart.Name }}.*"} == 0
+            kube_pod_status_ready{namespace="{{ include "stageset.namespace" . }}",condition="true"} == 0
+            and on (namespace, pod)
+            kube_pod_labels{namespace="{{ include "stageset.namespace" . }}",label_app_kubernetes_io_name="{{ .Chart.Name }}",label_app_kubernetes_io_instance="{{ .Release.Name }}",label_app_kubernetes_io_component="controller"}
           for: {{ .Values.metrics.prometheusRule.thresholds.podDownDuration }}
           labels:
             severity: critical
