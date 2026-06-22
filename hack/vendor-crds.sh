@@ -82,9 +82,14 @@ for file in $files; do
   # Fail loudly if the keep annotation wasn't injected — controller-gen changing
   # or dropping the anchor line would otherwise silently strip it, and a CRD
   # without resource-policy: keep is wiped (with every bound custom resource) on
-  # `helm uninstall`.
-  printf '%s\n' "$body" | grep -q 'helm.sh/resource-policy: keep' \
-    || { echo "vendor-crds: failed to inject keep annotation into $file" >&2; exit 1; }
+  # `helm uninstall`. A bash substring match rather than `printf | grep -q`:
+  # grep -q closes the pipe on the first match, and for a large CRD body printf
+  # is still writing, so it takes SIGPIPE and pipefail turns the whole pipeline
+  # non-zero even though the annotation is present.
+  case "$body" in
+    *"helm.sh/resource-policy: keep"*) : ;;
+    *) echo "vendor-crds: failed to inject keep annotation into $file" >&2; exit 1 ;;
+  esac
   {
     header
     printf '%s\n' '{{- if .Values.crds.create }}'
