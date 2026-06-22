@@ -204,3 +204,43 @@ tests:
           path: spec.template.spec.imagePullSecrets
           content:
             name: my-registry-pull
+
+  # Watch-scoped install: the cleanup must NOT delete cluster-wide, or
+  # uninstalling one scoped instance would destroy every other tenant's
+  # StageSets. RBAC pivots to per-namespace Roles, and the Job runs one
+  # --namespace container per watched namespace (no cluster-wide ClusterRole, no
+  # --all-namespaces).
+  - it: scopes cleanup RBAC to a namespaced Role when watch-scoped
+    set:
+      controller:
+        watchNamespaces: [team-a]
+    documentSelector:
+      path: kind
+      value: Role
+    asserts:
+      - equal:
+          path: metadata.namespace
+          value: team-a
+      - contains:
+          path: rules[0].resources
+          content: stagesets
+  - it: deletes per-namespace, not cluster-wide, when watch-scoped
+    set:
+      controller:
+        watchNamespaces: [team-a, team-b]
+    documentSelector:
+      path: kind
+      value: Job
+    asserts:
+      - lengthEqual:
+          path: spec.template.spec.containers
+          count: 2
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --namespace=team-a
+      - contains:
+          path: spec.template.spec.containers[1].args
+          content: --namespace=team-b
+      - notContains:
+          path: spec.template.spec.containers[0].args
+          content: --all-namespaces

@@ -14,11 +14,12 @@ SPDX-License-Identifier: 0BSD
 # created before the Job (weight 0) that consumes them; lower weights run first
 # within the pre-delete batch.
 #
-# If the controller is already unreachable when uninstall runs, the
-# kubectl-delete will eventually time out and Helm proceeds with the uninstall.
-# Operators in that state must manually patch off finalizers afterwards:
+# If the controller is already unreachable when uninstall runs, the kubectl
+# delete waits out --timeout and the Job fails. A failed pre-delete hook blocks
+# the uninstall, so the StageSets keep their finalizers. Recover by stripping
+# them, then re-run `helm uninstall` (the same procedure is printed in NOTES):
 #
-#   kubectl get stageset -A -o name | xargs -I{} \
+#   kubectl get stageset --all-namespaces -o name | xargs -I{} \
 #     kubectl patch {} --type=merge -p '{"metadata":{"finalizers":[]}}'
 ---
 apiVersion: v1
@@ -32,6 +33,56 @@ metadata:
     helm.sh/hook: pre-delete
     helm.sh/hook-weight: "-10"
     helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+{{- if .Values.controller.watchNamespaces }}
+{{- /* Watch-scoped install: grant + delete only in the watched namespaces, via
+       a Role + RoleBinding per namespace. A cluster-wide grant here would let an
+       uninstall of one scoped instance delete EVERY tenant's StageSets and fire
+       their finalizers — destroying other tenants' workloads. */ -}}
+{{- range $ns := .Values.controller.watchNamespaces }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "stageset.name" $ }}-cleanup
+  namespace: {{ $ns }}
+  labels:
+    {{- include "stageset.labels" $ | nindent 4 }}
+  annotations:
+    helm.sh/hook: pre-delete
+    helm.sh/hook-weight: "-10"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+rules:
+  - apiGroups:
+      - stages.metio.wtf
+    resources:
+      - stagesets
+    verbs:
+      - get
+      - list
+      - delete
+      - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "stageset.name" $ }}-cleanup
+  namespace: {{ $ns }}
+  labels:
+    {{- include "stageset.labels" $ | nindent 4 }}
+  annotations:
+    helm.sh/hook: pre-delete
+    helm.sh/hook-weight: "-10"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "stageset.name" $ }}-cleanup
+    namespace: {{ include "stageset.namespace" $ }}
+roleRef:
+  kind: Role
+  name: {{ include "stageset.name" $ }}-cleanup
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}
+{{- else }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -72,6 +123,7 @@ roleRef:
   kind: ClusterRole
   name: {{ include "stageset.name" . }}-{{ include "stageset.namespace" . }}-cleanup
   apiGroup: rbac.authorization.k8s.io
+{{- end }}
 ---
 apiVersion: batch/v1
 kind: Job
@@ -117,48 +169,21 @@ spec:
         # cache and the run errors instead of cleaning up.
         - name: cache
           emptyDir: {}
+      # --wait lets the controller's finalizer tear down each StageSet's applied
+      # objects before Helm removes the controller; --ignore-not-found makes the
+      # no-StageSet case (and any re-run) a clean no-op. If the controller is
+      # already unreachable the delete times out and the container fails, which
+      # fails the Job and blocks the uninstall — recover by stripping finalizers
+      # as documented in the chart NOTES. A watch-scoped install runs one
+      # container per watched namespace (the distroless kubectl image has no
+      # shell to loop), each scoped with --namespace; a cluster-wide install uses
+      # a single --all-namespaces container.
       containers:
-        - name: cleanup
-          image: "{{ .Values.cleanupOnDelete.image.registry }}/{{ .Values.cleanupOnDelete.image.repository }}:{{ .Values.cleanupOnDelete.image.tag }}"
-          imagePullPolicy: {{ .Values.cleanupOnDelete.image.pullPolicy }}
-          # registry.k8s.io/kubectl is distroless: its entrypoint is
-          # /bin/kubectl and there is no /bin/sh, so the Job passes kubectl args
-          # directly rather than wrapping a shell script. --wait lets the
-          # controller's finalizer tear down each StageSet's applied objects
-          # before Helm removes the controller; --ignore-not-found makes the
-          # no-StageSet case (and any re-run) a clean no-op. If the controller is
-          # already unreachable the delete times out and the Job fails — recover
-          # by stripping finalizers as documented in the chart NOTES.
-          args:
-            - delete
-            - stagesets.stages.metio.wtf
-            - --all
-            - --all-namespaces
-            - --wait=true
-            - --timeout={{ .Values.cleanupOnDelete.kubectlTimeout }}
-            - --ignore-not-found
-            - --cache-dir=/tmp/kubecache
-          volumeMounts:
-            - name: cache
-              mountPath: /tmp
-          securityContext:
-            runAsNonRoot: true
-            runAsGroup: 65532
-            runAsUser: 65532
-            allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: true
-            capabilities:
-              drop:
-                - ALL
-            seccompProfile:
-              type: RuntimeDefault
-          resources:
-            requests:
-              cpu: {{ .Values.cleanupOnDelete.resources.cpu }}
-              memory: {{ .Values.cleanupOnDelete.resources.memory }}
-              ephemeral-storage: {{ .Values.cleanupOnDelete.resources.ephemeralStorage }}
-            limits:
-              cpu: {{ .Values.cleanupOnDelete.resources.cpu }}
-              memory: {{ .Values.cleanupOnDelete.resources.memory }}
-              ephemeral-storage: {{ .Values.cleanupOnDelete.resources.ephemeralStorage }}
+        {{- if .Values.controller.watchNamespaces }}
+        {{- range $i, $ns := .Values.controller.watchNamespaces }}
+        {{- include "stageset.cleanupContainer" (dict "root" $ "name" (printf "cleanup-%s" $ns | trunc 63 | trimSuffix "-") "scopeArg" (printf "--namespace=%s" $ns) "cacheDir" (printf "/tmp/kubecache-%d" $i)) | nindent 8 }}
+        {{- end }}
+        {{- else }}
+        {{- include "stageset.cleanupContainer" (dict "root" . "name" "cleanup" "scopeArg" "--all-namespaces" "cacheDir" "/tmp/kubecache") | nindent 8 }}
+        {{- end }}
 {{- end }}

@@ -54,3 +54,48 @@ app.kubernetes.io/part-of: {{ .Chart.Name }}
 {{- define "stageset.multiReplica" -}}
 {{- if or (gt (.Values.replicas.max | int) 1) (gt (.Values.replicas.min | int) 1) -}}true{{- end -}}
 {{- end -}}
+
+{{- /* One cleanup-Job container running `kubectl delete stagesets`. Expects a
+       dict: root (the chart context $), name (container name), scopeArg (either
+       --all-namespaces or --namespace=<ns>), cacheDir (a unique discovery-cache
+       path so concurrent per-namespace containers don't race on one dir).
+       registry.k8s.io/kubectl is distroless (no /bin/sh), so the controller can
+       only run one kubectl invocation per container — hence one container per
+       watched namespace rather than a shell loop. */ -}}
+{{- define "stageset.cleanupContainer" -}}
+- name: {{ .name }}
+  image: "{{ .root.Values.cleanupOnDelete.image.registry }}/{{ .root.Values.cleanupOnDelete.image.repository }}:{{ .root.Values.cleanupOnDelete.image.tag }}"
+  imagePullPolicy: {{ .root.Values.cleanupOnDelete.image.pullPolicy }}
+  args:
+    - delete
+    - stagesets.stages.metio.wtf
+    - --all
+    - {{ .scopeArg }}
+    - --wait=true
+    - --timeout={{ .root.Values.cleanupOnDelete.kubectlTimeout }}
+    - --ignore-not-found
+    - --cache-dir={{ .cacheDir }}
+  volumeMounts:
+    - name: cache
+      mountPath: /tmp
+  securityContext:
+    runAsNonRoot: true
+    runAsGroup: 65532
+    runAsUser: 65532
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop:
+        - ALL
+    seccompProfile:
+      type: RuntimeDefault
+  resources:
+    requests:
+      cpu: {{ .root.Values.cleanupOnDelete.resources.cpu }}
+      memory: {{ .root.Values.cleanupOnDelete.resources.memory }}
+      ephemeral-storage: {{ .root.Values.cleanupOnDelete.resources.ephemeralStorage }}
+    limits:
+      cpu: {{ .root.Values.cleanupOnDelete.resources.cpu }}
+      memory: {{ .root.Values.cleanupOnDelete.resources.memory }}
+      ephemeral-storage: {{ .root.Values.cleanupOnDelete.resources.ephemeralStorage }}
+{{- end -}}

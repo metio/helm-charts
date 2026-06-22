@@ -4,7 +4,11 @@ SPDX-License-Identifier: 0BSD
 */ -}}
 stageset-controller {{ .Chart.AppVersion }} is installed in namespace {{ .Release.Namespace }}.
 
+{{ if .Values.controller.watchNamespaces -}}
+The controller reconciles StageSet resources in these namespaces: {{ join ", " .Values.controller.watchNamespaces }}. Create one with:
+{{- else -}}
 The controller reconciles StageSet resources cluster-wide. Create one with:
+{{- end }}
 
   kubectl apply -f - <<'EOF'
   apiVersion: stages.metio.wtf/v1
@@ -39,11 +43,15 @@ Flagger gate endpoint: http://{{ include "stageset.name" . }}-gate.{{ .Release.N
 Rollback store: {{ .Values.rollbackStore.backend }}{{ if eq .Values.rollbackStore.backend "none" }} (best-effort via producer retention){{ end }}.
 
 {{ if .Values.cleanupOnDelete.enabled -}}
-Uninstall: `helm uninstall` runs a pre-delete Job that bulk-deletes every
-StageSet so the controller's finalizer tears down their applied objects BEFORE
-the controller pod is removed — otherwise StageSets stick in Terminating and the
-uninstall hangs. If the controller is already unreachable the Job times out
-(default {{ .Values.cleanupOnDelete.kubectlTimeout }}) and Helm proceeds.
+Uninstall: `helm uninstall` runs a pre-delete Job that bulk-deletes the
+StageSets {{ if .Values.controller.watchNamespaces }}in the watched namespaces ({{ join ", " .Values.controller.watchNamespaces }}){{ else }}cluster-wide{{ end }} so the controller's finalizer tears down their
+applied objects BEFORE the controller pod is removed — otherwise StageSets stick
+in Terminating and the uninstall hangs. If the controller is already unreachable
+the delete waits out --timeout (default {{ .Values.cleanupOnDelete.kubectlTimeout }}) and the Job fails, which
+blocks the uninstall; recover by stripping finalizers, then re-run uninstall:
+
+  kubectl get stageset --all-namespaces -o name | xargs -I{} \
+    kubectl patch {} --type=merge -p '{"metadata":{"finalizers":[]}}'
 {{- else -}}
 Uninstall: the pre-delete cleanup Job is DISABLED. StageSets carry a finalizer,
 so a plain `helm uninstall` removes the controller while StageSets still hold it

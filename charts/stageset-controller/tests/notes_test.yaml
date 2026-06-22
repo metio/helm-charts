@@ -14,7 +14,7 @@ tests:
   - it: mentions the pre-delete cleanup Job when cleanup is enabled
     asserts:
       - matchRegexRaw:
-          pattern: pre-delete Job that bulk-deletes every\n?\s*StageSet
+          pattern: pre-delete Job that bulk-deletes the\n?\s*StageSets
   - it: gives manual uninstall steps when cleanup is disabled
     set:
       cleanupOnDelete:
