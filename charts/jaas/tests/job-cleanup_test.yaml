@@ -242,3 +242,58 @@ tests:
           path: spec.template.spec.imagePullSecrets
           content:
             name: my-registry-pull
+
+  # Watch-scoped install: the cleanup must NOT stay cluster-wide, or uninstalling
+  # one scoped instance would delete every tenant's JsonnetSnippets cluster-wide.
+  - it: pivots to per-namespace Roles when watch-scoped (no cluster-wide grant)
+    set:
+      operator:
+        enabled: true
+        watchNamespaces:
+          - team-a
+          - team-b
+    asserts:
+      # SA + Role x2 + RoleBinding x2 + Job — no ClusterRole/ClusterRoleBinding.
+      - hasDocuments:
+          count: 6
+
+  - it: renders a namespaced Role (not a ClusterRole) per watched namespace
+    set:
+      operator:
+        enabled: true
+        watchNamespaces:
+          - team-a
+    documentSelector:
+      path: kind
+      value: Role
+    asserts:
+      - equal:
+          path: metadata.namespace
+          value: team-a
+      - equal:
+          path: rules[0].resources[0]
+          value: jsonnetsnippets
+
+  - it: runs one --namespace cleanup container per watched namespace
+    set:
+      operator:
+        enabled: true
+        watchNamespaces:
+          - team-a
+          - team-b
+    documentSelector:
+      path: kind
+      value: Job
+    asserts:
+      - lengthEqual:
+          path: spec.template.spec.containers
+          count: 2
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --namespace=team-a
+      - contains:
+          path: spec.template.spec.containers[1].args
+          content: --namespace=team-b
+      - notContains:
+          path: spec.template.spec.containers[0].args
+          content: --all-namespaces
