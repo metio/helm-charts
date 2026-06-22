@@ -446,6 +446,7 @@ spec:
                           retries:
                             description: Retries before the action is considered failed.
                             format: int32
+                            maximum: 100
                             minimum: 0
                             type: integer
                           timeout:
@@ -828,6 +829,7 @@ spec:
                                 description: Retries before the action is considered
                                   failed.
                                 format: int32
+                                maximum: 100
                                 minimum: 0
                                 type: integer
                               timeout:
@@ -1113,6 +1115,7 @@ spec:
                                 description: Retries before the action is considered
                                   failed.
                                 format: int32
+                                maximum: 100
                                 minimum: 0
                                 type: integer
                               timeout:
@@ -1398,6 +1401,7 @@ spec:
                                 description: Retries before the action is considered
                                   failed.
                                 format: int32
+                                maximum: 100
                                 minimum: 0
                                 type: integer
                               timeout:
