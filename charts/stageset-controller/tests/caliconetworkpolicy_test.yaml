@@ -197,3 +197,13 @@ tests:
             destination:
               nets:
                 - 10.0.0.0/8
+
+  - it: admits the kubelet probe port (health) as the first ingress rule
+    set:
+      networkPolicy:
+        enabled: true
+        engine: calico
+    asserts:
+      - equal:
+          path: spec.ingress[0].destination.ports[0]
+          value: 8081

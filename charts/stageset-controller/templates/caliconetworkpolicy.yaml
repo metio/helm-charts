@@ -22,6 +22,14 @@ spec:
     - Egress
     {{- end }}
   ingress:
+    # Health/probe port — kubelet liveness/readiness from the node IP (no
+    # podSelector). Without it a probe-enforcing CNI drops the probes and the pod
+    # never becomes Ready.
+    - action: Allow
+      protocol: TCP
+      destination:
+        ports:
+          - {{ .Values.ports.health }}
     {{- if .Values.webhook.enabled }}
     - action: Allow
       protocol: TCP
