@@ -20,6 +20,13 @@ on:
         default: false
 permissions:
   contents: write
+# The three triggers (cron, JOI repository_dispatch, manual) all push to main; a
+# dispatch firing during a cron run would otherwise race two pushes and the
+# loser fails on a non-fast-forward. Queue rather than cancel so a dispatch that
+# arrives mid-run still applies its update afterward.
+concurrency:
+  group: sync-joi
+  cancel-in-progress: false
 jobs:
   sync:
     runs-on: ubuntu-latest
