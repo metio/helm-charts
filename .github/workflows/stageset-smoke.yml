@@ -73,7 +73,10 @@ jobs:
             | jq -r '.results[].name' | grep -E '^v1\.[0-9]+\.[0-9]+$' \
             | awk -F. '{print $1"."$2" "$0}' | sort -k1,1V -k2,2V \
             | awk '{l[$1]=$2} END{for(m in l)print l[m]}' | sort -V | tail -1)
-          [ -n "$k8s" ] || k8s=v1.33.1
+          # Fail loudly on a discovery miss rather than substituting a stale
+          # constant — a frozen fallback silently downgrades the smoke and masks
+          # exactly the staleness this dynamic discovery exists to surface.
+          [ -n "$k8s" ] || { echo "::error::kindest/node version discovery failed"; exit 1; }
           # Newest kind release — the pinned helm/kind-action's bundled kind can
           # lag new node images ("unknown containerd config version: N"); pin the
           # binary to the node image. Empty falls back to the action default.

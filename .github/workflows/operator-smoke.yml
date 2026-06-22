@@ -86,13 +86,16 @@ jobs:
             | awk -F. '{print $1"."$2" "$0}' | sort -k1,1V -k2,2V \
             | awk '{l[$1]=$2} END{for(m in l)print l[m]}' | sort -V)
           k8s=$(printf '%s\n' "$k8s_all" | tail -1)
-          [ -n "$k8s" ] || k8s=v1.33.1
+          # Fail loudly on a discovery miss rather than substituting a stale
+          # constant — a frozen fallback would silently downgrade the matrix and
+          # mask exactly the staleness this dynamic discovery exists to surface.
+          [ -n "$k8s" ] || { echo "::error::kindest/node version discovery failed"; exit 1; }
           # Subset that reliably supports image volumes on kind: k8s >= 1.33,
           # where ImageVolume is beta and the node images ship containerd 2.x with
           # image-volume CRI support. The gate is known there, so enabling it can't
           # error; newer minors are picked up automatically. Empty => the
           # image-volumes job skips (its if: guards on != '[]').
-          k8s_iv=$(printf '%s\n' "$k8s_all" | awk -F. '$2>=33' | jq -R . | jq -cs . 2>/dev/null || echo '[]')
+          k8s_iv=$(printf '%s\n' "$k8s_all" | awk -F. '$2>=33' | jq -R 'select(length>0)' | jq -cs . 2>/dev/null || echo '[]')
           [ -n "$k8s_iv" ] || k8s_iv='[]'
           # Newest Flux at or above the ExternalArtifact floor (v2.7.0 /
           # source-controller v1.7.0); below that the publish path has no CRD. The
@@ -103,7 +106,10 @@ jobs:
             | awk -F. '{m=$1;sub(/^v/,"",m); if(m>2||(m==2&&$2>=7))print}' \
             | awk -F. '{print $1"."$2" "$0}' | sort -k1,1V -k2,2V \
             | awk '{l[$1]=$2} END{for(m in l)print l[m]}' | sort -V | tail -1)
-          [ -n "$flux" ] || flux=v2.7.0
+          # Fail loudly on a discovery miss rather than freezing at the floor —
+          # a silent fallback masks a broken query (the floor is already enforced
+          # by the awk filter above, so a non-empty result is always >= v2.7.0).
+          [ -n "$flux" ] || { echo "::error::Flux release discovery failed"; exit 1; }
           # Newest kind release — the pinned helm/kind-action's bundled kind can
           # lag new node images ("unknown containerd config version: N"); pin the
           # binary to the node image. Empty falls back to the action default.
