@@ -106,6 +106,14 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
           value: true
+  - it: sets fsGroup so a PVC rollback store is writable by the non-root container
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.fsGroup
+          value: 65532
+      - equal:
+          path: spec.template.spec.securityContext.fsGroupChangePolicy
+          value: OnRootMismatch
   - it: sets cpu, memory, and ephemeral-storage on both requests and limits
     asserts:
       - equal:
