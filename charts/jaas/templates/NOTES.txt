@@ -37,6 +37,17 @@ Forbidden — the cluster-default "default" SA has no such rights. The tenant Ro
 
 The operator itself runs as ServiceAccount/{{ .Values.operator.serviceAccount.name }} in this namespace.
 
+{{ if .Values.operator.cleanupOnDelete.enabled -}}
+On `helm uninstall` a pre-delete Job bulk-deletes every JsonnetSnippet so the
+operator's finalizer can drop each ExternalArtifact and its stored tarball
+before the operator is removed. If the operator is unreachable at that point the
+Job waits out --timeout and fails, which blocks the uninstall. Recover by
+stripping the snippets' finalizers, then re-run `helm uninstall`:
+
+  kubectl get jsonnetsnippet --all-namespaces -o name | xargs -I{} \
+    kubectl patch {} --type=merge -p '{"metadata":{"finalizers":[]}}'
+
+{{ end -}}
 {{ if .Values.operator.webhook.enabled -}}
 === Admission webhook ===
 

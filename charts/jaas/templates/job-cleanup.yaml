@@ -15,11 +15,12 @@ SPDX-License-Identifier: 0BSD
 # weights run first within the pre-delete batch.
 #
 # If the operator is already unreachable when uninstall runs, the
-# kubectl-delete will eventually time out and Helm proceeds with the
-# uninstall. Operators in that state must manually patch off finalizers
-# afterwards:
+# kubectl delete waits out --timeout and the Job fails. A failed
+# pre-delete hook blocks the uninstall, so the snippets keep their
+# finalizers. Recover by stripping them, then re-run `helm uninstall`
+# (the same procedure is printed in the chart NOTES):
 #
-#   kubectl get jsonnetsnippet -A -o name | xargs -I{} \
+#   kubectl get jsonnetsnippet --all-namespaces -o name | xargs -I{} \
 #     kubectl patch {} --type=merge -p '{"metadata":{"finalizers":[]}}'
 ---
 apiVersion: v1
