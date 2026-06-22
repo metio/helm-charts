@@ -4,7 +4,7 @@ SPDX-License-Identifier: 0BSD
 */ -}}
 JOI libraries installed in namespace {{ include "joi.namespace" . }}:
 
-{{ range $name, $lib := .Values.libraries }}{{ if $lib.enabled }}  - {{ $name }}  (oci://{{ $lib.image }}:{{ $lib.tag }})
+{{ range $name := splitList " " (include "joi.effectiveNames" .) }}{{ if $name }}{{ $lib := index $.Values.libraries $name }}  - {{ $name }}  (oci://{{ $lib.image }}:{{ $lib.tag }})
 {{ end }}{{ end }}
 Each renders a Flux OCIRepository + a JaaS JsonnetLibrary of the same name. A
 JsonnetSnippet references it in spec.libraries and imports it with the exact
