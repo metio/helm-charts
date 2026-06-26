@@ -27,13 +27,31 @@ tests:
           content:
             apiGroups: [""]
             resources: [events]
-            verbs: [create, patch]
+            verbs: [create, get, list, patch, watch]
       - contains:
           path: rules
           content:
             apiGroups: [source.toolkit.fluxcd.io]
             resources: [externalartifacts]
             verbs: [get, list, watch]
+  - it: grants pod and event reads for the promotion restart/event gates
+    template: templates/clusterrole.yaml
+    asserts:
+      # Single-tenant StageSets (no spec.serviceAccountName) run the restart/event
+      # gates under the controller's own identity, which reads pods and Warning
+      # events on the apply-target cluster; watch backs the cached reader's List.
+      - contains:
+          path: rules
+          content:
+            apiGroups: [""]
+            resources: [pods]
+            verbs: [get, list, watch]
+      - contains:
+          path: rules
+          content:
+            apiGroups: [""]
+            resources: [events]
+            verbs: [create, get, list, patch, watch]
   - it: does not grant the impersonate verb (token mint replaces it)
     template: templates/clusterrole.yaml
     asserts:

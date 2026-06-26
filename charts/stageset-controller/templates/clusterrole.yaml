@@ -28,7 +28,21 @@ rules:
     verbs: [create]
   - apiGroups: [""]
     resources: [events]
-    verbs: [create, patch]
+    verbs: [create, get, list, patch, watch]
+  # The promotion restart/event gates read pods (and Warning events) on the
+  # apply-target cluster to decide whether a stage may advance. In single-tenant
+  # mode — a StageSet omits spec.serviceAccountName — that read runs under the
+  # controller's own identity, so it needs these verbs here; watch is included
+  # because the read is served by the controller's cached reader, which backs a
+  # List with an informer. A multi-tenant StageSet reads under its impersonated
+  # spec.serviceAccountName, whose own RBAC must grant pods/events read, and a
+  # spec.kubeConfig target reads under that kubeconfig's identity — neither is
+  # covered by this ClusterRole. (When controller.watchNamespaces is set this
+  # role is bound per-namespace, so the pod/event read is scoped to those
+  # namespaces rather than cluster-wide.)
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get, list, watch]
   - apiGroups: [source.toolkit.fluxcd.io]
     resources: [externalartifacts]
     verbs: [get, list, watch]
