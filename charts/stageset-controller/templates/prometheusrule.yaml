@@ -160,6 +160,110 @@ spec:
               this kind aren't re-triggering on upstream producer updates.
             {{ $rbKey }}: {{ printf "%s/watch-engagement/" $rbBase | quote }}
 
+    - name: stageset-rollout-gates
+      interval: {{ .Values.metrics.prometheusRule.interval }}
+      rules:
+
+        - alert: StageSetBudgetFrozen
+          # stageset_budget_frozen is 1 only while a non-dryRun rollout-wide
+          # error-budget freeze is actively holding new revisions; it self-clears
+          # when the budget recovers and is evicted when the StageSet is deleted.
+          expr: |
+            stageset_budget_frozen == 1
+          for: {{ .Values.metrics.prometheusRule.thresholds.budgetFrozenDuration }}
+          labels:
+            severity: warning
+            {{- with .Values.metrics.prometheusRule.extraAlertLabels }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          annotations:
+            summary: 'StageSet {{ "{{" }} $labels.namespace {{ "}}" }}/{{ "{{" }} $labels.name {{ "}}" }} rollouts frozen out of error budget'
+            description: |
+              A rollout-wide error-budget freeze has held new revisions for the
+              alert window. Deploys resume automatically when the budget recovers;
+              ship a reliability fix sooner with the budget-override break-glass.
+            {{ $rbKey }}: {{ printf "%s/budgetexhausted/" $rbBase | quote }}
+
+        - alert: StageSetStageBudgetFrozen
+          expr: |
+            stageset_stage_budget_frozen == 1
+          for: {{ .Values.metrics.prometheusRule.thresholds.budgetFrozenDuration }}
+          labels:
+            severity: warning
+            {{- with .Values.metrics.prometheusRule.extraAlertLabels }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          annotations:
+            summary: 'StageSet {{ "{{" }} $labels.namespace {{ "}}" }}/{{ "{{" }} $labels.stageset {{ "}}" }} stage {{ "{{" }} $labels.stage {{ "}}" }} frozen out of error budget'
+            description: |
+              A new revision is held out of stage {{ "{{" }} $labels.stage {{ "}}" }}
+              by that stage's own error budget. Earlier stages keep rolling; the
+              stage resumes when its budget recovers.
+            {{ $rbKey }}: {{ printf "%s/budgetexhausted/" $rbBase | quote }}
+
+        - alert: StageSetPromotionBlocked
+          # stageset_stage_promotion_blocked is 1 only on a real analysis failure
+          # (breached past failureLimit), distinct from a healthy soak/manual hold.
+          expr: |
+            stageset_stage_promotion_blocked == 1
+          for: {{ .Values.metrics.prometheusRule.thresholds.promotionBlockedDuration }}
+          labels:
+            severity: warning
+            {{- with .Values.metrics.prometheusRule.extraAlertLabels }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          annotations:
+            summary: 'StageSet {{ "{{" }} $labels.namespace {{ "}}" }}/{{ "{{" }} $labels.stageset {{ "}}" }} stage {{ "{{" }} $labels.stage {{ "}}" }} promotion analysis failing'
+            description: |
+              A promotion analysis check has breached its threshold past
+              failureLimit, so the rollout will not advance past stage
+              {{ "{{" }} $labels.stage {{ "}}" }}. Inspect the failing check and
+              fix forward, or promote past the gate once it is healthy.
+            {{ $rbKey }}: {{ printf "%s/promotionblocked/" $rbBase | quote }}
+
+        - alert: StageSetPromotionStuck
+          # stageset_stage_promotion_pending covers healthy holds (soak/analysis/
+          # manual), which are intentional and usually brief — so the default
+          # duration is long, catching a forgotten manual gate or a misconfigured
+          # soak rather than a normal short hold.
+          expr: |
+            stageset_stage_promotion_pending == 1
+          for: {{ .Values.metrics.prometheusRule.thresholds.promotionPendingDuration }}
+          labels:
+            severity: warning
+            {{- with .Values.metrics.prometheusRule.extraAlertLabels }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          annotations:
+            summary: 'StageSet {{ "{{" }} $labels.namespace {{ "}}" }}/{{ "{{" }} $labels.stageset {{ "}}" }} parked at stage {{ "{{" }} $labels.stage {{ "}}" }}'
+            description: |
+              The rollout has been holding at stage {{ "{{" }} $labels.stage {{ "}}" }}
+              for the alert window — a soak running long, or a manual promotion
+              that no one has actioned. Raise the threshold if long holds are
+              expected here.
+            {{ $rbKey }}: {{ printf "%s/awaitingpromotion/" $rbBase | quote }}
+
+        - alert: StageSetMetricSourceUnavailable
+          # A gate running blind on its onSourceError policy: the error-budget
+          # freeze fails open by default, so a quietly-broken source disables the
+          # gate while looking installed. This is the loud signal for that hole.
+          expr: |
+            increase(stageset_metric_source_errors_total[1h]) > {{ .Values.metrics.prometheusRule.thresholds.metricSourceErrorsPerHour }}
+          for: {{ .Values.metrics.prometheusRule.thresholds.metricSourceErrorsDuration }}
+          labels:
+            severity: warning
+            {{- with .Values.metrics.prometheusRule.extraAlertLabels }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          annotations:
+            summary: 'StageSet {{ "{{" }} $labels.namespace {{ "}}" }}/{{ "{{" }} $labels.name {{ "}}" }} metric source unavailable'
+            description: |
+              An error-budget or promotion-analysis metric source has been
+              failing to return a usable scalar. A fail-open freeze is then
+              running with no protection; a fail-closed gate is holding. Check the
+              source address/query and any bearer-token Secret.
+            {{ $rbKey }}: {{ printf "%s/budgetsourceunavailable/" $rbBase | quote }}
+
     {{- with .Values.metrics.prometheusRule.extraRules }}
     - name: stageset-extras
       interval: {{ $.Values.metrics.prometheusRule.interval }}

@@ -409,6 +409,26 @@ metrics:
       # -- How long the per-hour watch-engagement failure increase must stay above
       # the threshold before the alert fires.
       watchEngagementFailuresDuration: 30m
+      # -- StageSetBudgetFrozen / StageSetStageBudgetFrozen: how long an
+      # error-budget freeze (rollout-wide or per-stage) must hold before alerting.
+      # Deploys held out of SLO budget are intentional, so this is a heads-up, not
+      # an instant page.
+      budgetFrozenDuration: 15m
+      # -- StageSetPromotionBlocked: how long a promotion analysis must stay failed
+      # (breached past failureLimit) before alerting.
+      promotionBlockedDuration: 10m
+      # -- StageSetPromotionStuck: how long a rollout may sit parked at a stage
+      # (soak/analysis/manual hold) before alerting. Long by default so a normal
+      # short soak never fires — it targets a forgotten manual gate or a
+      # misconfigured soak. Raise it where long deliberate holds are expected.
+      promotionPendingDuration: 1h
+      # -- StageSetMetricSourceUnavailable: hourly increase on the metric-source
+      # error counter before alerting. A fail-open freeze runs with no protection
+      # while its source is broken, so this is the loud signal for that hole.
+      metricSourceErrorsPerHour: 3
+      # -- How long the per-hour metric-source error increase must stay above the
+      # threshold before the alert fires.
+      metricSourceErrorsDuration: 15m
 
 # -- Opt-in NetworkPolicy. Inert without a NetworkPolicy controller.
 networkPolicy:
