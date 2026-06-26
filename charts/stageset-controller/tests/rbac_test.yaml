@@ -27,7 +27,7 @@ tests:
           content:
             apiGroups: [""]
             resources: [events]
-            verbs: [create, get, list, patch, watch]
+            verbs: [create, list, patch]
       - contains:
           path: rules
           content:
@@ -39,19 +39,20 @@ tests:
     asserts:
       # Single-tenant StageSets (no spec.serviceAccountName) run the restart/event
       # gates under the controller's own identity, which reads pods and Warning
-      # events on the apply-target cluster; watch backs the cached reader's List.
+      # events on the apply-target cluster through an uncached reader — list only,
+      # no informer/watch.
       - contains:
           path: rules
           content:
             apiGroups: [""]
             resources: [pods]
-            verbs: [get, list, watch]
+            verbs: [list]
       - contains:
           path: rules
           content:
             apiGroups: [""]
             resources: [events]
-            verbs: [create, get, list, patch, watch]
+            verbs: [create, list, patch]
   - it: does not grant the impersonate verb (token mint replaces it)
     template: templates/clusterrole.yaml
     asserts:
