@@ -137,6 +137,56 @@ tests:
           path: spec.groups[1].rules[3].labels.team
           value: platform
 
+  - it: ships the rollout-gate group with the gate alerts
+    set:
+      metrics.prometheusRule.enabled: true
+    asserts:
+      - equal:
+          path: spec.groups[2].name
+          value: stageset-rollout-gates
+      - equal:
+          path: spec.groups[2].rules[0].alert
+          value: StageSetBudgetFrozen
+      - equal:
+          path: spec.groups[2].rules[1].alert
+          value: StageSetStageBudgetFrozen
+      - equal:
+          path: spec.groups[2].rules[2].alert
+          value: StageSetPromotionBlocked
+      - equal:
+          path: spec.groups[2].rules[3].alert
+          value: StageSetPromotionStuck
+      - equal:
+          path: spec.groups[2].rules[4].alert
+          value: StageSetMetricSourceUnavailable
+
+  - it: links rollout-gate alerts to their runbook pages
+    set:
+      metrics.prometheusRule.enabled: true
+    asserts:
+      - equal:
+          path: spec.groups[2].rules[?(@.alert=="StageSetBudgetFrozen")].annotations.runbook_url
+          value: "https://stageset.projects.metio.wtf/runbooks/budgetexhausted/"
+      - equal:
+          path: spec.groups[2].rules[?(@.alert=="StageSetPromotionBlocked")].annotations.runbook_url
+          value: "https://stageset.projects.metio.wtf/runbooks/promotionblocked/"
+      - equal:
+          path: spec.groups[2].rules[?(@.alert=="StageSetMetricSourceUnavailable")].annotations.runbook_url
+          value: "https://stageset.projects.metio.wtf/runbooks/budgetsourceunavailable/"
+
+  - it: substitutes rollout-gate thresholds into expressions and for-durations
+    set:
+      metrics.prometheusRule.enabled: true
+      metrics.prometheusRule.thresholds.metricSourceErrorsPerHour: 7
+      metrics.prometheusRule.thresholds.promotionPendingDuration: 3h
+    asserts:
+      - matchRegex:
+          path: spec.groups[2].rules[?(@.alert=="StageSetMetricSourceUnavailable")].expr
+          pattern: "> 7"
+      - equal:
+          path: spec.groups[2].rules[?(@.alert=="StageSetPromotionStuck")].for
+          value: 3h
+
   - it: appends extraRules as their own group
     set:
       metrics.prometheusRule.enabled: true
@@ -148,10 +198,10 @@ tests:
             severity: info
     asserts:
       - equal:
-          path: spec.groups[2].name
+          path: spec.groups[3].name
           value: stageset-extras
       - equal:
-          path: spec.groups[2].rules[0].alert
+          path: spec.groups[3].rules[0].alert
           value: StageSetCustom
 
   - it: applies the configured evaluation interval to every group
