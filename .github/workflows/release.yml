@@ -181,7 +181,7 @@ jobs:
             # description}; the edit is to the ephemeral CI checkout's Chart.yaml only
             # (never committed) so the annotation ships inside the packaged .tgz. An
             # empty range (no new commits) yields no annotation, which is correct.
-            changes="$(CHART="$name" VERSION="$version" git-cliff --config-url "https://raw.githubusercontent.com/metio/git-cliff-config/c52f573b80e481e4e92c98bc68ed6bc4ee9d869e/cliff-artifacthub.toml" --include-path "charts/${name}/**" --tag-pattern "^${name}-" ${prev:+"${prev}..HEAD"} 2>/dev/null | sed '/^[[:space:]]*$/d')"
+            changes="$(CHART="$name" VERSION="$version" git-cliff --config-url "https://raw.githubusercontent.com/metio/git-cliff-config/16dc9654e9eb431d6169059509ce5552912a14ad/cliff-artifacthub.toml" --include-path "charts/${name}/**" --tag-pattern "^${name}-" ${prev:+"${prev}..HEAD"} 2>/dev/null | sed '/^[[:space:]]*$/d')"
             if [ -n "$changes" ]; then
               CHANGES="$changes" yq -i '.annotations."artifacthub.io/changes" = strenv(CHANGES)' "$chart/Chart.yaml"
             fi
@@ -208,7 +208,7 @@ jobs:
             # the shared cliff.toml header renders this chart+version; --tag-pattern scopes
             # release boundaries to this chart so another chart's tag inside the range
             # can't split the notes into multiple sections.
-            cliff_args=(--config-url "https://raw.githubusercontent.com/metio/git-cliff-config/c52f573b80e481e4e92c98bc68ed6bc4ee9d869e/cliff.toml" --include-path "charts/${name}/**"
+            cliff_args=(--config-url "https://raw.githubusercontent.com/metio/git-cliff-config/16dc9654e9eb431d6169059509ce5552912a14ad/cliff.toml" --include-path "charts/${name}/**"
               --tag "${name}-${version}" --tag-pattern "^${name}-")
             # A bare "HEAD" positional is rejected as a range; for the first
             # release omit the positional so git-cliff walks full history.
