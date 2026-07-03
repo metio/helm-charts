@@ -75,7 +75,7 @@ jobs:
       # `helm registry login` does not populate (it writes its own config).
       # Authenticate via docker so cosign can push signature layers to ghcr.io.
       - name: Log in to GHCR (cosign)
-        uses: docker/login-action@c99871dec2022cc055c062a10cc1a1310835ceb4 # v4
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -128,7 +128,7 @@ jobs:
         # version. Unlike a SemVer '+build' suffix — which SemVer ignores for
         # precedence, so two same-day releases would rank equal — the time lands
         # in the patch component, so a later release always sorts higher.
-        uses: metio/ci/calver@553c5f3c3d2693c7ef182954136bdfac7b25b80e # 2026.7.2101318
+        uses: metio/ci/calver@0723b4d89f3638abaa992a666382b00bb7c45d3d # 2026.7.3153603
       - name: Package, push, sign, and release each chart
         if: steps.changed.outputs.charts != ''
         env:
