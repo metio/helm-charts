@@ -46,7 +46,7 @@ tests:
           path: metadata.name
           value: jaas-operator
 
-  - it: PodDown alert selects pods by release labels, not a name prefix
+  - it: PodDown alert joins on a kube-state-metrics column exported by default
     release:
       name: my-jaas
       namespace: jaas-prod
@@ -57,14 +57,21 @@ tests:
           prometheusRule:
             enabled: true
     asserts:
-      # Must scope to this release's instance + jaas component via
-      # kube_pod_labels, so a non-default release name is still covered.
+      # Must select pods via kube_pod_info.created_by_name (the owning
+      # ReplicaSet of the "jaas" Deployment) — a column KSM exports without a
+      # --metric-labels-allowlist. Joining on kube_pod_labels label columns
+      # would need an allowlist kube-prometheus-stack does not set, leaving the
+      # RHS empty so the critical alert could never fire.
       - matchRegex:
           path: spec.groups[1].rules[?(@.alert=="JaaSOperatorPodDown")].expr
-          pattern: 'label_app_kubernetes_io_instance="my-jaas"'
+          pattern: 'kube_pod_info\{'
       - matchRegex:
           path: spec.groups[1].rules[?(@.alert=="JaaSOperatorPodDown")].expr
-          pattern: 'label_app_kubernetes_io_component="jaas"'
+          pattern: 'created_by_name=~"jaas-\.\+"'
+      # Must NOT depend on kube_pod_labels label columns.
+      - notMatchRegex:
+          path: spec.groups[1].rules[?(@.alert=="JaaSOperatorPodDown")].expr
+          pattern: 'label_app_kubernetes_io'
       # Must NOT fall back to a hardcoded pod-name regex.
       - notMatchRegex:
           path: spec.groups[1].rules[?(@.alert=="JaaSOperatorPodDown")].expr

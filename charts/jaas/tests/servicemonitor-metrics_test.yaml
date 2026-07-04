@@ -81,6 +81,21 @@ tests:
           path: spec.endpoints[0].port
           value: metrics
 
+  - it: sets honorLabels so per-snippet metrics keep their tenant namespace label
+    set:
+      operator:
+        enabled: true
+        metrics:
+          serviceMonitor:
+            enabled: true
+    asserts:
+      # Without this, Prometheus renames the scraped `namespace` label to
+      # `exported_namespace` and stamps the install namespace over it, so every
+      # snippet alert mis-attributes to jaas's own namespace.
+      - equal:
+          path: spec.endpoints[0].honorLabels
+          value: true
+
   - it: namespace-scoped to the release namespace
     release:
       namespace: jaas-prod

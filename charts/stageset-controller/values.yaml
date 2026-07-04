@@ -597,6 +597,10 @@ serviceMesh:
   # (ports.metrics). Empty = open.
   metrics:
     from: []
+  # -- Mesh identities allowed to reach the MCP endpoint (ports.mcp). Rendered
+  # only when mcp.enabled. Empty = open.
+  mcp:
+    from: []
   # -- Istio engine raw passthrough. Entries are merged verbatim into the
   # AuthorizationPolicy's spec.rules (security.istio.io/v1 rule schema). Use this
   # to add rules the per-port `from` knobs above can't express — path/method

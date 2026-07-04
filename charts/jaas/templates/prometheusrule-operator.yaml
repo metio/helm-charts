@@ -123,15 +123,19 @@ spec:
             {{ $rbKey }}: {{ printf "%sreconcile-latency/" $rbBase | quote }}
 
         - alert: JaaSOperatorPodDown
-          # Select this release's jaas pods by their kube-state-metrics labels
-          # rather than a name prefix: a release installed under a non-default
-          # name has pods named "<release>-..." (so a "jaas.*" regex would miss
-          # it entirely), and an unrelated pod whose name starts with "jaas"
-          # would otherwise be swept in.
+          # Select the jaas pods by their owning ReplicaSet name via
+          # kube_pod_info.created_by_name — a column kube-state-metrics exports
+          # by DEFAULT. Joining on kube_pod_labels would require the operator's
+          # app labels to be exported as columns, which needs a KSM
+          # --metric-labels-allowlist that kube-prometheus-stack does not set,
+          # so that join is empty out of the box and this critical alert never
+          # fires. The jaas Deployment is named "{{ .Chart.Name }}", so its
+          # ReplicaSets are "{{ .Chart.Name }}-<hash>"; the namespace selector
+          # keeps it scoped to this release.
           expr: |
             kube_pod_status_ready{namespace="{{ .Release.Namespace }}",condition="true"} == 0
             and on (namespace, pod)
-            kube_pod_labels{namespace="{{ .Release.Namespace }}",label_app_kubernetes_io_instance="{{ .Release.Name }}",label_app_kubernetes_io_component="jaas"}
+            kube_pod_info{namespace="{{ .Release.Namespace }}",created_by_kind="ReplicaSet",created_by_name=~"{{ .Chart.Name }}-.+"}
           for: {{ .Values.operator.metrics.prometheusRule.thresholds.podDownDuration }}
           labels:
             severity: critical

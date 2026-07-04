@@ -171,6 +171,63 @@ tests:
                   ports:
                     - "8083"
 
+  - it: allows the MCP port when operator and mcp are enabled
+    set:
+      serviceMesh:
+        enabled: true
+      operator:
+        enabled: true
+        mcp:
+          enabled: true
+    asserts:
+      - contains:
+          path: spec.rules
+          content:
+            to:
+              - operation:
+                  ports:
+                    - "8084"
+
+  - it: omits the MCP port when mcp is disabled
+    set:
+      serviceMesh:
+        enabled: true
+      operator:
+        enabled: true
+    asserts:
+      - notContains:
+          path: spec.rules
+          content:
+            to:
+              - operation:
+                  ports:
+                    - "8084"
+
+  - it: restricts the MCP port to the configured mesh identities
+    set:
+      serviceMesh:
+        enabled: true
+        mcp:
+          from:
+            - principals:
+                - cluster.local/ns/agents/sa/mcp-client
+      operator:
+        enabled: true
+        mcp:
+          enabled: true
+    asserts:
+      - contains:
+          path: spec.rules
+          content:
+            to:
+              - operation:
+                  ports:
+                    - "8084"
+            from:
+              - source:
+                  principals:
+                    - cluster.local/ns/agents/sa/mcp-client
+
   - it: restricts the http port to the configured mesh identities
     set:
       serviceMesh:

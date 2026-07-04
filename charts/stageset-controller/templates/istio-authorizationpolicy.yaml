@@ -61,6 +61,28 @@ spec:
             {{- end }}
         {{- end }}
       {{- end }}
+    {{- if .Values.mcp.enabled }}
+    # MCP endpoint — streamable-HTTP Model Context Protocol server. Rendered
+    # only when mcp.enabled. Empty serviceMesh.mcp.from => any source.
+    - to:
+        - operation:
+            ports:
+              - {{ .Values.ports.mcp | quote }}
+      {{- with .Values.serviceMesh.mcp.from }}
+      from:
+        {{- range . }}
+        - source:
+            {{- with .principals }}
+            principals:
+              {{- toYaml . | nindent 14 }}
+            {{- end }}
+            {{- with .namespaces }}
+            namespaces:
+              {{- toYaml . | nindent 14 }}
+            {{- end }}
+        {{- end }}
+      {{- end }}
+    {{- end }}
     # Non-mesh inbound carve-out. The kube-apiserver dials the webhook and the
     # kubelet hits the health/probe port; neither speaks mesh mTLS or carries a
     # mesh identity. Because this ALLOW policy default-denies every unlisted

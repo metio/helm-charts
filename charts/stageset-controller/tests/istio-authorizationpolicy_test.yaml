@@ -78,6 +78,57 @@ tests:
                   ports:
                     - "8080"
 
+  - it: allows the MCP port when mcp is enabled
+    set:
+      serviceMesh:
+        enabled: true
+      mcp:
+        enabled: true
+    asserts:
+      - contains:
+          path: spec.rules
+          content:
+            to:
+              - operation:
+                  ports:
+                    - "8084"
+
+  - it: omits the MCP port when mcp is disabled (default)
+    set:
+      serviceMesh:
+        enabled: true
+    asserts:
+      - notContains:
+          path: spec.rules
+          content:
+            to:
+              - operation:
+                  ports:
+                    - "8084"
+
+  - it: restricts the MCP port to the configured mesh identities
+    set:
+      serviceMesh:
+        enabled: true
+        mcp:
+          from:
+            - principals:
+                - cluster.local/ns/agents/sa/mcp-client
+      mcp:
+        enabled: true
+    asserts:
+      - contains:
+          path: spec.rules
+          content:
+            to:
+              - operation:
+                  ports:
+                    - "8084"
+            from:
+              - source:
+                  principals:
+                    - cluster.local/ns/agents/sa/mcp-client
+
   - it: opens the health port from any source (kubelet carve-out)
     set:
       serviceMesh:

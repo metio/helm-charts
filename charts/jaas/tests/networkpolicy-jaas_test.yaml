@@ -118,13 +118,17 @@ tests:
                   matchLabels:
                     kubernetes.io/metadata.name: flux-system
 
-  - it: restricts the storage port to flux-system consumers when operator is enabled
+  - it: admits flux-system consumers AND the operator's own pod on the storage port
+    release:
+      name: jaas
     set:
       networkPolicy:
         enabled: true
       operator:
         enabled: true
     asserts:
+      # The operator dials its own storage service for chained-snippet fetches,
+      # so its own pod is admitted alongside the flux-system consumers.
       - contains:
           path: spec.ingress
           content:
@@ -132,6 +136,11 @@ tests:
               - protocol: TCP
                 port: 8082
             from:
+              - podSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: jaas
+                    app.kubernetes.io/component: jaas
+                    app.kubernetes.io/instance: jaas
               - namespaceSelector:
                   matchLabels:
                     kubernetes.io/metadata.name: flux-system
@@ -150,7 +159,10 @@ tests:
                   app: my-source-controller
       operator:
         enabled: true
+    release:
+      name: jaas
     asserts:
+      # The self-peer is always present; the configured consumer is appended.
       - contains:
           path: spec.ingress
           content:
@@ -158,6 +170,11 @@ tests:
               - protocol: TCP
                 port: 8082
             from:
+              - podSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: jaas
+                    app.kubernetes.io/component: jaas
+                    app.kubernetes.io/instance: jaas
               - namespaceSelector:
                   matchLabels:
                     kubernetes.io/metadata.name: my-flux
