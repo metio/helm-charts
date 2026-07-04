@@ -98,7 +98,7 @@ version: 0.0.0
 # (not the ghcr image) so the bump only fires once the release/tag exists — see
 # renovate.json.
 # renovate: datasource=github-releases depName=metio/stageset-controller
-appVersion: "2026.7.3143150"
+appVersion: "2026.7.4060745"
 # CRD source image for hack/vendor-crds.sh — the bump.yml re-vendor and the
 # verify.yml CRD-sync gate both read this marker to learn which image's CRDs to
 # vendor at the appVersion above. Renovate does not act on it (no customManager
