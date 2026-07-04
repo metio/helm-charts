@@ -42,7 +42,7 @@ spec:
       # The per-snippet metrics carry a `namespace` label naming the TENANT
       # namespace. Without honorLabels, Prometheus renames it to
       # `exported_namespace` and overwrites `namespace` with the install
-      # namespace, so every snippet alert/graph mis-attributes to jaas's own
+      # namespace, so every snippet alert/graph misattributes to jaas's own
       # namespace. honorLabels keeps the scraped tenant namespace.
       honorLabels: true
 {{- end }}

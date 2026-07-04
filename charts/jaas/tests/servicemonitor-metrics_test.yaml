@@ -91,7 +91,7 @@ tests:
     asserts:
       # Without this, Prometheus renames the scraped `namespace` label to
       # `exported_namespace` and stamps the install namespace over it, so every
-      # snippet alert mis-attributes to jaas's own namespace.
+      # snippet alert misattributes to jaas's own namespace.
       - equal:
           path: spec.endpoints[0].honorLabels
           value: true
