@@ -53,6 +53,108 @@ tests:
             apiGroups: [""]
             resources: [events]
             verbs: [create, list, patch]
+  - it: grants the cached-client reads for postBuild/errorBudget/kubeConfig secrets and configmaps
+    template: templates/clusterrole.yaml
+    asserts:
+      # The controller reads Secrets/ConfigMaps through its cached client
+      # (postBuild.substituteFrom, errorBudget metric-source tokens,
+      # spec.kubeConfig secretRef/configMapRef); a cached Get lazily starts an
+      # informer, so list+watch are required, not just get. Mirrors
+      # config/rbac/role.yaml.
+      - contains:
+          path: rules
+          content:
+            apiGroups: [""]
+            resources: [configmaps, secrets]
+            verbs: [get, list, watch]
+          count: 1
+  - it: grants the serviceaccounts read for object-level KMS tenant credential lookup
+    template: templates/clusterrole.yaml
+    asserts:
+      # --object-level-kms resolves the tenant ServiceAccount through the cached
+      # client (fluxcd/pkg/auth), so the read needs list+watch for the informer.
+      - contains:
+          path: rules
+          content:
+            apiGroups: [""]
+            resources: [serviceaccounts]
+            verbs: [get, list, watch]
+          count: 1
+  - it: grants events.k8s.io writes for the events.v1 EventRecorder
+    template: templates/clusterrole.yaml
+    asserts:
+      # controller-runtime's mgr.GetEventRecorder emits through the events.k8s.io/v1
+      # API; RBAC is authorized per request group, so the core-group events rule
+      # does not cover these writes.
+      - contains:
+          path: rules
+          content:
+            apiGroups: [events.k8s.io]
+            resources: [events]
+            verbs: [create, patch]
+          count: 1
+      # The core-group rule stays: the promotion event gate lists corev1 Events.
+      - contains:
+          path: rules
+          content:
+            apiGroups: [""]
+            resources: [events]
+            verbs: [create, list, patch]
+          count: 1
+  - it: does not grant secret or configmap writes
+    template: templates/clusterrole.yaml
+    asserts:
+      # The controller only reads config material; rendered-manifest writes run
+      # as the tenant SA, never through this role.
+      - notContains:
+          path: rules
+          content:
+            apiGroups: [""]
+            resources: [configmaps, secrets]
+            verbs: [create, update, patch, delete]
+      - notContains:
+          path: rules
+          content:
+            apiGroups: [""]
+            resources: [secrets]
+            verbs: ["*"]
+  - it: does not grant events.k8s.io reads (the event gate lists core-group events)
+    template: templates/clusterrole.yaml
+    asserts:
+      - notContains:
+          path: rules
+          content:
+            apiGroups: [events.k8s.io]
+            resources: [events]
+            verbs: [create, list, patch]
+  - it: tenant role keeps the cached-read and event grants under a scoped watch
+    template: templates/clusterrole.yaml
+    set:
+      controller.watchNamespaces: [team-a, team-b]
+    asserts:
+      # The per-namespace RoleBinding pivot binds this same ClusterRole, so the
+      # rules must not change shape when the watch is scoped.
+      - contains:
+          path: rules
+          content:
+            apiGroups: [""]
+            resources: [configmaps, secrets]
+            verbs: [get, list, watch]
+          count: 1
+      - contains:
+          path: rules
+          content:
+            apiGroups: [""]
+            resources: [serviceaccounts]
+            verbs: [get, list, watch]
+          count: 1
+      - contains:
+          path: rules
+          content:
+            apiGroups: [events.k8s.io]
+            resources: [events]
+            verbs: [create, patch]
+          count: 1
   - it: does not grant the impersonate verb (token mint replaces it)
     template: templates/clusterrole.yaml
     asserts:

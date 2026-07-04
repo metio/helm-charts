@@ -23,12 +23,32 @@ metadata:
   labels:
     {{- include "stageset.labels" . | nindent 4 }}
 rules:
+  # The controller reads Secrets and ConfigMaps through its cached client:
+  # postBuild.substituteFrom, the errorBudget metric-source bearer-token secret,
+  # and spec.kubeConfig secretRef/configMapRef. A cached Get lazily starts an
+  # informer, which needs list+watch — get alone fails Forbidden at cache sync.
+  - apiGroups: [""]
+    resources: [configmaps, secrets]
+    verbs: [get, list, watch]
+  # --object-level-kms resolves the tenant ServiceAccount (cloud workload
+  # identity annotations) through the same cached client, so the SA read needs
+  # the informer verbs too.
+  - apiGroups: [""]
+    resources: [serviceaccounts]
+    verbs: [get, list, watch]
   - apiGroups: [""]
     resources: [serviceaccounts/token]
     verbs: [create]
   - apiGroups: [""]
     resources: [events]
     verbs: [create, list, patch]
+  # The EventRecorder (controller-runtime mgr.GetEventRecorder) emits through
+  # the events.k8s.io/v1 API; RBAC authorizes per request group, so the
+  # core-group events rule above does not cover these writes. The core-group
+  # rule stays for the promotion event gate's corev1 Events list.
+  - apiGroups: [events.k8s.io]
+    resources: [events]
+    verbs: [create, patch]
   # The promotion restart/event gates read pods and Warning events on the
   # apply-target cluster (the events list above, the pods list below) to decide
   # whether a stage may advance. In single-tenant mode — a StageSet omits
