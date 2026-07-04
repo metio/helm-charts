@@ -179,6 +179,58 @@ tests:
           path: webhooks[0].namespaceSelector.matchLabels["jaas.metio.wtf/admission"]
           value: enforce
 
+  - it: auto-scopes the namespaceSelector to watchNamespaces
+    set:
+      operator:
+        enabled: true
+        webhook:
+          enabled: true
+        watchNamespaces:
+          - team-a
+          - team-b
+    asserts:
+      # A namespace-scoped operator's cluster-wide webhook must not intercept
+      # snippets in namespaces it does not manage.
+      - equal:
+          path: webhooks[0].namespaceSelector.matchExpressions[0].key
+          value: kubernetes.io/metadata.name
+      - equal:
+          path: webhooks[0].namespaceSelector.matchExpressions[0].operator
+          value: In
+      - equal:
+          path: webhooks[0].namespaceSelector.matchExpressions[0].values
+          value:
+            - team-a
+            - team-b
+
+  - it: has no namespaceSelector when watchNamespaces is empty (cluster-wide)
+    set:
+      operator:
+        enabled: true
+        webhook:
+          enabled: true
+    asserts:
+      - notExists:
+          path: webhooks[0].namespaceSelector
+
+  - it: an explicit webhook.namespaceSelector overrides the watchNamespaces scope
+    set:
+      operator:
+        enabled: true
+        webhook:
+          enabled: true
+          namespaceSelector:
+            matchLabels:
+              jaas.metio.wtf/admission: enforce
+        watchNamespaces:
+          - team-a
+    asserts:
+      - equal:
+          path: webhooks[0].namespaceSelector.matchLabels["jaas.metio.wtf/admission"]
+          value: enforce
+      - notExists:
+          path: webhooks[0].namespaceSelector.matchExpressions
+
   - it: renders matchConditions when configured
     set:
       operator:

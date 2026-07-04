@@ -63,9 +63,23 @@ webhooks:
     objectSelector:
       {{- toYaml . | nindent 6 }}
     {{- end }}
-    {{- with .Values.operator.webhook.namespaceSelector }}
+    {{- if .Values.operator.webhook.namespaceSelector }}
     namespaceSelector:
-      {{- toYaml . | nindent 6 }}
+      {{- toYaml .Values.operator.webhook.namespaceSelector | nindent 6 }}
+    {{- else if .Values.operator.watchNamespaces }}
+    # A namespace-scoped operator (operator.watchNamespaces set) must not have
+    # its cluster-wide webhook intercept — and cycle-check — snippets in
+    # namespaces it does not manage; another instance (or none) owns those. Scope
+    # the webhook to exactly the watched namespaces. An explicit
+    # webhook.namespaceSelector overrides this.
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: In
+          values:
+            {{- range .Values.operator.watchNamespaces }}
+            - {{ . | quote }}
+            {{- end }}
     {{- end }}
     {{- with .Values.operator.webhook.matchConditions }}
     matchConditions:
