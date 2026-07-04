@@ -11,7 +11,7 @@ The operator watches JsonnetSnippet and JsonnetLibrary CRs and publishes
 evaluated results as Flux ExternalArtifact resources. To get started:
 
   # See the operator's status:
-  kubectl --namespace {{ .Release.Namespace }} get deploy {{ .Release.Name }}
+  kubectl --namespace {{ .Release.Namespace }} get deploy jaas
 
   # Create your first snippet (run in a tenant namespace, NOT this one):
   cat <<'EOF' | kubectl apply -f -

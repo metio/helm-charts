@@ -15,6 +15,20 @@ tests:
       - notMatchRegexRaw:
           pattern: tenant-serviceaccount-rbac
 
+  - it: the status command targets the "jaas" Deployment, not the release name
+    release:
+      name: my-jaas
+    set:
+      operator:
+        enabled: true
+    asserts:
+      # The Deployment is named "jaas" regardless of release name, so a
+      # release-name-based `get deploy` would print a command that 404s.
+      - matchRegexRaw:
+          pattern: 'get deploy jaas'
+      - notMatchRegexRaw:
+          pattern: 'get deploy my-jaas'
+
   - it: uses long-form --namespace, not -n
     set:
       operator:

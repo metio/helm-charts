@@ -236,8 +236,11 @@ snippets:
 # OCI volumes. Enable per renderer-mode need (the standalone HTTP renderer
 # imports these from pre-baked image bundles). Each enabled library renders a
 # `-library-path` arg, a read-only volumeMount, and an OCI `image:` volume.
-# Static OCI mounts are mutually exclusive with operator.enabled (Flux mode):
-# in Flux mode libraries come from JsonnetLibrary CRs, not these image bundles.
+# OCI LIBRARY mounts (below) are allowed in BOTH modes: in operator mode the
+# operator folds them into its --library-path search additively, so shared
+# libraries ship cluster-wide without a JsonnetLibrary CR per tenant. Only the
+# static `snippets` OCI mount is mutually exclusive with operator.enabled —
+# in operator mode the published units come from JsonnetSnippet CRs.
 libraries:
   # -- grafonnet library (Grafana dashboards). Mounts a JOI OCI bundle when enabled.
   grafonnet:

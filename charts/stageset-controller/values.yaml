@@ -159,9 +159,13 @@ rbac:
 #   helm uninstall stageset-controller -n <ns>
 cleanupOnDelete:
   enabled: true
-  # -- Maximum wall-clock time the pre-delete Job waits for StageSet finalizers
-  # to run before it strips them forcibly and proceeds. Bigger when StageSets
-  # tear down many objects or talk to slow remote clusters.
+  # -- Maximum wall-clock time the pre-delete Job's `kubectl delete stagesets
+  # --all --wait` waits for the controller's finalizers to tear the StageSets
+  # down. On timeout the delete (and the Job) FAILS, blocking the uninstall so
+  # finalizers are never silently skipped — the Job does not force-strip them;
+  # recover by stripping finalizers by hand (see the job's comments) and
+  # re-running uninstall. Bigger when StageSets tear down many objects or talk
+  # to slow remote clusters.
   kubectlTimeout: 2m
   # -- Job-level safety net. activeDeadlineSeconds caps the Job's total runtime;
   # if the controller is wedged, Helm won't be blocked forever.
