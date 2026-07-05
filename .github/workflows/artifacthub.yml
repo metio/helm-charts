@@ -19,6 +19,7 @@ permissions:
 jobs:
   push:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     env:
       # Tool version kept current by Renovate via the `# renovate:` marker (the
       # shared metio/renovate-config workflow customManager matches a marker

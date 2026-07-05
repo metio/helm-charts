@@ -11,6 +11,7 @@ jobs:
   changed:
     name: Detect changed charts
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     outputs:
       charts: ${{ steps.list.outputs.charts }}
       any: ${{ steps.list.outputs.any }}
@@ -63,6 +64,7 @@ jobs:
     needs: changed
     if: needs.changed.outputs.any == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -157,6 +159,7 @@ jobs:
     needs: changed
     if: needs.changed.outputs.installable_any == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     outputs:
       versions: ${{ steps.compute.outputs.versions }}
     steps:
@@ -182,6 +185,7 @@ jobs:
     needs: [changed, k8s-matrix]
     if: needs.changed.outputs.installable_any == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -264,12 +268,14 @@ jobs:
 
   yaml:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
       - name: Lint YAML (yamllint)
         run: pipx install yamllint && yamllint .
   github-actions:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
       - name: Lint workflows (actionlint)
@@ -279,6 +285,7 @@ jobs:
           filter_mode: nofilter
   markdown:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
       - name: Lint Markdown (markdownlint)
@@ -287,10 +294,17 @@ jobs:
           globs: "**/*.md"
   typos:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
       - name: Spell check (typos)
         uses: crate-ci/typos@bee27e3a4fd1ea2111cf90ab89cd076c870fce14 # v1
+  policy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: metio/ci/policy-check@afbf10fe3c5ceb438a1da090e78cc6c0159c4754 # 2026.7.5093733
 
   # Single, stably-named aggregate of every job above. Matrix jobs (install,
   # static) report one rolled-up result here — success only if every
@@ -308,8 +322,10 @@ jobs:
       - github-actions
       - markdown
       - typos
+      - policy
     if: always()
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Fail unless every dependency succeeded or was skipped
         env:

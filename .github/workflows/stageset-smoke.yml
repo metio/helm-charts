@@ -26,6 +26,7 @@ jobs:
   discover:
     name: Discover released stageset image + k8s version
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     outputs:
       image_version: ${{ steps.find.outputs.version }}
       k8s_latest: ${{ steps.versions.outputs.k8s_latest }}
@@ -37,11 +38,15 @@ jobs:
           fetch-depth: 0
       - id: scope
         name: Did this PR touch the stageset chart or this workflow?
+        env:
+          # Via env, never inlined into the script: event payload fields are
+          # attacker-influenced text and must not expand directly into the shell.
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           if [ "${{ github.event_name }}" != "pull_request" ]; then
             echo "relevant=true" >> "$GITHUB_OUTPUT"; exit 0
           fi
-          base="${{ github.event.pull_request.base.sha }}"
+          base="$BASE_SHA"
           if git diff --name-only "$base" HEAD \
                | grep -qE '^charts/stageset-controller/|^\.github/workflows/stageset-smoke\.yml$'; then
             echo "relevant=true" >> "$GITHUB_OUTPUT"
@@ -95,6 +100,7 @@ jobs:
     needs: discover
     if: needs.discover.outputs.image_version != '' && needs.discover.outputs.relevant == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
       - name: Checkout helm-charts (dev chart)
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
@@ -177,6 +183,7 @@ jobs:
     needs: [discover, smoke]
     if: always()
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Verify every job succeeded or skipped
         env:
