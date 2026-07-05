@@ -33,45 +33,21 @@ jobs:
     name: Release changed charts
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    env:
-      # Tool versions kept current by Renovate via the `# renovate:` markers (the
-      # shared metio/renovate-config workflow customManager matches a marker
-      # directly above each …_VERSION key in an env block). The literal installs
-      # below read them through `env.` indirection so no version is hand-pinned.
-      # renovate: datasource=github-releases depName=helm/helm
-      HELM_VERSION: 4.2.2
-      # renovate: datasource=github-releases depName=orhun/git-cliff
-      GIT_CLIFF_VERSION: 2.13.1
-      # renovate: datasource=github-releases depName=norwoodj/helm-docs
-      HELM_DOCS_VERSION: 1.14.2
-      # renovate: datasource=github-releases depName=dadav/helm-schema
-      GO_HELM_SCHEMA_VERSION: 0.23.4
-      # renovate: datasource=github-releases depName=mikefarah/yq
-      YQ_VERSION: 4.53.3
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           fetch-depth: 0
-      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5
-        with:
-          version: v${{ env.HELM_VERSION }}
-      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
-      - name: Install git-cliff
-        run: |
-          curl -fsSL "https://github.com/orhun/git-cliff/releases/download/v${GIT_CLIFF_VERSION}/git-cliff-${GIT_CLIFF_VERSION}-x86_64-unknown-linux-gnu.tar.gz" | tar -xz -C /tmp
-          sudo mv "/tmp/git-cliff-${GIT_CLIFF_VERSION}/git-cliff" /usr/local/bin/git-cliff
-      - name: Install helm-docs
-        run: |
-          curl -fsSL "https://github.com/norwoodj/helm-docs/releases/download/v${HELM_DOCS_VERSION}/helm-docs_${HELM_DOCS_VERSION}_Linux_x86_64.tar.gz" | tar -xz -C /usr/local/bin helm-docs
-      - name: Install helm-schema
-        run: |
-          curl -fsSL "https://github.com/dadav/helm-schema/releases/download/${GO_HELM_SCHEMA_VERSION}/helm-schema_${GO_HELM_SCHEMA_VERSION}_Linux_x86_64.tar.gz" | tar -xz -C /usr/local/bin helm-schema
-      - name: Install yq
-        run: |
-          curl -fsSL -o /usr/local/bin/yq "https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_amd64"
-          sudo chmod +x /usr/local/bin/yq
+      - uses: metio/ci/nix-devshell@50117191bb36382ab22777be480c539fc4c37fed # 2026.7.5211151
       - name: Log in to GHCR (Helm OCI)
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACTOR: ${{ github.actor }}
+        # helm resolves from the flake; the token and actor ride env so they are
+        # never interpolated into the shell of a write-scoped job.
+        run: |
+          # The $vars expand inside the devShell's bash, not in this script.
+          # shellcheck disable=SC2016
+          nix develop --command bash -c 'echo "$GH_TOKEN" | helm registry login ghcr.io -u "$ACTOR" --password-stdin'
       # cosign reads registry credentials from ~/.docker/config.json, which
       # `helm registry login` does not populate (it writes its own config).
       # Authenticate via docker so cosign can push signature layers to ghcr.io.
@@ -141,91 +117,11 @@ jobs:
           # without it the calls are unauthenticated (60/hr) and rate-limit out,
           # so release notes render without their PR/contributor enrichment.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          version="${{ steps.version.outputs.version }}"
-          for name in ${{ steps.changed.outputs.charts }}; do
-            chart="charts/$name"
-            [ -f "$chart/Chart.yaml" ] || { echo "no such chart: $name"; continue; }
-            appVersion="$(grep -oP '^appVersion:\s*"?\K[^"]+' "$chart/Chart.yaml")"
-
-            # The committed 0.0.0 placeholder means the controller image isn't
-            # released yet, so the chart would deploy a non-existent image.
-            # Don't publish it until Renovate bumps appVersion to a real release.
-            if [ "$appVersion" = "0.0.0" ]; then
-              echo "::notice::$name appVersion is the 0.0.0 placeholder — skipping release until its image is published."
-              continue
-            fi
-
-            echo "::group::release $name $version (appVersion $appVersion)"
-            # CRDs aren't committed — vendor this chart's CRDs from its controller
-            # release so they're baked into the .tgz, matching the appVersion the
-            # chart deploys. No-ops for charts without a release image.
-            hack/vendor-chart-crds.sh "$chart"
-            helm dependency build "$chart"
-            # Render the README from its template so it lands inside the .tgz.
-            # The rendered README is gitignored (a build artifact); it only ever
-            # exists for the lifetime of a package run.
-            if [ -f "$chart/README.md.gotmpl" ]; then
-              helm-docs --chart-search-root "$chart"
-            fi
-            # Generate values.schema.json into the chart dir so Helm's install-time
-            # value validation ships inside the .tgz. Like the README, it's
-            # generated per-run and never committed (gitignored), so there's no
-            # drift gate to maintain.
-            helm-schema -c "$chart" -k additionalProperties
-
-            # This chart's last tag bounds both the Artifact Hub changelog and the
-            # GitHub release notes below — compute it once. Empty on a first release.
-            prev="$(git tag --list "${name}-*" --sort=-creatordate | head -1)"
-
-            # Inject an Artifact Hub `artifacthub.io/changes` annotation, computed by
-            # git-cliff over this chart's commit range (the same range the release
-            # notes use). The shared cliff-artifacthub.toml renders a YAML list of {kind,
-            # description}; the edit is to the ephemeral CI checkout's Chart.yaml only
-            # (never committed) so the annotation ships inside the packaged .tgz. An
-            # empty range (no new commits) yields no annotation, which is correct.
-            changes="$(CHART="$name" VERSION="$version" git-cliff --config-url "https://raw.githubusercontent.com/metio/git-cliff-config/16dc9654e9eb431d6169059509ce5552912a14ad/cliff-artifacthub.toml" --include-path "charts/${name}/**" --tag-pattern "^${name}-" ${prev:+"${prev}..HEAD"} 2>/dev/null | sed '/^[[:space:]]*$/d')"
-            if [ -n "$changes" ]; then
-              CHANGES="$changes" yq -i '.annotations."artifacthub.io/changes" = strenv(CHANGES)' "$chart/Chart.yaml"
-            fi
-
-            helm package "$chart" --version "$version" --app-version "$appVersion"
-            pkg="${name}-${version}.tgz"
-
-            # Push and capture the pushed digest for keyless signing.
-            push_out="$(helm push "$pkg" oci://ghcr.io/metio/helm-charts 2>&1)"
-            echo "$push_out"
-            # A failed grep in a command substitution does NOT trip set -e (the
-            # assignment masks the exit status), so validate explicitly — otherwise
-            # a changed helm-push output format would leave digest empty and we'd
-            # sign a malformed "...@" reference.
-            digest="$(printf '%s\n' "$push_out" | grep -oP 'Digest:\s*\K\S+' || true)"
-            [ -n "$digest" ] || { echo "::error::could not parse digest from helm push output for $name"; exit 1; }
-            cosign sign --yes \
-              --annotations "repo=${{ github.repository }}" \
-              --annotations "chart=$name" \
-              "ghcr.io/metio/helm-charts/${name}@${digest}"
-
-            # Per-chart, path-scoped release notes since this chart's last tag
-            # ($prev, computed above). --tag labels the (still uncreated) release so
-            # the shared cliff.toml header renders this chart+version; --tag-pattern scopes
-            # release boundaries to this chart so another chart's tag inside the range
-            # can't split the notes into multiple sections.
-            cliff_args=(--config-url "https://raw.githubusercontent.com/metio/git-cliff-config/16dc9654e9eb431d6169059509ce5552912a14ad/cliff.toml" --include-path "charts/${name}/**"
-              --tag "${name}-${version}" --tag-pattern "^${name}-")
-            # A bare "HEAD" positional is rejected as a range; for the first
-            # release omit the positional so git-cliff walks full history.
-            [ -n "$prev" ] && cliff_args+=("${prev}..HEAD")
-            CHART="$name" VERSION="$version" git-cliff "${cliff_args[@]}" > notes.md
-
-            # Static footer: cosign verification + migration notes link.
-            hack/release-footer.sh "$name" "$version" "${{ github.repository }}" >> notes.md
-
-            tag="${name}-${version}"
-            git tag "$tag" "${{ github.sha }}"
-            git push origin "$tag"
-            gh release create "$tag" --title "$tag" --notes-file notes.md
-            rm -f "$pkg" notes.md
-            echo "::endgroup::"
-          done
+          # The release loop is scripts/release-charts.sh (a flake command); its
+          # GHA inputs ride env so nothing untrusted is interpolated into the
+          # shell of this write-scoped job.
+          VERSION: ${{ steps.version.outputs.version }}
+          CHARTS: ${{ steps.changed.outputs.charts }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: nix develop --command release-charts

@@ -29,3 +29,10 @@ charts/*/values.schema.json
 # artifact, not committed source. Run hack/vendor-chart-crds.sh charts/<chart>
 # before `helm template`/`helm unittest`/`helm install` from a checkout.
 charts/*/templates/crd-*.yaml
+
+# direnv nix-direnv build cache (real-nix contributors may add a local .envrc).
+.direnv/
+
+# nix build output symlink
+result
+result-*

@@ -39,15 +39,18 @@ change or its `appVersion` advances.
 
 ## Development
 
-Tooling runs in a containerized [`ilo`](dev/Containerfile) dev shell — no host
-toolchain required:
+The toolchain is a [nix flake](flake.nix) — no host tools required beyond nix.
+Run any gate through the devShell:
 
 ```sh
-ilo bash -c 'ct lint --config ct.yaml'                       # lint changed charts
-ilo bash -c 'helm unittest charts/jaas'                       # template assertions + snapshots
-ilo bash -c 'helm-schema -c charts/jaas -k additionalProperties'  # regenerate values.schema.json
-ilo bash -c 'helm template release-x charts/jaas | kube-score score -'  # static analysis
+nix develop --command chart-static jaas   # ct lint + unittest + helm-docs + kube-score + kubeconform
+nix develop --command helm unittest charts/jaas             # template assertions + snapshots
+nix develop --command helm-schema -c charts/jaas -k additionalProperties  # regenerate values.schema.json
+nix develop --command helm template release-x charts/jaas   # render a chart with defaults
 ```
+
+Or `nix develop` to drop into the shell (it prints the command menu) and run
+tools bare.
 
 ## License
 
