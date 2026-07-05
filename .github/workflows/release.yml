@@ -32,6 +32,7 @@ jobs:
   release:
     name: Release changed charts
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     env:
       # Tool versions kept current by Renovate via the `# renovate:` markers (the
       # shared metio/renovate-config workflow customManager matches a marker
@@ -88,6 +89,9 @@ jobs:
           # single quote would otherwise close the shell string and inject
           # arbitrary commands into a job holding contents/packages/id-token write.
           CHART_INPUT: ${{ github.event.inputs.chart }}
+          # The push event's before SHA likewise goes through env — expanded
+          # inline it would land verbatim in a shell holding write tokens.
+          BEFORE_SHA: ${{ github.event.before }}
         run: |
           # All chart dirs except the never-published common library chart.
           all_charts() { find charts -mindepth 1 -maxdepth 1 -type d -printf '%f\n' 2>/dev/null | grep -v '^common$' || true; }
@@ -99,7 +103,7 @@ jobs:
             [ -n "$sel" ] || sel="$(all_charts | tr '\n' ' ')"
             echo "charts=$sel" >> "$GITHUB_OUTPUT"
           else
-            before='${{ github.event.before }}'
+            before="$BEFORE_SHA"
             # On the first push to the branch `before` is the all-zeros SHA (and
             # the commit isn't present), so the diff would fail and silently
             # release nothing. Fall back to treating every chart as changed.
