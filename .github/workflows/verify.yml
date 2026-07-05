@@ -304,7 +304,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-      - uses: metio/ci/policy-check@abcee8f7bbd5421d49e37ca21e1ecf938655d15c # 2026.7.5183834
+      - uses: metio/ci/policy-check@50117191bb36382ab22777be480c539fc4c37fed # 2026.7.5211151
 
   # Single, stably-named aggregate of every job above. Matrix jobs (install,
   # static) report one rolled-up result here — success only if every
