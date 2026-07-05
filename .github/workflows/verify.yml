@@ -69,90 +69,22 @@ jobs:
       fail-fast: false
       matrix:
         chart: ${{ fromJSON(needs.changed.outputs.charts) }}
-    env:
-      # Tool versions kept current by Renovate via the `# renovate:` markers (the
-      # shared metio/renovate-config workflow customManager matches a marker
-      # directly above each …_VERSION key in an env block). The literal installs
-      # below read them through `env.` indirection so no version is hand-pinned.
-      # renovate: datasource=github-releases depName=helm/helm
-      HELM_VERSION: 4.2.2
-      # renovate: datasource=github-releases depName=helm-unittest/helm-unittest
-      HELM_UNITTEST_VERSION: 1.1.1
-      # renovate: datasource=github-releases depName=norwoodj/helm-docs
-      HELM_DOCS_VERSION: 1.14.2
-      # renovate: datasource=github-releases depName=zegl/kube-score
-      KUBE_SCORE_VERSION: 1.20.0
-      # renovate: datasource=github-releases depName=yannh/kubeconform
-      KUBECONFORM_VERSION: 0.8.0
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           fetch-depth: 0
-      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5
-        with:
-          version: v${{ env.HELM_VERSION }}
-      - uses: helm/chart-testing-action@6ec842c01de15ebb84c8627d2744a0c2f2755c9f # v2
+      - uses: metio/ci/nix-devshell@50117191bb36382ab22777be480c539fc4c37fed # 2026.7.5211151
       - name: Vendor CRDs (build artifact, regenerated per run)
         # CRDs aren't committed; the chart's CRDs are vendored from its
-        # controller release on the fly so every gate below (unittest, kube-score,
-        # kubeconform) renders against the same CRDs the package ships.
+        # controller release on the fly so every gate renders against the same
+        # CRDs the package ships.
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: hack/vendor-chart-crds.sh "charts/${{ matrix.chart }}"
-      - id: ct_lint
-        name: ct lint
-        run: ct lint --config ct.yaml --charts "charts/${{ matrix.chart }}"
-      - id: unittest
-        name: helm-unittest
-        run: |
-          # helm v4 verifies plugin provenance on install; the helm-unittest
-          # plugin ships none, so pass --verify=false (>= 1.1.0 installs on v4).
-          helm plugin install https://github.com/helm-unittest/helm-unittest --version "v${HELM_UNITTEST_VERSION}" --verify=false
-          c="charts/${{ matrix.chart }}/"
-          if [ -d "${c}tests" ]; then
-            helm unittest "$c"
-          fi
-      - id: docs_render
-        name: helm-docs render check
-        run: |
-          curl -fsSL "https://github.com/norwoodj/helm-docs/releases/download/v${HELM_DOCS_VERSION}/helm-docs_${HELM_DOCS_VERSION}_Linux_x86_64.tar.gz" | tar -xz -C /usr/local/bin helm-docs
-          c="charts/${{ matrix.chart }}/"
-          # The README is rendered into the package at release time, not committed,
-          # so there's nothing to drift. This step only proves the template still
-          # renders cleanly — a broken README.md.gotmpl fails here. The rendered
-          # README.md is gitignored, so it never shows up as a diff.
-          if [ -f "${c}README.md.gotmpl" ]; then
-            helm-docs --chart-search-root "$c"
-          fi
-      - id: kube_score
-        name: kube-score (default + every ci/ variant, CRITICAL fails)
-        run: |
-          curl -fsSL "https://github.com/zegl/kube-score/releases/download/v${KUBE_SCORE_VERSION}/kube-score_${KUBE_SCORE_VERSION}_linux_amd64.tar.gz" | tar -xz -C /usr/local/bin kube-score
-          set -e
-          c="charts/${{ matrix.chart }}/"
-          name="${{ matrix.chart }}"
-          render() {
-            label="$1"; shift
-            echo "::group::kube-score $name ${label:-default}"
-            helm template release-x "$c" "$@" | kube-score score - --exit-one-on-warning=false
-            echo "::endgroup::"
-          }
-          render default
-          for vf in "$c"ci/*-values.yaml; do
-            [ -e "$vf" ] || continue
-            render "$(basename "$vf")" -f "$vf"
-          done
-      - id: kubeconform
-        name: kubeconform (rendered manifests, incl. CRDs)
-        run: |
-          curl -fsSL "https://github.com/yannh/kubeconform/releases/download/v${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" | tar -xz -C /usr/local/bin kubeconform
-          c="charts/${{ matrix.chart }}/"
-          echo "::group::kubeconform ${{ matrix.chart }}"
-          helm template release-x "$c" \
-            | kubeconform -strict -summary -ignore-missing-schemas \
-                -schema-location default \
-                -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
-          echo "::endgroup::"
+        run: nix develop --command hack/vendor-chart-crds.sh "charts/${{ matrix.chart }}"
+      - name: Static gates (ct lint, helm-unittest, helm-docs, kube-score, kubeconform)
+        # helm is wrapped with the unittest plugin in the flake, so no plugin
+        # install; all gate tools resolve from flake.lock.
+        run: nix develop --command chart-static "${{ matrix.chart }}"
 
   k8s-matrix:
     name: Compute Kubernetes matrix
@@ -271,34 +203,30 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-      - name: Lint YAML (yamllint)
-        run: pipx install yamllint && yamllint .
+      - uses: metio/ci/nix-devshell@50117191bb36382ab22777be480c539fc4c37fed # 2026.7.5211151
+      - run: nix develop --command yamllint .
   github-actions:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-      - name: Lint workflows (actionlint)
-        uses: reviewdog/action-actionlint@6fb7acc99f4a1008869fa8a0f09cfca740837d9d # v1
-        with:
-          fail_on_error: true
-          filter_mode: nofilter
+      - uses: metio/ci/nix-devshell@50117191bb36382ab22777be480c539fc4c37fed # 2026.7.5211151
+      # shellcheck rides in the devShell, so actionlint lints run: blocks too.
+      - run: nix develop --command actionlint
   markdown:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-      - name: Lint Markdown (markdownlint)
-        uses: DavidAnson/markdownlint-cli2-action@ded1f9488f68a970bc66ea5619e13e9b52e601cd # v23
-        with:
-          globs: "**/*.md"
+      - uses: metio/ci/nix-devshell@50117191bb36382ab22777be480c539fc4c37fed # 2026.7.5211151
+      - run: nix develop --command markdownlint-cli2 "**/*.md"
   typos:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-      - name: Spell check (typos)
-        uses: crate-ci/typos@bee27e3a4fd1ea2111cf90ab89cd076c870fce14 # v1
+      - uses: metio/ci/nix-devshell@50117191bb36382ab22777be480c539fc4c37fed # 2026.7.5211151
+      - run: nix develop --command typos
   policy:
     runs-on: ubuntu-latest
     timeout-minutes: 10
