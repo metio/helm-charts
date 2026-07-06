@@ -3,20 +3,27 @@
 
 # The single source of the chart-authoring toolchain: CI and local shells run
 # every gate through this flake's devShell, so both use the exact tool versions
-# pinned in flake.lock. Renovate keeps the lock fresh. No Go build toolchain —
-# charts reference images built in the source repos, they don't compile
-# anything. The kind-cluster smoke gates (operator-smoke, stageset-smoke) build
-# real clusters and stay on the runner's docker/kind, not the devShell.
+# pinned in flake.lock. The shared lint gate, helm-schema, and the org-wide
+# nixpkgs pin come from the metio/ci flake; Renovate keeps the lock fresh. No Go
+# build toolchain — charts reference images built in the source repos, they don't
+# compile anything. The kind-cluster smoke gates (operator-smoke, stageset-smoke)
+# build real clusters and stay on the runner's docker/kind, not the devShell.
 {
   description = "helm-charts development environment";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
-    flake-compat.url = "github:edolstra/flake-compat";
+    ci.url = "github:metio/ci";
+    nixpkgs.follows = "ci/nixpkgs";
+    flake-compat.follows = "ci/flake-compat";
   };
 
   outputs =
-    { self, nixpkgs, ... }:
+    {
+      self,
+      nixpkgs,
+      ci,
+      ...
+    }:
     let
       systems = [
         "x86_64-linux"
@@ -25,29 +32,8 @@
         "aarch64-darwin"
       ];
       forAllSystems = f: nixpkgs.lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
-
-      # dadav/helm-schema is not in nixpkgs; build it from source. It generates
-      # each chart's values.schema.json from the `# @schema` annotations at
-      # release time. Release tags carry no `v` prefix.
-      helm-schema =
-        pkgs:
-        pkgs.buildGoModule rec {
-          pname = "helm-schema";
-          version = "0.23.4";
-          src = pkgs.fetchFromGitHub {
-            owner = "dadav";
-            repo = "helm-schema";
-            rev = version;
-            hash = "sha256-btkkNzye9if4lF/YdhalbwA2/dcZArU6/9Hr0bTJf1M=";
-          };
-          vendorHash = "sha256-jbK+XD5CbjMQJUJCcKbNN8LhYuhuy+Z3XcCmgiYw25Y=";
-        };
     in
     {
-      packages = forAllSystems (pkgs: {
-        helm-schema = helm-schema pkgs;
-      });
-
       devShells = forAllSystems (
         pkgs:
         let
@@ -58,21 +44,14 @@
             plugins = [ pkgs.kubernetes-helmPlugins.helm-unittest ];
           };
 
-          # The lint gate every metio repo shares byte-for-byte — lift into a
-          # shared flake when the next repo needs the identical set.
-          lintTools = with pkgs; [
-            reuse
-            typos
-            yamllint
-            actionlint
-            shellcheck # actionlint shells out to it for run: blocks
-            markdownlint-cli2
-          ];
+          # helm-schema (the values.schema.json generator) comes from the shared
+          # metio/ci flake, which builds it from source and keeps it current.
+          helm-schema = ci.lib.helm-schema pkgs;
 
           # The chart toolchain the gates and the release pipeline drive.
           chartTools = [
             helm
-            (helm-schema pkgs)
+            helm-schema
           ]
           ++ (with pkgs; [
             helm-docs # regenerate each chart README from its .gotmpl
@@ -110,7 +89,7 @@
             name = "release-charts";
             runtimeInputs = [
               helm
-              (helm-schema pkgs)
+              helm-schema
             ]
             ++ (with pkgs; [
               helm-docs
@@ -129,7 +108,7 @@
             name = "sync-joi";
             runtimeInputs = [
               helm
-              (helm-schema pkgs)
+              helm-schema
             ]
             ++ (with pkgs; [
               curl
@@ -146,13 +125,13 @@
           ];
         in
         {
-          default = pkgs.mkShell {
-            packages = chartTools ++ lintTools ++ commands;
-            shellHook = ''
-              echo "helm-charts devshell — commands: chart-static <chart>, release-charts,"
-              echo "  sync-joi. Tools: helm (with unittest), ct, kube-score, kubeconform,"
-              echo "  helm-docs, helm-schema, yamale, yq, git-cliff, cosign,"
-              echo "  plus the lint gate (reuse, typos, yamllint, actionlint, markdownlint)."
+          default = ci.lib.mkDevShell {
+            inherit pkgs;
+            packages = chartTools ++ commands;
+            menu = ''
+              echo "helm-charts commands: chart-static <chart>, release-charts, sync-joi."
+              echo "  Tools: helm (with unittest), ct, kube-score, kubeconform, helm-docs,"
+              echo "  helm-schema, yamale, yq, git-cliff, cosign."
             '';
           };
         }
