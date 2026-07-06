@@ -37,7 +37,7 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           fetch-depth: 0
-      - uses: metio/ci/nix-devshell@50117191bb36382ab22777be480c539fc4c37fed # 2026.7.5211151
+      - uses: metio/ci/nix-devshell@f0ae245edbf74aa706e6851c50777cd9b158aa66 # 2026.7.6065514
       - name: Log in to GHCR (Helm OCI)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -108,7 +108,7 @@ jobs:
         # version. Unlike a SemVer '+build' suffix — which SemVer ignores for
         # precedence, so two same-day releases would rank equal — the time lands
         # in the patch component, so a later release always sorts higher.
-        uses: metio/ci/calver@50117191bb36382ab22777be480c539fc4c37fed # 2026.7.5211151
+        uses: metio/ci/calver@f0ae245edbf74aa706e6851c50777cd9b158aa66 # 2026.7.6065514
       - name: Package, push, sign, and release each chart
         if: steps.changed.outputs.charts != ''
         env:

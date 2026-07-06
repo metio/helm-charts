@@ -33,7 +33,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-      - uses: metio/ci/nix-devshell@50117191bb36382ab22777be480c539fc4c37fed # 2026.7.5211151
+      - uses: metio/ci/nix-devshell@f0ae245edbf74aa706e6851c50777cd9b158aa66 # 2026.7.6065514
       - name: Regenerate charts/joi from the JOI manifest
         env:
           ALLOW_SHRINK: ${{ github.event.inputs.allow_shrink }}
