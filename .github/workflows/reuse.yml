@@ -15,5 +15,5 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-      - uses: metio/ci/nix-devshell@ec60a096bd59b2b46e358bfca757f243c081ae13 # 2026.7.6074350
+      - uses: metio/ci/nix-devshell@cc725e2e1fbc779fda95050562d702128ad6e998 # 2026.7.6083955
       - run: nix develop --command reuse lint
