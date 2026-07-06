@@ -12,16 +12,16 @@
   description = "helm-charts development environment";
 
   inputs = {
-    ci.url = "github:metio/ci";
-    nixpkgs.follows = "ci/nixpkgs";
-    flake-compat.follows = "ci/flake-compat";
+    devshell.url = "github:metio/nix-devshell";
+    nixpkgs.follows = "devshell/nixpkgs";
+    flake-compat.follows = "devshell/flake-compat";
   };
 
   outputs =
     {
       self,
       nixpkgs,
-      ci,
+      devshell,
       ...
     }:
     let
@@ -46,7 +46,7 @@
 
           # helm-schema (the values.schema.json generator) comes from the shared
           # metio/ci flake, which builds it from source and keeps it current.
-          helm-schema = ci.lib.helm-schema pkgs;
+          helm-schema = devshell.lib.helm-schema pkgs;
 
           # The chart toolchain the gates and the release pipeline drive.
           chartTools = [
@@ -125,7 +125,7 @@
           ];
         in
         {
-          default = ci.lib.mkDevShell {
+          default = devshell.lib.mkDevShell {
             inherit pkgs;
             packages = chartTools ++ commands;
             menu = ''
