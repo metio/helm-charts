@@ -37,7 +37,7 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           fetch-depth: 0
-      - uses: metio/ci/nix-devshell@feaa73962a9ca0e3445422d46960d7846d714de6 # 2026.7.6092338
+      - uses: metio/nix-devshell@1976169d4c51b321be318ade369ccf689849f9f0 # 2026.7.6091757
       - name: Log in to GHCR (Helm OCI)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
