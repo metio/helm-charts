@@ -73,7 +73,7 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           fetch-depth: 0
-      - uses: metio/ci/nix-devshell@ec60a096bd59b2b46e358bfca757f243c081ae13 # 2026.7.6074350
+      - uses: metio/ci/nix-devshell@cc725e2e1fbc779fda95050562d702128ad6e998 # 2026.7.6083955
       - name: Vendor CRDs (build artifact, regenerated per run)
         # CRDs aren't committed; the chart's CRDs are vendored from its
         # controller release on the fly so every gate renders against the same
@@ -203,14 +203,14 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-      - uses: metio/ci/nix-devshell@ec60a096bd59b2b46e358bfca757f243c081ae13 # 2026.7.6074350
+      - uses: metio/ci/nix-devshell@cc725e2e1fbc779fda95050562d702128ad6e998 # 2026.7.6083955
       - run: nix develop --command yamllint .
   github-actions:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-      - uses: metio/ci/nix-devshell@ec60a096bd59b2b46e358bfca757f243c081ae13 # 2026.7.6074350
+      - uses: metio/ci/nix-devshell@cc725e2e1fbc779fda95050562d702128ad6e998 # 2026.7.6083955
       # shellcheck rides in the devShell, so actionlint lints run: blocks too.
       - run: nix develop --command actionlint
   markdown:
@@ -218,21 +218,21 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-      - uses: metio/ci/nix-devshell@ec60a096bd59b2b46e358bfca757f243c081ae13 # 2026.7.6074350
+      - uses: metio/ci/nix-devshell@cc725e2e1fbc779fda95050562d702128ad6e998 # 2026.7.6083955
       - run: nix develop --command markdownlint-cli2 "**/*.md"
   typos:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-      - uses: metio/ci/nix-devshell@ec60a096bd59b2b46e358bfca757f243c081ae13 # 2026.7.6074350
+      - uses: metio/ci/nix-devshell@cc725e2e1fbc779fda95050562d702128ad6e998 # 2026.7.6083955
       - run: nix develop --command typos
   policy:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-      - uses: metio/ci/policy-check@ec60a096bd59b2b46e358bfca757f243c081ae13 # 2026.7.6074350
+      - uses: metio/ci/policy-check@cc725e2e1fbc779fda95050562d702128ad6e998 # 2026.7.6083955
 
   # Single, stably-named aggregate of every job above. Matrix jobs (install,
   # static) report one rolled-up result here — success only if every
