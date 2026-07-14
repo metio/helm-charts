@@ -4,12 +4,9 @@
 # Artifact Hub repository metadata. For an OCI-based Helm repository this file is
 # NOT read from git — it is pushed to the registry as an artifact tagged
 # `<chart>:artifacthub.io` (see hack/push-artifacthub-metadata.sh). The
-# repositoryID is the value Artifact Hub generates for this repo and proves
+# repositoryID is the value Artifact Hub generated for this repo and proves
 # ownership of the listing.
-#
-# TODO: replace with the repositoryID Artifact Hub assigns once the tik chart is
-# registered on artifacthub.io (the other charts carry their own generated id).
-repositoryID: 00000000-0000-0000-0000-000000000000
+repositoryID: d4440964-ed11-43fe-8628-167d5daf178a
 owners:
   - name: Sebastian Hoß
     email: seb@xn--ho-hia.de
