@@ -162,12 +162,17 @@ spec:
           secret:
             secretName: {{ .Values.backend.signingKeySecret.name }}
             defaultMode: 0400
+            # optional so a missing/mis-set key does not block the pod: the
+            # board still serves and the writing pipelines log the failure
+            # (per-pipeline isolation) instead of crashlooping everything.
+            optional: true
         {{- end }}
         {{- if .Values.backend.passwordSecret.name }}
         - name: secrets
           secret:
             secretName: {{ .Values.backend.passwordSecret.name }}
             defaultMode: 0400
+            optional: true
         {{- end }}
         - name: tmp
           emptyDir:

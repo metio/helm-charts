@@ -62,6 +62,7 @@ tests:
             secret:
               secretName: my-key
               defaultMode: 0400
+              optional: true
   - it: fails when the signing key secret is missing
     template: deployment-ingest.yaml
     set:

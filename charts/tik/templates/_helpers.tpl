@@ -84,11 +84,15 @@ SPDX-License-Identifier: 0BSD
   secret:
     secretName: {{ required "ingest.signingKeySecret.name is required when ingest.enabled is true" .Values.ingest.signingKeySecret.name }}
     defaultMode: 0400
+    # optional so a missing secret does not block the pod at start (the
+    # watcher retries and logs); the Secret must still exist for real signing.
+    optional: true
 {{- if .Values.ingest.passwordSecret.name }}
 - name: mailbox-password
   secret:
     secretName: {{ .Values.ingest.passwordSecret.name }}
     defaultMode: 0400
+    optional: true
 {{- end }}
 - name: tmp
   emptyDir:

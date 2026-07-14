@@ -60,6 +60,7 @@ tests:
             secret:
               secretName: tik-key
               defaultMode: 0400
+              optional: true
   - it: omits the key mount for a read-only (board-only) backend
     template: deployment-backend.yaml
     asserts:
