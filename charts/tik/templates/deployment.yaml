@@ -1,0 +1,182 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tik
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/component: board
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+    app.kubernetes.io/part-of: {{ .Chart.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    {{ with .Values.deployment.additionalLabels }}
+    {{ toYaml . | nindent 4 }}
+    {{ end }}
+  annotations:
+    # kube-score ignores for design-deliberate findings:
+    #   container-image-pull-policy — IfNotPresent is correct for tagged
+    #     release images; mutable-tag operators flip to Always via
+    #     image.pullPolicy (documented in values.yaml).
+    #   pod-networkpolicy — the chart's NetworkPolicy is opt-in via
+    #     networkPolicy.enabled (inert without a controller; renderable on demand).
+    #   deployment-has-host-podantiaffinity — replica spreading is done via
+    #     topologySpreadConstraints; the podAntiAffinity block targets OTHER releases.
+    #   deployment-replicas — a single board replica is the safe default; scale
+    #     via replicas.min once the store is ReadWriteMany.
+    #   deployment-has-poddisruptionbudget — the PDB renders only when more than
+    #     one replica can run (single-replica installs would block drains).
+    kube-score/ignore: container-image-pull-policy,pod-networkpolicy,deployment-has-host-podantiaffinity,deployment-replicas,deployment-has-poddisruptionbudget
+spec:
+  {{- /* When autoscaling (replicas.max > replicas.min) the HPA owns the count
+         from replicas.min upward, so spec.replicas is omitted to avoid fighting
+         it on every apply. Otherwise replicas.min is a fixed count. */}}
+  {{- if not (gt (.Values.replicas.max | int) (.Values.replicas.min | int)) }}
+  replicas: {{ .Values.replicas.min }}
+  {{- end }}
+  revisionHistoryLimit: {{ .Values.deployment.revisionHistoryLimit }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Chart.Name }}
+      app.kubernetes.io/component: board
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/part-of: {{ .Chart.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ .Chart.Name }}
+        app.kubernetes.io/component: board
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+        app.kubernetes.io/part-of: {{ .Chart.Name }}
+        app.kubernetes.io/managed-by: {{ .Release.Service }}
+        helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+        {{ with .Values.pod.additionalLabels }}
+        {{ toYaml . | nindent 8 }}
+        {{ end }}
+    spec:
+      terminationGracePeriodSeconds: 30
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: {{ .Chart.Name }}
+                    app.kubernetes.io/component: board
+                    app.kubernetes.io/part-of: {{ .Chart.Name }}
+                  matchExpressions:
+                    - key: app.kubernetes.io/instance
+                      operator: NotIn
+                      values:
+                        - {{ .Release.Name }}
+                topologyKey: kubernetes.io/hostname
+              weight: 100
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: {{ .Chart.Name }}
+              app.kubernetes.io/component: board
+              app.kubernetes.io/instance: {{ .Release.Name }}
+              app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+              app.kubernetes.io/part-of: {{ .Chart.Name }}
+              helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+      {{- if .Values.serviceAccount.create }}
+      serviceAccountName: {{ .Values.serviceAccount.name | default .Chart.Name }}
+      {{- end }}
+      # tik never calls the Kubernetes API — no token is mounted.
+      automountServiceAccountToken: false
+      # Pod-level securityContext mirrors the container's strict posture so an
+      # admission controller enforcing Pod Security Standards "restricted" sees
+      # it before recursing into containers. fsGroup matches runAsGroup so the
+      # kubelet/CSI chowns a freshly provisioned store PVC to the running group;
+      # without it the non-root process cannot write it and the pod crashloops.
+      securityContext:
+        runAsNonRoot: true
+        fsGroup: 12345
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+          {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: board
+          image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}:{{ default .Chart.AppVersion .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - serve
+            - --port={{ .Values.ports.http }}
+          env:
+            - name: TIK_ROOT
+              value: /var/lib/tik
+          volumeMounts:
+            - name: store
+              mountPath: /var/lib/tik
+            # writable scratch for a read-only-root container (JVM/native tmp).
+            - name: tmp
+              mountPath: /tmp
+          ports:
+            - containerPort: {{ .Values.ports.http }}
+              name: http
+              protocol: TCP
+          startupProbe:
+            periodSeconds: 1
+            failureThreshold: 60
+            httpGet:
+              path: /tickets.edn
+              port: http
+          readinessProbe:
+            # Can it actually derive and serve? A real GET of the board data.
+            initialDelaySeconds: 0
+            httpGet:
+              path: /tickets.edn
+              port: http
+          livenessProbe:
+            # Deliberately conservative: only restart when the port is truly
+            # dead, not when a request is slow. A TCP check (vs. the readiness
+            # HTTP GET) avoids restart storms under load and keeps the two
+            # probes distinct.
+            initialDelaySeconds: 0
+            tcpSocket:
+              port: http
+          resources:
+            requests:
+              cpu: {{ .Values.resources.cpu }}
+              memory: {{ .Values.resources.memory }}
+              ephemeral-storage: {{ .Values.resources.ephemeralStorage }}
+            limits:
+              cpu: {{ .Values.resources.cpu }}
+              memory: {{ .Values.resources.memory }}
+              ephemeral-storage: {{ .Values.resources.ephemeralStorage }}
+          securityContext:
+            runAsNonRoot: true
+            runAsGroup: 12345
+            runAsUser: 12345
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
+      volumes:
+        - name: store
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ .Release.Name }}-store
+          {{- else }}
+          emptyDir:
+            sizeLimit: {{ .Values.persistence.size }}
+          {{- end }}
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi

@@ -1,0 +1,127 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+suite: test tik board deployment
+templates:
+  - deployment.yaml
+tests:
+  - it: is named tik and lives in the release namespace
+    release:
+      namespace: my-ns
+    asserts:
+      - equal:
+          path: metadata.name
+          value: tik
+      - equal:
+          path: metadata.namespace
+          value: my-ns
+      - isKind:
+          of: Deployment
+  - it: carries the standard app labels with component board
+    asserts:
+      - equal:
+          path: metadata.labels["app.kubernetes.io/name"]
+          value: tik
+      - equal:
+          path: metadata.labels["app.kubernetes.io/component"]
+          value: board
+      - exists:
+          path: metadata.labels["helm.sh/chart"]
+  - it: selector omits the volatile version and managed-by labels
+    asserts:
+      - equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/component"]
+          value: board
+      - notExists:
+          path: spec.selector.matchLabels["app.kubernetes.io/version"]
+      - notExists:
+          path: spec.selector.matchLabels["app.kubernetes.io/managed-by"]
+  - it: topologySpreadConstraints keep the version-bound labels
+    asserts:
+      - exists:
+          path: spec.template.spec.topologySpreadConstraints[0].labelSelector.matchLabels["app.kubernetes.io/version"]
+      - exists:
+          path: spec.template.spec.topologySpreadConstraints[0].labelSelector.matchLabels["helm.sh/chart"]
+  - it: pins a fixed replica count at the 1/1 default
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 1
+  - it: omits spec.replicas when autoscaling (max > min)
+    set:
+      replicas:
+        min: 2
+        max: 5
+    asserts:
+      - notExists:
+          path: spec.replicas
+  - it: runs tik serve on the configured port
+    set:
+      ports:
+        http: 9999
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].args
+          value:
+            - serve
+            - --port=9999
+  - it: sets TIK_ROOT to the store mount
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TIK_ROOT
+            value: /var/lib/tik
+  - it: readiness GETs the board data; liveness is a conservative TCP check
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+          value: /tickets.edn
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.tcpSocket.port
+          value: http
+      - notExists:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet
+  - it: is Pod Security Standards restricted
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          content: ALL
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+  - it: mounts the store PVC by default
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: store
+            persistentVolumeClaim:
+              claimName: RELEASE-NAME-store
+  - it: uses an emptyDir store when persistence is disabled
+    set:
+      persistence:
+        enabled: false
+    asserts:
+      - notContains:
+          path: spec.template.spec.volumes
+          content:
+            name: store
+            persistentVolumeClaim:
+              claimName: RELEASE-NAME-store
+  - it: defaults the image tag to the chart appVersion
+    chart:
+      appVersion: 2026.9.9
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/metio/tik:2026.9.9

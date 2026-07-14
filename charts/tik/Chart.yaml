@@ -1,0 +1,40 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+apiVersion: v2
+name: tik
+description: tik is a process system — a ticket is an append-only log of signed, content-addressed events; its stage is derived, never stored.
+type: application
+home: https://github.com/metio/tik
+sources:
+  - https://github.com/metio/tik
+  - https://github.com/metio/helm-charts
+keywords:
+  - tickets
+  - process
+  - event-sourcing
+  - attestation
+maintainers:
+  # name must be the GitHub login — chart-testing's validate-maintainers checks
+  # it against the GitHub users API.
+  - name: sebhoss
+    email: seb@xn--ho-hia.de
+    url: https://github.com/sebhoss
+annotations:
+  artifacthub.io/license: 0BSD
+  artifacthub.io/category: integration-delivery
+  artifacthub.io/links: |
+    - name: support
+      url: https://github.com/metio/tik/issues
+    - name: documentation
+      url: https://github.com/metio/tik
+# version is the chart's own version; the release pipeline rewrites this
+# placeholder to a calendar+time value (%Y.%-m.%-d+%H%M%S) at package time.
+version: 0.0.0
+# appVersion is the metio/tik image this chart deploys; Renovate bumps it.
+# image.tag defaults to this value. Tracked via the source repo's GitHub
+# releases (not the ghcr image) so the bump only fires once the release/tag
+# exists — see renovate.json.
+# renovate: datasource=github-releases depName=metio/tik
+appVersion: "2026.7.14"
+# renovate: image=ghcr.io/metio/tik

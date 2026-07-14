@@ -1,0 +1,73 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+{{- if and .Values.ingest.enabled (eq .Values.ingest.protocol "pop3") }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: tik-ingest
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/component: ingest
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+    app.kubernetes.io/part-of: {{ .Chart.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+spec:
+  schedule: {{ .Values.ingest.schedule | quote }}
+  # Never run two polls at once — one mailbox cursor, one writer.
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 120
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ .Chart.Name }}
+        app.kubernetes.io/component: ingest
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/part-of: {{ .Chart.Name }}
+    spec:
+      backoffLimit: 2
+      template:
+        metadata:
+          annotations:
+            # container-image-pull-policy — IfNotPresent is correct for tagged
+            #   release images (image.pullPolicy flips to Always for mutable tags).
+            # pod-networkpolicy — the poller is an egress-only client; its policy
+            #   is the opt-in networkPolicy.egress.
+            kube-score/ignore: container-image-pull-policy,pod-networkpolicy
+          labels:
+            app.kubernetes.io/name: {{ .Chart.Name }}
+            app.kubernetes.io/component: ingest
+            app.kubernetes.io/instance: {{ .Release.Name }}
+            app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+            app.kubernetes.io/part-of: {{ .Chart.Name }}
+            app.kubernetes.io/managed-by: {{ .Release.Service }}
+            helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+            {{ with .Values.pod.additionalLabels }}
+            {{ toYaml . | nindent 12 }}
+            {{ end }}
+        spec:
+          restartPolicy: OnFailure
+          {{- if .Values.serviceAccount.create }}
+          serviceAccountName: {{ .Values.serviceAccount.name | default .Chart.Name }}
+          {{- end }}
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            fsGroup: 12345
+            fsGroupChangePolicy: OnRootMismatch
+            seccompProfile:
+              type: RuntimeDefault
+          {{- with .Values.imagePullSecrets }}
+          imagePullSecrets:
+              {{- toYaml . | nindent 12 }}
+          {{- end }}
+          containers:
+            {{- include "tik.ingestContainer" (dict "root" $ "args" (list "bridge" "pop3" "--config" "/etc/tik/tik-ingest.edn")) | nindent 12 }}
+          volumes:
+            {{- include "tik.ingestVolumes" $ | nindent 12 }}
+{{- end }}

@@ -1,0 +1,92 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+{{- if and .Values.ingest.enabled (eq .Values.ingest.protocol "imap") }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tik-ingest
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/component: ingest
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+    app.kubernetes.io/part-of: {{ .Chart.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+  annotations:
+    # kube-score ignores for design-deliberate findings:
+    #   deployment-replicas — the ingester is a SINGLE writer by design (one
+    #     mailbox cursor; the coordination-free lease). It never scales.
+    #   deployment-has-poddisruptionbudget — a single-replica workload must not
+    #     carry a PDB (it would block node drains).
+    #   pod-networkpolicy — the ingester is an egress-only client; its policy is
+    #     the opt-in networkPolicy.egress.
+    #   container-image-pull-policy — see the board Deployment.
+    #   deployment-has-host-podantiaffinity — it uses a preferred podAffinity to
+    #     co-locate with the board on a ReadWriteOnce store.
+    kube-score/ignore: deployment-replicas,deployment-has-poddisruptionbudget,pod-networkpolicy,container-image-pull-policy,deployment-has-host-podantiaffinity
+spec:
+  # A single writer, always exactly one replica.
+  replicas: 1
+  revisionHistoryLimit: {{ .Values.deployment.revisionHistoryLimit }}
+  # Recreate, not RollingUpdate: with a ReadWriteOnce store a second pod cannot
+  # mount the volume while the old one holds it, so a rolling update would
+  # deadlock. Recreate also guarantees only ONE writer exists at any moment.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Chart.Name }}
+      app.kubernetes.io/component: ingest
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/part-of: {{ .Chart.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ .Chart.Name }}
+        app.kubernetes.io/component: ingest
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+        app.kubernetes.io/part-of: {{ .Chart.Name }}
+        app.kubernetes.io/managed-by: {{ .Release.Service }}
+        helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+        {{ with .Values.pod.additionalLabels }}
+        {{ toYaml . | nindent 8 }}
+        {{ end }}
+    spec:
+      terminationGracePeriodSeconds: 30
+      # Prefer the board's node so a ReadWriteOnce store (one node) can be
+      # shared by both. For a board scaled across nodes, use ReadWriteMany.
+      affinity:
+        podAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: {{ .Chart.Name }}
+                    app.kubernetes.io/component: board
+                    app.kubernetes.io/instance: {{ .Release.Name }}
+                    app.kubernetes.io/part-of: {{ .Chart.Name }}
+                topologyKey: kubernetes.io/hostname
+              weight: 100
+      {{- if .Values.serviceAccount.create }}
+      serviceAccountName: {{ .Values.serviceAccount.name | default .Chart.Name }}
+      {{- end }}
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        fsGroup: 12345
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+          {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        {{- include "tik.ingestContainer" (dict "root" $ "args" (list "bridge" "imap" "--watch" "--config" "/etc/tik/tik-ingest.edn")) | nindent 8 }}
+      volumes:
+        {{- include "tik.ingestVolumes" $ | nindent 8 }}
+{{- end }}

@@ -1,0 +1,12 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+# The board plus a POP3 poller (CronJob).
+ingest:
+  enabled: true
+  protocol: pop3
+  schedule: "*/5 * * * *"
+  signingKeySecret:
+    name: tik-signing-key
+  passwordSecret:
+    name: tik-mailbox-password

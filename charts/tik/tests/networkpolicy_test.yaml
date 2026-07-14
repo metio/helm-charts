@@ -1,0 +1,61 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+suite: test tik networkpolicy engines
+templates:
+  - networkpolicy.yaml
+  - calico-networkpolicy.yaml
+  - cilium-networkpolicy.yaml
+tests:
+  - it: renders nothing when disabled (the default)
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: the kubernetes engine renders a networking.k8s.io policy
+    template: networkpolicy.yaml
+    set:
+      networkPolicy:
+        enabled: true
+        engine: kubernetes
+    asserts:
+      - isKind:
+          of: NetworkPolicy
+      - equal:
+          path: apiVersion
+          value: networking.k8s.io/v1
+      - equal:
+          path: spec.ingress[0].ports[0].port
+          value: 7777
+  - it: the calico engine uses the aggregated projectcalico.org/v3 API
+    template: calico-networkpolicy.yaml
+    set:
+      networkPolicy:
+        enabled: true
+        engine: calico
+    asserts:
+      - equal:
+          path: apiVersion
+          value: projectcalico.org/v3
+      - isKind:
+          of: NetworkPolicy
+  - it: the calico policy is NOT rendered for the kubernetes engine
+    template: calico-networkpolicy.yaml
+    set:
+      networkPolicy:
+        enabled: true
+        engine: kubernetes
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: the cilium engine uses cilium.io/v2
+    template: cilium-networkpolicy.yaml
+    set:
+      networkPolicy:
+        enabled: true
+        engine: cilium
+    asserts:
+      - equal:
+          path: apiVersion
+          value: cilium.io/v2
+      - isKind:
+          of: CiliumNetworkPolicy

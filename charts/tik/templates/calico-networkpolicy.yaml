@@ -1,0 +1,60 @@
+{{- /*
+SPDX-FileCopyrightText: The helm-charts Authors
+SPDX-License-Identifier: 0BSD
+*/ -}}
+{{- if and .Values.networkPolicy.enabled (eq .Values.networkPolicy.engine "calico") }}
+# Calico-native equivalent of the vanilla NetworkPolicy, pod-scoped to the board
+# via Calico's label-selector syntax. Uses the aggregated projectcalico.org/v3
+# API (served by the calico-apiserver), never the internal crd.projectcalico.org/v1.
+apiVersion: projectcalico.org/v3
+kind: NetworkPolicy
+metadata:
+  name: tik
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/component: board
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+    app.kubernetes.io/part-of: {{ .Chart.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+spec:
+  selector: app.kubernetes.io/name == '{{ .Chart.Name }}' && app.kubernetes.io/component == 'board' && app.kubernetes.io/instance == '{{ .Release.Name }}'
+  types:
+    - Ingress
+    {{- if .Values.networkPolicy.egress.enabled }}
+    - Egress
+    {{- end }}
+  ingress:
+    # The board HTTP / EDN API — open by default (kubelet probes source from the
+    # node IP). Tighten with native rules in networkPolicy.calico.ingress.
+    - action: Allow
+      protocol: TCP
+      destination:
+        ports:
+          - {{ .Values.ports.http }}
+    {{- with .Values.networkPolicy.calico.ingress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- if .Values.networkPolicy.egress.enabled }}
+  egress:
+    {{- if .Values.networkPolicy.egress.dns }}
+    # Cluster DNS — UDP and TCP 53. Without these an egress policy denies name
+    # resolution, breaking every outbound connection.
+    - action: Allow
+      protocol: UDP
+      destination:
+        ports:
+          - 53
+    - action: Allow
+      protocol: TCP
+      destination:
+        ports:
+          - 53
+    {{- end }}
+    {{- with .Values.networkPolicy.calico.egress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+{{- end }}

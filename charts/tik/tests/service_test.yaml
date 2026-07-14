@@ -1,0 +1,53 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+suite: test tik service
+templates:
+  - service.yaml
+tests:
+  - it: is named tik and exposes the http port
+    asserts:
+      - equal:
+          path: metadata.name
+          value: tik
+      - equal:
+          path: spec.ports[0].port
+          value: 7777
+      - equal:
+          path: spec.ports[0].name
+          value: http
+  - it: exposes the configured http port
+    set:
+      ports:
+        http: 9090
+    asserts:
+      - equal:
+          path: spec.ports[0].port
+          value: 9090
+  - it: selector includes the stable labels only
+    asserts:
+      - equal:
+          path: spec.selector["app.kubernetes.io/component"]
+          value: board
+      - exists:
+          path: spec.selector["app.kubernetes.io/instance"]
+      - notExists:
+          path: spec.selector["app.kubernetes.io/managed-by"]
+      - notExists:
+          path: spec.selector["app.kubernetes.io/version"]
+  - it: omits ipFamilyPolicy when unset
+    asserts:
+      - notExists:
+          path: spec.ipFamilyPolicy
+  - it: renders dual-stack when configured
+    set:
+      service:
+        ipFamilyPolicy: RequireDualStack
+        ipFamilies: [IPv4, IPv6]
+    asserts:
+      - equal:
+          path: spec.ipFamilyPolicy
+          value: RequireDualStack
+      - equal:
+          path: spec.ipFamilies[0]
+          value: IPv4

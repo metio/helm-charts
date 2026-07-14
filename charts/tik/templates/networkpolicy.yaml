@@ -1,0 +1,63 @@
+{{- /*
+SPDX-FileCopyrightText: The helm-charts Authors
+SPDX-License-Identifier: 0BSD
+*/ -}}
+{{- if and .Values.networkPolicy.enabled (or (not .Values.networkPolicy.engine) (eq .Values.networkPolicy.engine "kubernetes")) -}}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: tik
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/component: board
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+    app.kubernetes.io/part-of: {{ .Chart.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Chart.Name }}
+      app.kubernetes.io/component: board
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/part-of: {{ .Chart.Name }}
+  policyTypes:
+    - Ingress
+    {{- if .Values.networkPolicy.egress.enabled }}
+    - Egress
+    {{- end }}
+  ingress:
+    # The board HTTP / EDN API — and the kubelet probes, which source from the
+    # node IP (not expressible as a podSelector), so this stays open unless you
+    # scope it via networkPolicy.http.from.
+    - ports:
+        - protocol: TCP
+          port: {{ .Values.ports.http }}
+      {{- with .Values.networkPolicy.http.from }}
+      from:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    {{- with .Values.networkPolicy.additionalIngress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- if .Values.networkPolicy.egress.enabled }}
+  egress:
+    {{- if .Values.networkPolicy.egress.dns }}
+    # Cluster DNS — without this an Egress policy denies name resolution.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.egress.dnsNamespace }}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    {{- end }}
+    {{- with .Values.networkPolicy.egress.to }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+{{- end }}

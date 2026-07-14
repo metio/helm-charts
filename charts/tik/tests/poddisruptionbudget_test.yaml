@@ -1,0 +1,49 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+suite: test tik poddisruptionbudget
+templates:
+  - poddisruptionbudget.yaml
+tests:
+  - it: is not rendered at the 1/1 default
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: renders for a fixed multi-replica install (min == max > 1)
+    set:
+      replicas:
+        min: 3
+        max: 3
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: PodDisruptionBudget
+      - equal:
+          path: spec.maxUnavailable
+          value: 1
+  - it: renders when autoscaling (max > min)
+    set:
+      replicas:
+        min: 1
+        max: 3
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/component"]
+          value: board
+  - it: honors minAvailable when set instead of maxUnavailable
+    set:
+      replicas:
+        min: 2
+        max: 4
+      pdb:
+        maxUnavailable: null
+        minAvailable: 1
+    asserts:
+      - equal:
+          path: spec.minAvailable
+          value: 1
+      - notExists:
+          path: spec.maxUnavailable

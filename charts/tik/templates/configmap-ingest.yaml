@@ -1,0 +1,24 @@
+{{- /*
+SPDX-FileCopyrightText: The helm-charts Authors
+SPDX-License-Identifier: 0BSD
+*/ -}}
+{{- if .Values.ingest.enabled -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-ingest
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/component: ingest
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+    app.kubernetes.io/part-of: {{ .Chart.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+data:
+  # The ingester config, passed via --config. The mailbox password is NOT here:
+  # reference it as {:file "/etc/tik/secrets/<key>"} against ingest.passwordSecret.
+  tik-ingest.edn: |
+    {{- .Values.ingest.config | nindent 4 }}
+{{- end }}

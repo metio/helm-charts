@@ -1,0 +1,11 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+# The board plus a live IMAP --watch ingester.
+ingest:
+  enabled: true
+  protocol: imap
+  signingKeySecret:
+    name: tik-signing-key
+  passwordSecret:
+    name: tik-mailbox-password

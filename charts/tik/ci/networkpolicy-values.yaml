@@ -1,0 +1,15 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+# Zero-trust: a kubernetes NetworkPolicy with egress restricted to DNS.
+networkPolicy:
+  enabled: true
+  engine: kubernetes
+  http:
+    from:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: ingress-nginx
+  egress:
+    enabled: true
+    dns: true

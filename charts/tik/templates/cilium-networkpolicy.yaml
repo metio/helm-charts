@@ -1,0 +1,59 @@
+{{- /*
+SPDX-FileCopyrightText: The helm-charts Authors
+SPDX-License-Identifier: 0BSD
+*/ -}}
+{{- if and .Values.networkPolicy.enabled (eq .Values.networkPolicy.engine "cilium") }}
+# Cilium-native equivalent of the vanilla NetworkPolicy, pod-scoped to the board.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: tik
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/component: board
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+    app.kubernetes.io/part-of: {{ .Chart.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Chart.Name }}
+      app.kubernetes.io/component: board
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/part-of: {{ .Chart.Name }}
+  ingress:
+    # The board HTTP / EDN API — open by default. Tighten with native rules in
+    # networkPolicy.cilium.ingress.
+    - toPorts:
+        - ports:
+            - port: {{ .Values.ports.http | quote }}
+              protocol: TCP
+    {{- with .Values.networkPolicy.cilium.ingress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- if .Values.networkPolicy.egress.enabled }}
+  egress:
+    {{- if .Values.networkPolicy.egress.dns }}
+    # Cluster DNS via kube-dns — without this an egress policy denies resolution.
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: {{ .Values.networkPolicy.egress.dnsNamespace }}
+            k8s:k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+          rules:
+            dns:
+              - matchPattern: "*"
+    {{- end }}
+    {{- with .Values.networkPolicy.cilium.egress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+{{- end }}

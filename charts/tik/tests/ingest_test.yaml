@@ -1,0 +1,124 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+suite: test tik mail ingestion
+templates:
+  - deployment-ingest.yaml
+  - cronjob-ingest.yaml
+  - configmap-ingest.yaml
+tests:
+  - it: renders nothing when ingest is disabled (the default)
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: imap ingest is a single-replica Deployment with Recreate strategy
+    template: deployment-ingest.yaml
+    set:
+      ingest:
+        enabled: true
+        protocol: imap
+        signingKeySecret:
+          name: my-key
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: tik-ingest
+      - equal:
+          path: spec.replicas
+          value: 1
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+      - equal:
+          path: spec.template.spec.containers[0].args
+          value:
+            - bridge
+            - imap
+            - --watch
+            - --config
+            - /etc/tik/tik-ingest.edn
+  - it: imap ingest mounts the signing key and sets TIK_KEY
+    template: deployment-ingest.yaml
+    set:
+      ingest:
+        enabled: true
+        signingKeySecret:
+          name: my-key
+          keyFile: id_ed25519
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TIK_KEY
+            value: /etc/tik/keys/id_ed25519
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: signing-key
+            secret:
+              secretName: my-key
+              defaultMode: 0400
+  - it: fails when the signing key secret is missing
+    template: deployment-ingest.yaml
+    set:
+      ingest:
+        enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: ingest.signingKeySecret.name is required when ingest.enabled is true
+  - it: pop3 ingest is a CronJob, not a Deployment
+    template: cronjob-ingest.yaml
+    set:
+      ingest:
+        enabled: true
+        protocol: pop3
+        schedule: "*/10 * * * *"
+        signingKeySecret:
+          name: my-key
+    asserts:
+      - isKind:
+          of: CronJob
+      - equal:
+          path: spec.schedule
+          value: "*/10 * * * *"
+      - equal:
+          path: spec.concurrencyPolicy
+          value: Forbid
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].args
+          value:
+            - bridge
+            - pop3
+            - --config
+            - /etc/tik/tik-ingest.edn
+  - it: the imap Deployment is absent in pop3 mode
+    template: deployment-ingest.yaml
+    set:
+      ingest:
+        enabled: true
+        protocol: pop3
+        signingKeySecret:
+          name: my-key
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: renders the config into a ConfigMap
+    template: configmap-ingest.yaml
+    set:
+      ingest:
+        enabled: true
+        signingKeySecret:
+          name: my-key
+        config: |
+          {:process :support}
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-ingest
+      - matchRegex:
+          path: data["tik-ingest.edn"]
+          pattern: ":process :support"

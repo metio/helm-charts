@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+# A horizontally scaled board on a shared ReadWriteMany store (HPA + PDB render).
+replicas:
+  min: 2
+  max: 6
+persistence:
+  accessModes:
+    - ReadWriteMany

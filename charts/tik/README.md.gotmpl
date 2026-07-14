@@ -1,0 +1,99 @@
+<!--
+SPDX-FileCopyrightText: The helm-charts Authors
+SPDX-License-Identifier: 0BSD
+ -->
+
+{{ template "chart.header" . }}
+
+{{ template "chart.deprecationWarning" . }}
+
+{{ template "chart.description" . }}
+
+This [Helm chart](https://helm.sh/) deploys [tik](https://github.com/metio/tik): the read-only board / EDN API (`tik serve`) and, optionally, a mail ingester that turns inbound email into signed events. See the [Values](#values) section below for every option.
+
+The chart is published in OCI format and can be downloaded from `oci://ghcr.io/metio/helm-charts/tik` using `helm`.
+
+Install it with:
+
+```shell
+helm install SOME_RELEASE oci://ghcr.io/metio/helm-charts/tik --version SOME_VERSION
+```
+
+Replace `SOME_RELEASE` and `SOME_VERSION` with appropriate values for your environment. In general, we recommend running the latest available version.
+
+## What gets deployed
+
+- **The board** (`tik serve`) — a read-only HTTP surface: `/` renders the live board, `/tickets.edn` and `/explain/<id>.edn` expose the same derivations for tools. Everything it serves is derived on read, so it holds no authoritative state and scales horizontally (see the store note below). Fronted by a ClusterIP `Service`; expose it with your own Ingress or Gateway.
+- **The store** — an append-only directory of signed, content-addressed events on a `PersistentVolumeClaim` mounted at `/var/lib/tik` (`TIK_ROOT`). This is the one piece of durable state.
+- **The mail ingester** (opt-in, `ingest.enabled: true`) — see below.
+
+## The store and horizontal scaling
+
+tik reads are derived-on-read and coordination-free, so the board itself scales without limit. The constraint is the shared store: with the default `persistence.accessModes: [ReadWriteOnce]` the volume binds to a single node, so the board (and the ingester, if enabled) must run there. That is the safe default and it co-locates automatically.
+
+To scale the board across nodes, give the store an access mode that many nodes can mount:
+
+```yaml
+persistence:
+  accessModes:
+    - ReadWriteMany
+replicas:
+  min: 2
+  max: 6   # a HorizontalPodAutoscaler owns the count from min upward
+```
+
+## Mail ingestion
+
+Turn inbound email into signed events with `ingest.enabled: true`. The ingester reuses the same loop-safe, idempotent, DKIM-gated pipeline as the CLI: our own returned mail is dropped, auto-replies and bounces are recorded but never answered, and re-fetching a message is a no-op.
+
+The protocol decides how it runs:
+
+- `ingest.protocol: imap` — a single-replica `Deployment` that holds the connection open with IMAP IDLE and ingests the instant mail arrives.
+- `ingest.protocol: pop3` — a `CronJob` (POP3 has no push) polling on `ingest.schedule`.
+
+The ingester writes the store, so it needs a signing key, and it reads a config you supply:
+
+```yaml
+ingest:
+  enabled: true
+  protocol: imap
+  # imap.edn / pop3.edn, rendered into a ConfigMap and passed via --config.
+  # Reference the mailbox password as a {:file …} spec pointing at the mounted
+  # Secret below — never inline it here.
+  config: |
+    {:imap {:host "imap.example.com"
+            :user "desk@example.com"
+            :password {:file "/etc/tik/secrets/mailbox-password"}
+            :mailbox "INBOX" :search "UNSEEN"}
+     :process :support
+     :default-actor "inbound"
+     :dkim {:require true :authserv-id "mx.example.com"}}
+  # a Secret with the Ed25519 signing key (mounted read-only; TIK_KEY points at it)
+  signingKeySecret:
+    name: tik-signing-key
+    keyFile: id_ed25519
+  # a Secret with the mailbox password, mounted at /etc/tik/secrets
+  passwordSecret:
+    name: tik-mailbox-password
+```
+
+Create the secrets out of band, e.g.:
+
+```shell
+kubectl create secret generic tik-signing-key --from-file=id_ed25519=/path/to/id_ed25519
+kubectl create secret generic tik-mailbox-password --from-file=mailbox-password=/path/to/password
+```
+
+## NetworkPolicy
+
+`networkPolicy.enabled: true` renders a board-scoped policy for your CNI — pick `networkPolicy.engine`: `kubernetes` (the default `networking.k8s.io/v1`), `calico` (the aggregated `projectcalico.org/v3` API), or `cilium` (`cilium.io/v2`). Ingress to the board HTTP port is open by default (kubelet probes source from the node IP); scope it with `networkPolicy.http.from` or the native passthrough lists.
+
+## Pod Security Standards
+
+Every pod the chart renders is configured for **Pod Security Standards "restricted"**: `runAsNonRoot`, non-zero `runAsUser`/`runAsGroup`, `allowPrivilegeEscalation: false`, `readOnlyRootFilesystem: true`, `capabilities.drop: [ALL]`, `seccompProfile.type: RuntimeDefault`, and a pod-level `securityContext` that mirrors the strict posture. tik never calls the Kubernetes API, so no ServiceAccount token is mounted and no RBAC is granted.
+
+## Uninstall
+
+`helm uninstall` leaves the store `PersistentVolumeClaim` in place (Helm never deletes PVCs). Reclaim it with `kubectl delete pvc <release>-store -n <ns>` once you are sure the event log is no longer needed — it is append-only history.
+
+{{ template "chart.valuesSection" . }}

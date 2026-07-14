@@ -1,0 +1,213 @@
+# yaml-language-server: $schema=values.schema.json
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+# -- Container image for the tik binary. Both the board server and the mail
+# ingester run the same image.
+image:
+  # -- Image registry.
+  registry: ghcr.io
+  # -- Image repository.
+  repository: metio/tik
+  # @schema
+  # type: string
+  # enum: [Always, IfNotPresent, Never]
+  # @schema
+  # -- Image pull policy. IfNotPresent is correct for immutable release tags;
+  # flip to Always if you deploy a mutable tag.
+  pullPolicy: IfNotPresent
+  # -- Image tag. Empty defaults to the chart's appVersion.
+  tag: ""
+
+# -- Image pull secrets for private registries.
+imagePullSecrets: []
+
+# -- Replica bounds for the read-only board (`tik serve`). Reads are
+# derived-on-read and hold no authoritative state, so the board scales
+# horizontally — but every replica must reach the same store, so scaling
+# across nodes needs `persistence.accessModes: [ReadWriteMany]` (or an
+# external shared store). When `max == min` a fixed count is pinned; when
+# `max > min` a HorizontalPodAutoscaler owns the count from `min` upward.
+replicas:
+  # -- Minimum board replicas (the fixed count when it equals max).
+  min: 1
+  # -- Maximum board replicas (a HPA renders when this exceeds min).
+  max: 1
+
+# -- Resource requests (mirrored as limits) for the board container.
+resources:
+  # -- Memory (request == limit).
+  memory: 256Mi
+  # -- CPU (request == limit).
+  cpu: 100m
+  # -- Ephemeral storage (request == limit).
+  ephemeralStorage: 128Mi
+
+# -- Named container ports.
+ports:
+  # -- The read-only board / EDN API served by `tik serve`.
+  http: 7777
+
+# -- Service settings. The board is fronted by a ClusterIP Service; expose it
+# with your own Ingress or Gateway. Ports come from `ports`.
+service:
+  # @schema
+  # type: string
+  # enum: ["", SingleStack, PreferDualStack, RequireDualStack]
+  # @schema
+  # -- ipFamilyPolicy for every Service the chart renders.
+  ipFamilyPolicy: ""
+  # -- ipFamilies for dual-stack Services.
+  ipFamilies: []
+
+# -- PodDisruptionBudget for the board, rendered whenever more than one
+# replica can run (max > 1 or min > 1). Set exactly one of maxUnavailable /
+# minAvailable; the default is maxUnavailable: 1.
+pdb:
+  # @schema
+  # type: [string, "null"]
+  # @schema
+  # -- Handling for pods that are not yet healthy during a disruption.
+  unhealthyPodEvictionPolicy: IfHealthyBudget
+  # @schema
+  # type: [integer, string, "null"]
+  # @schema
+  # -- Maximum pods that may be unavailable (mutually exclusive with minAvailable).
+  maxUnavailable: 1
+  # @schema
+  # type: [integer, string, "null"]
+  # @schema
+  # -- Minimum pods that must stay available (mutually exclusive with maxUnavailable).
+  minAvailable: null
+
+# -- ServiceAccount for the pods. tik never calls the Kubernetes API, so the
+# token is not mounted and no RBAC is granted.
+serviceAccount:
+  # -- Whether to create the ServiceAccount.
+  create: true
+  # -- Name of the ServiceAccount (defaults to the chart name when empty).
+  name: tik
+  # -- Extra annotations for the ServiceAccount.
+  annotations: {}
+
+# -- Deployment-level tuning.
+deployment:
+  # -- How many old ReplicaSets to retain.
+  revisionHistoryLimit: 1
+  # -- Extra labels for the Deployment objects.
+  additionalLabels: {}
+
+# -- Pod-level tuning.
+pod:
+  # -- Extra labels for the pods.
+  additionalLabels: {}
+
+# -- The store: an append-only directory of signed, content-addressed events
+# mounted at /var/lib/tik (TIK_ROOT). The board reads it; the ingester writes
+# it. A single PVC is shared by both.
+persistence:
+  # -- Whether to provision a PersistentVolumeClaim for the store. When false an
+  # emptyDir is used (ephemeral — for evaluation only).
+  enabled: true
+  # -- StorageClass for the PVC (empty uses the cluster default).
+  storageClassName: ""
+  # @schema
+  # items:
+  #   enum: [ReadWriteOnce, ReadOnlyMany, ReadWriteMany, ReadWriteOncePod]
+  # @schema
+  # -- Access modes. ReadWriteOnce keeps the board and ingester on one node;
+  # use ReadWriteMany to scale the board across nodes.
+  accessModes:
+    - ReadWriteOnce
+  # -- Requested size of the store volume.
+  size: 1Gi
+  # -- Extra annotations for the PVC.
+  annotations: {}
+  # -- Extra labels for the PVC.
+  labels: {}
+  # -- A label selector binding the PVC to a specific PersistentVolume.
+  selector: {}
+
+# -- Mail ingestion: an optional single-replica Deployment running
+# `tik bridge imap --watch`, which holds an IMAP connection open (IMAP IDLE)
+# and ingests mail as signed events the instant it arrives. It writes the
+# store, so it needs the signing key; it is loop-safe and idempotent.
+ingest:
+  # -- Whether to run the mail ingester.
+  enabled: false
+  # @schema
+  # type: string
+  # enum: [imap, pop3]
+  # @schema
+  # -- Mailbox protocol. imap runs as a long-lived Deployment holding the
+  # connection open (IMAP IDLE); pop3 has no push, so it runs as a CronJob that
+  # polls on `schedule`.
+  protocol: imap
+  # -- Cron schedule for the pop3 poller (ignored for imap).
+  schedule: "*/5 * * * *"
+  # -- Resource requests (mirrored as limits) for the ingester container.
+  resources:
+    memory: 256Mi
+    cpu: 100m
+    ephemeralStorage: 128Mi
+  # -- The ingester config (imap.edn / pop3.edn), rendered verbatim into a
+  # ConfigMap and passed via --config. Reference the mailbox password as a
+  # secret spec — {:file "/etc/tik/secrets/<key>"} resolves the mounted Secret
+  # below (never inline the password here). See the tik docs for the full
+  # config shape.
+  config: |
+    {:imap {:host "imap.example.com"
+            :user "desk@example.com"
+            :password {:file "/etc/tik/secrets/mailbox-password"}
+            :mailbox "INBOX"
+            :search "UNSEEN"}
+     :process :support
+     :default-actor "inbound"
+     :dkim {:require true :authserv-id "mx.example.com"}}
+  # -- A Secret providing the signing key (TIK_KEY) the ingester signs events
+  # with. It must contain the key file under `keyFile`, mounted read-only.
+  signingKeySecret:
+    # -- Name of the Secret holding the Ed25519 signing key. Required when
+    # ingest is enabled.
+    name: ""
+    # -- Key within the Secret that holds the private key file.
+    keyFile: id_ed25519
+  # -- A Secret providing the mailbox password, mounted at /etc/tik/secrets so
+  # the config's {:file …} spec can resolve it.
+  passwordSecret:
+    # -- Name of the Secret holding the mailbox password. Optional (omit if the
+    # config resolves the password another way, e.g. {:env …}).
+    name: ""
+
+# -- NetworkPolicy for the board, opt-in and CNI-aware. Silently inert without
+# a NetworkPolicy controller.
+networkPolicy:
+  # -- Whether to render a NetworkPolicy.
+  enabled: false
+  # @schema
+  # type: string
+  # enum: [kubernetes, cilium, calico]
+  # @schema
+  # -- Which policy engine to render for.
+  engine: kubernetes
+  # -- Sources allowed to reach the board HTTP port (kubernetes engine). Empty
+  # allows all.
+  http:
+    from: []
+  # -- Native Cilium ingress/egress passthrough rules.
+  cilium:
+    ingress: []
+    egress: []
+  # -- Native Calico ingress/egress passthrough rules.
+  calico:
+    ingress: []
+    egress: []
+  # -- Extra raw ingress rules (kubernetes engine).
+  additionalIngress: []
+  # -- Egress policy. Enable only if you also allow DNS and every outbound the
+  # ingester needs (IMAP/POP3, and any OIDC/webhook the store's effects call).
+  egress:
+    enabled: false
+    dns: true
+    dnsNamespace: kube-system
+    to: []
