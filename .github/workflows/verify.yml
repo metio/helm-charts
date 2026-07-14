@@ -234,6 +234,18 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
       - uses: metio/ci/policy-check@aec58ab29b70164cbb45864d38e4122fe4bfd59f # 2026.7.9215937
 
+  dco:
+    # Developer Certificate of Origin: every commit carries a Signed-off-by
+    # trailer. Bot PRs skip; a skipped job still satisfies the aggregate below.
+    if: github.event.pull_request.user.type != 'Bot'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          fetch-depth: 0
+      - uses: metio/ci/dco@68ccaa80327a09d6be7ee72fc81ffa370bd73fff # main
+
   # Single, stably-named aggregate of every job above. Matrix jobs (install,
   # static) report one rolled-up result here — success only if every
   # leg passed — so this is the one and only check to mark "required" in branch
@@ -251,6 +263,7 @@ jobs:
       - markdown
       - typos
       - policy
+      - dco
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 15
