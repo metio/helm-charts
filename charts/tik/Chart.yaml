@@ -37,4 +37,3 @@ version: 0.0.0
 # exists — see renovate.json.
 # renovate: datasource=github-releases depName=metio/tik
 appVersion: "2026.7.14"
-# renovate: image=ghcr.io/metio/tik
