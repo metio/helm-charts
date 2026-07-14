@@ -6,6 +6,8 @@ templates:
   - deployment-ingest.yaml
   - cronjob-ingest.yaml
   - configmap-ingest.yaml
+set:
+  mode: split
 tests:
   - it: renders nothing when ingest is disabled (the default)
     asserts:

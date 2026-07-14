@@ -1,0 +1,175 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+{{- if eq .Values.mode "backend" }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tik
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+    app.kubernetes.io/part-of: {{ .Chart.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    {{ with .Values.deployment.additionalLabels }}
+    {{ toYaml . | nindent 4 }}
+    {{ end }}
+  annotations:
+    # kube-score ignores for design-deliberate findings:
+    #   deployment-replicas — the supervisor is a SINGLE process by design (a
+    #     single-writer scheduler + its watchers); it never scales. Reads scale
+    #     via mode: split, which runs the board as its own Deployment.
+    #   deployment-has-poddisruptionbudget — a single-replica workload must not
+    #     carry a PDB (it would block node drains).
+    #   pod-networkpolicy — the NetworkPolicy is opt-in via networkPolicy.enabled.
+    #   container-image-pull-policy — IfNotPresent is correct for tagged images.
+    kube-score/ignore: deployment-replicas,deployment-has-poddisruptionbudget,pod-networkpolicy,container-image-pull-policy
+spec:
+  # One supervisor process. It bundles the board and the writers; a second
+  # replica would double-run the scheduler (harmless — recur is idempotent and
+  # leaderless) but two writers cannot share a ReadWriteOnce store, so it stays
+  # at one. Scale reads with mode: split + a ReadWriteMany store.
+  replicas: 1
+  revisionHistoryLimit: {{ .Values.deployment.revisionHistoryLimit }}
+  # Recreate: a ReadWriteOnce store cannot be mounted by a second pod while the
+  # old one holds it, so a rolling update would deadlock.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Chart.Name }}
+      app.kubernetes.io/component: backend
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/part-of: {{ .Chart.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ .Chart.Name }}
+        app.kubernetes.io/component: backend
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+        app.kubernetes.io/part-of: {{ .Chart.Name }}
+        app.kubernetes.io/managed-by: {{ .Release.Service }}
+        helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+        {{ with .Values.pod.additionalLabels }}
+        {{ toYaml . | nindent 8 }}
+        {{ end }}
+    spec:
+      terminationGracePeriodSeconds: 30
+      {{- if .Values.serviceAccount.create }}
+      serviceAccountName: {{ .Values.serviceAccount.name | default .Chart.Name }}
+      {{- end }}
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        fsGroup: 12345
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+          {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: backend
+          image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}:{{ default .Chart.AppVersion .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - backend
+            - --config=/etc/tik/pipelines.edn
+          env:
+            - name: TIK_ROOT
+              value: /var/lib/tik
+            {{- if .Values.backend.signingKeySecret.name }}
+            - name: TIK_KEY
+              value: /etc/tik-key/{{ .Values.backend.signingKeySecret.keyFile }}
+            {{- end }}
+          volumeMounts:
+            - name: store
+              mountPath: /var/lib/tik
+            - name: config
+              mountPath: /etc/tik
+              readOnly: true
+            {{- if .Values.backend.signingKeySecret.name }}
+            - name: signing-key
+              mountPath: /etc/tik-key
+              readOnly: true
+            {{- end }}
+            {{- if .Values.backend.passwordSecret.name }}
+            - name: secrets
+              mountPath: /etc/tik-secrets
+              readOnly: true
+            {{- end }}
+            - name: tmp
+              mountPath: /tmp
+          ports:
+            - containerPort: {{ .Values.ports.http }}
+              name: http
+              protocol: TCP
+          startupProbe:
+            periodSeconds: 1
+            failureThreshold: 60
+            httpGet:
+              path: /tickets.edn
+              port: http
+          readinessProbe:
+            initialDelaySeconds: 0
+            httpGet:
+              path: /tickets.edn
+              port: http
+          livenessProbe:
+            initialDelaySeconds: 0
+            tcpSocket:
+              port: http
+          resources:
+            requests:
+              cpu: {{ .Values.backend.resources.cpu }}
+              memory: {{ .Values.backend.resources.memory }}
+              ephemeral-storage: {{ .Values.backend.resources.ephemeralStorage }}
+            limits:
+              cpu: {{ .Values.backend.resources.cpu }}
+              memory: {{ .Values.backend.resources.memory }}
+              ephemeral-storage: {{ .Values.backend.resources.ephemeralStorage }}
+          securityContext:
+            runAsNonRoot: true
+            runAsGroup: 12345
+            runAsUser: 12345
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
+      volumes:
+        - name: store
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ .Release.Name }}-store
+          {{- else }}
+          emptyDir:
+            sizeLimit: {{ .Values.persistence.size }}
+          {{- end }}
+        - name: config
+          configMap:
+            name: {{ .Release.Name }}-backend
+        {{- if .Values.backend.signingKeySecret.name }}
+        - name: signing-key
+          secret:
+            secretName: {{ .Values.backend.signingKeySecret.name }}
+            defaultMode: 0400
+        {{- end }}
+        {{- if .Values.backend.passwordSecret.name }}
+        - name: secrets
+          secret:
+            secretName: {{ .Values.backend.passwordSecret.name }}
+            defaultMode: 0400
+        {{- end }}
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+{{- end }}

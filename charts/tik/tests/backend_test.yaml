@@ -1,0 +1,103 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+suite: test tik backend supervisor (mode backend)
+templates:
+  - deployment-backend.yaml
+  - configmap-backend.yaml
+tests:
+  - it: is the default mode
+    template: deployment-backend.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: tik
+  - it: is absent in split mode
+    template: deployment-backend.yaml
+    set:
+      mode: split
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: runs the backend supervisor over the pipelines config
+    template: deployment-backend.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].args
+          value:
+            - backend
+            - --config=/etc/tik/pipelines.edn
+      - equal:
+          path: spec.replicas
+          value: 1
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+      - equal:
+          path: metadata.labels["app.kubernetes.io/component"]
+          value: backend
+  - it: mounts the signing key and sets TIK_KEY only when configured
+    template: deployment-backend.yaml
+    set:
+      backend:
+        signingKeySecret:
+          name: tik-key
+          keyFile: id_ed25519
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TIK_KEY
+            value: /etc/tik-key/id_ed25519
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: signing-key
+            secret:
+              secretName: tik-key
+              defaultMode: 0400
+  - it: omits the key mount for a read-only (board-only) backend
+    template: deployment-backend.yaml
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TIK_KEY
+            value: /etc/tik-key/id_ed25519
+  - it: is Pod Security Standards restricted
+    template: deployment-backend.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+  - it: renders the pipelines into a ConfigMap
+    template: configmap-backend.yaml
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-backend
+      - matchRegex:
+          path: data["pipelines.edn"]
+          pattern: ":pipelines"
+      - matchRegex:
+          path: data["pipelines.edn"]
+          pattern: "serve"
+  - it: also renders extra config files
+    template: configmap-backend.yaml
+    set:
+      backend:
+        files:
+          mail.edn: "{:imap {:host \"x\"}}"
+    asserts:
+      - matchRegex:
+          path: data["mail.edn"]
+          pattern: ":imap"

@@ -2,23 +2,27 @@
 SPDX-FileCopyrightText: The helm-charts Authors
 SPDX-License-Identifier: 0BSD
 */ -}}
-{{- if and (eq .Values.mode "split") .Values.ingest.enabled -}}
+{{- if eq .Values.mode "backend" -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ .Release.Name }}-ingest
+  name: {{ .Release.Name }}-backend
   namespace: {{ .Release.Namespace }}
   labels:
     app.kubernetes.io/name: {{ .Chart.Name }}
-    app.kubernetes.io/component: ingest
+    app.kubernetes.io/component: backend
     app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
     app.kubernetes.io/part-of: {{ .Chart.Name }}
     app.kubernetes.io/managed-by: {{ .Release.Service }}
     helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
 data:
-  # The ingester config, passed via --config. The mailbox password is NOT here:
-  # reference it as {:file "/etc/tik/secrets/<key>"} against ingest.passwordSecret.
-  tik-ingest.edn: |
-    {{- .Values.ingest.config | nindent 4 }}
+  # The pipelines the supervisor runs, passed via --config. Mounted at
+  # /etc/tik alongside any extra files below; secrets stay in their own mounts.
+  pipelines.edn: |
+    {{- .Values.backend.config | nindent 4 }}
+  {{- range $name, $content := .Values.backend.files }}
+  {{ $name }}: |
+    {{- $content | nindent 4 }}
+  {{- end }}
 {{- end }}

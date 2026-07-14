@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: The helm-charts Authors
 # SPDX-License-Identifier: 0BSD
 
-{{- if and .Values.ingest.enabled (eq .Values.ingest.protocol "imap") }}
+{{- if and (eq .Values.mode "split") .Values.ingest.enabled (eq .Values.ingest.protocol "imap") }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:

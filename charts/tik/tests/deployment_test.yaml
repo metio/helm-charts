@@ -4,6 +4,8 @@
 suite: test tik board deployment
 templates:
   - deployment.yaml
+set:
+  mode: split
 tests:
   - it: is named tik and lives in the release namespace
     release:

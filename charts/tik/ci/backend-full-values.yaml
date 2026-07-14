@@ -1,0 +1,21 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+# The backend supervisor with a delegate key, a mail-ingest pipeline, and a
+# recurring-ticket cadence.
+backend:
+  signingKeySecret:
+    name: tik-signing-key
+  passwordSecret:
+    name: tik-mailbox-password
+  files:
+    mail.edn: |
+      {:imap {:host "imap.example.com" :user "desk@example.com"
+              :password {:file "/etc/tik-secrets/mailbox-password"}}
+       :process :support :default-actor "inbound"}
+  config: |
+    {:pipelines
+     [{:id :board :watch true :run ["serve" "--port" "7777"]}
+      {:id :mail :watch true
+       :run ["bridge" "imap" "--watch" "--config" "/etc/tik/mail.edn"] :as "tik-backend"}
+      {:id :release :every "PT1H" :run ["recur" "release-train"] :period :iso-week :as "tik-backend"}]}

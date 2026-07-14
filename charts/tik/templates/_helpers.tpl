@@ -3,6 +3,14 @@ SPDX-FileCopyrightText: The helm-charts Authors
 SPDX-License-Identifier: 0BSD
 */ -}}
 
+{{- /* The component label of the pod that serves the HTTP board — the `tik
+       backend` supervisor in backend mode, the standalone `tik serve` board in
+       split mode. The Service and NetworkPolicy select on this so they target
+       whichever mode is active. */ -}}
+{{- define "tik.httpComponent" -}}
+{{- if eq .Values.mode "backend" }}backend{{ else }}board{{ end -}}
+{{- end -}}
+
 {{- /* The mail-ingest container, shared by the IMAP --watch Deployment and the
        POP3 CronJob. Expects a dict: root (the chart context $), args (the tik
        argument list). It signs events, so it mounts the store read-write, the

@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: The helm-charts Authors
 # SPDX-License-Identifier: 0BSD
 
+{{- if eq .Values.mode "split" }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -180,3 +181,4 @@ spec:
         - name: tmp
           emptyDir:
             sizeLimit: 64Mi
+{{- end }}

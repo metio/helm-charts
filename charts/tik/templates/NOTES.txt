@@ -2,36 +2,33 @@
 SPDX-FileCopyrightText: The helm-charts Authors
 SPDX-License-Identifier: 0BSD
 */ -}}
-tik ({{ .Release.Name }}) installed in namespace {{ .Release.Namespace }}.
+tik ({{ .Release.Name }}) installed in namespace {{ .Release.Namespace }}, mode: {{ .Values.mode }}.
 
-The read-only board / EDN API is served by:
+{{ if eq .Values.mode "backend" -}}
+=== Backend mode — one supervisor ===
+
+A single `tik backend` process runs the pipelines in ConfigMap/{{ .Release.Name }}-backend
+(pipelines.edn) as a delegate: continuous pipelines (serve, bridge imap --watch)
+each get a restart-on-exit thread; scheduled ones fire on their :every interval.
+Edit backend.config to add mail ingestion, recurring tickets, dashboards, effects.
+
+{{ if not .Values.backend.signingKeySecret.name -}}
+NOTE: no backend.signingKeySecret is set, so the supervisor cannot SIGN events.
+That is fine for a board-only (read) pipeline set, but any pipeline that WRITES
+(recur/probe/effects/bridge) needs a delegate key — create a Secret with the
+Ed25519 key and set backend.signingKeySecret.name.
+{{ end -}}
+{{- else -}}
+=== Split mode — scalable board + separate ingest ===
+
+The board (`tik serve`) runs as its own Deployment ({{ .Values.replicas.min }}–{{ .Values.replicas.max }} replicas){{ if .Values.ingest.enabled }}; mail ingestion runs as a separate {{ if eq .Values.ingest.protocol "imap" }}IMAP --watch Deployment{{ else }}POP3 CronJob{{ end }}{{ end }}.
+{{- end }}
+
+Reach the board:
 
   kubectl --namespace {{ .Release.Namespace }} port-forward svc/tik {{ .Values.ports.http }}:{{ .Values.ports.http }}
-  # then open http://localhost:{{ .Values.ports.http }}/  (board)
-  #      or   http://localhost:{{ .Values.ports.http }}/tickets.edn  (data)
+  # then open http://localhost:{{ .Values.ports.http }}/  (board)  ·  /tickets.edn  (data)
 
-The store lives on {{ if .Values.persistence.enabled }}the PersistentVolumeClaim {{ .Release.Name }}-store{{ else }}an emptyDir (EPHEMERAL — data is lost when the pod restarts; set persistence.enabled=true){{ end }}, mounted at /var/lib/tik.
-
-{{ if .Values.ingest.enabled -}}
-=== Mail ingestion ({{ .Values.ingest.protocol }}) ===
-
-{{ if eq .Values.ingest.protocol "imap" -}}
-The tik-ingest Deployment holds an IMAP connection open (IMAP IDLE) and ingests
-mail as signed events the instant it arrives. It is loop-safe and idempotent.
-{{- else -}}
-The tik-ingest CronJob polls the POP3 mailbox on schedule "{{ .Values.ingest.schedule }}".
-{{- end }}
-
-It signs events with the key from Secret/{{ .Values.ingest.signingKeySecret.name }} and reads its
-config from ConfigMap/{{ .Release.Name }}-ingest. The mailbox password is resolved from
-{{ if .Values.ingest.passwordSecret.name }}Secret/{{ .Values.ingest.passwordSecret.name }} (mounted at /etc/tik/secrets){{ else }}the config's own secret spec{{ end }}.
-
-With a ReadWriteOnce store the board and ingester must share one node — the
-ingester prefers the board's node automatically. To scale the board across
-nodes, set persistence.accessModes to [ReadWriteMany].
-{{- else -}}
-Mail ingestion is off (ingest.enabled=false). The board only serves derivations
-of whatever events already exist in the store.
-{{- end }}
+The store is {{ if .Values.persistence.enabled }}the PersistentVolumeClaim {{ .Release.Name }}-store{{ else }}an emptyDir (EPHEMERAL — set persistence.enabled=true){{ end }}, at /var/lib/tik. With a ReadWriteOnce store keep to one writer; use ReadWriteMany to scale the board across nodes (split mode).
 
 Docs: https://github.com/metio/tik

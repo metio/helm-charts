@@ -4,6 +4,8 @@
 suite: test tik service
 templates:
   - service.yaml
+set:
+  mode: split
 tests:
   - it: is named tik and exposes the http port
     asserts:

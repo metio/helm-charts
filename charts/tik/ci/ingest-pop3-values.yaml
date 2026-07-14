@@ -1,6 +1,8 @@
 # SPDX-FileCopyrightText: The helm-charts Authors
 # SPDX-License-Identifier: 0BSD
 
+mode: split
+
 # The board plus a POP3 poller (CronJob).
 ingest:
   enabled: true

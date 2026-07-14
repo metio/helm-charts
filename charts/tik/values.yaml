@@ -22,6 +22,60 @@ image:
 # -- Image pull secrets for private registries.
 imagePullSecrets: []
 
+# @schema
+# type: string
+# enum: [backend, split]
+# @schema
+# -- How tik is deployed.
+# `backend` (the simple default): ONE `tik backend` supervisor process runs
+# everything you declare in `backend.config` (a pipelines.edn) — the board, mail
+# ingestion, recurring tickets, dashboards, effects — as a single delegated
+# agent. One Deployment, one config.
+# `split`: the board runs as its own horizontally-scalable Deployment and mail
+# ingestion as a separate workload — choose this only when you need to scale the
+# read board across nodes (which also needs a ReadWriteMany store).
+mode: backend
+
+# -- The `tik backend` supervisor (mode: backend). It runs the pipelines in
+# `config` as a delegate: continuous ones (serve, bridge imap --watch) each get
+# a restart-on-exit thread; scheduled ones fire on their :every interval. It
+# writes the store, so it needs a signing key.
+backend:
+  # -- Resource requests (mirrored as limits) for the supervisor.
+  resources:
+    memory: 320Mi
+    cpu: 200m
+    ephemeralStorage: 256Mi
+  # -- The pipelines.edn, rendered verbatim into a ConfigMap and passed via
+  # --config. The board pipeline is on by default; uncomment the others (or add
+  # recur/probe/effects pipelines) as needed. Reference any mailbox password as
+  # {:file "/etc/tik/secrets/<key>"} against passwordSecret below.
+  config: |
+    {:pipelines
+     [{:id :board :watch true :run ["serve" "--port" "7777"]}
+      ;; {:id :mail :watch true
+      ;;  :run ["bridge" "imap" "--watch" "--config" "/etc/tik/mail.edn"]
+      ;;  :as "tik-backend"}
+      ;; {:id :release :every "PT1H" :run ["recur" "release-train"]
+      ;;  :period :iso-week :as "tik-backend"}
+      ;; {:id :dashboard :every "PT1H" :run ["probe"] :as "tik-backend"}
+      ]}
+  # -- Extra config files to mount at /etc/tik (e.g. a mail.edn referenced by a
+  # bridge pipeline). Map of filename -> file contents.
+  files: {}
+  # -- A Secret with the delegate's Ed25519 signing key (TIK_KEY). Required in
+  # backend mode so produced events are signed by the delegate.
+  signingKeySecret:
+    # -- Name of the Secret holding the signing key.
+    name: ""
+    # -- Key within the Secret that holds the private key file.
+    keyFile: id_ed25519
+  # -- A Secret whose keys are mounted at /etc/tik/secrets (mailbox passwords
+  # etc., resolved by {:file …} specs in the config). Optional.
+  passwordSecret:
+    # -- Name of the Secret to mount at /etc/tik/secrets.
+    name: ""
+
 # -- Replica bounds for the read-only board (`tik serve`). Reads are
 # derived-on-read and hold no authoritative state, so the board scales
 # horizontally — but every replica must reach the same store, so scaling

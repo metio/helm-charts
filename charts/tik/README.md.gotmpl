@@ -21,11 +21,43 @@ helm install SOME_RELEASE oci://ghcr.io/metio/helm-charts/tik --version SOME_VER
 
 Replace `SOME_RELEASE` and `SOME_VERSION` with appropriate values for your environment. In general, we recommend running the latest available version.
 
-## What gets deployed
+## Deployment modes
 
-- **The board** (`tik serve`) — a read-only HTTP surface: `/` renders the live board, `/tickets.edn` and `/explain/<id>.edn` expose the same derivations for tools. Everything it serves is derived on read, so it holds no authoritative state and scales horizontally (see the store note below). Fronted by a ClusterIP `Service`; expose it with your own Ingress or Gateway.
-- **The store** — an append-only directory of signed, content-addressed events on a `PersistentVolumeClaim` mounted at `/var/lib/tik` (`TIK_ROOT`). This is the one piece of durable state.
-- **The mail ingester** (opt-in, `ingest.enabled: true`) — see below.
+Set `mode` to choose how tik runs:
+
+- **`backend`** (the default, and the simple one) — a single `tik backend`
+  supervisor process runs everything you declare in `backend.config` (a
+  `pipelines.edn`) as one delegated agent: the board, mail ingestion, recurring
+  tickets, dashboards, effects. **One Deployment, one config.** A pipeline is
+  either continuous (`:watch true` — `serve`, `bridge imap --watch`, each
+  restarted on exit) or scheduled (a verb fired on an `:every` ISO-8601
+  interval — `recur`/`probe`/`bridge pop3`/`effects`). Because it acts by
+  producing ordinary signed, content-addressed events, and `recur` is
+  idempotent, it needs no leader — a missed fire self-heals.
+
+  ```yaml
+  mode: backend
+  backend:
+    signingKeySecret: { name: tik-signing-key }   # so it can sign events it writes
+    config: |
+      {:pipelines
+       [{:id :board :watch true :run ["serve" "--port" "7777"]}
+        {:id :mail  :watch true :run ["bridge" "imap" "--watch" "--config" "/etc/tik/mail.edn"] :as "tik-backend"}
+        {:id :release :every "PT1H" :run ["recur" "release-train"] :period :iso-week :as "tik-backend"}]}
+    files:
+      mail.edn: |
+        {:imap {:host "imap.example.com" :user "desk@example.com"
+                :password {:file "/etc/tik-secrets/mailbox-password"}}
+         :process :support :default-actor "inbound"}
+    passwordSecret: { name: tik-mailbox-password }   # mounted at /etc/tik-secrets
+  ```
+
+- **`split`** — the board (`tik serve`) runs as its own **horizontally
+  scalable** Deployment and mail ingestion as a separate workload. Choose this
+  only when you need to scale the read board across nodes (which also needs a
+  `ReadWriteMany` store). See the ingestion and scaling notes below.
+
+Both modes serve the same read-only board — `/` (live board), `/tickets.edn`, and `/explain/<id>.edn` — fronted by a ClusterIP `Service`; expose it with your own Ingress or Gateway. The **store** is an append-only directory of signed, content-addressed events on a `PersistentVolumeClaim` at `/var/lib/tik` (`TIK_ROOT`) — the one piece of durable state.
 
 ## The store and horizontal scaling
 

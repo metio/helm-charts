@@ -10,7 +10,7 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     app.kubernetes.io/name: {{ .Chart.Name }}
-    app.kubernetes.io/component: board
+    app.kubernetes.io/component: {{ include "tik.httpComponent" . }}
     app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
     app.kubernetes.io/part-of: {{ .Chart.Name }}
@@ -20,7 +20,7 @@ spec:
   podSelector:
     matchLabels:
       app.kubernetes.io/name: {{ .Chart.Name }}
-      app.kubernetes.io/component: board
+      app.kubernetes.io/component: {{ include "tik.httpComponent" . }}
       app.kubernetes.io/instance: {{ .Release.Name }}
       app.kubernetes.io/part-of: {{ .Chart.Name }}
   policyTypes:
