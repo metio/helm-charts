@@ -1,12 +1,11 @@
 # SPDX-FileCopyrightText: The helm-charts Authors
 # SPDX-License-Identifier: 0BSD
 
+# A horizontally scaled board (HPA + PDB render). ReadWriteOnce is kept (the
+# default): single-node chart-testing has no ReadWriteMany provisioner, and RWO
+# lets multiple pods on the one node share the store. Real cross-node scaling
+# needs ReadWriteMany — that is a production concern, not a ct-install smoke.
 mode: split
-
-# A horizontally scaled board on a shared ReadWriteMany store (HPA + PDB render).
 replicas:
   min: 2
   max: 6
-persistence:
-  accessModes:
-    - ReadWriteMany

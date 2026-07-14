@@ -1,14 +1,16 @@
 # SPDX-FileCopyrightText: The helm-charts Authors
 # SPDX-License-Identifier: 0BSD
 
+# The board plus a POP3 poller (CronJob, split mode). Self-contained config for
+# the same reason as the imap fixture: no {:file …} secret spec.
 mode: split
-
-# The board plus a POP3 poller (CronJob).
 ingest:
   enabled: true
   protocol: pop3
   schedule: "*/5 * * * *"
   signingKeySecret:
     name: tik-signing-key
-  passwordSecret:
-    name: tik-mailbox-password
+  config: |
+    {:pop3 {:host "127.0.0.1" :port 11110 :tls false
+            :user "ci" :password "ci"}
+     :process :track :default-actor "inbound"}

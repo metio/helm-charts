@@ -1,13 +1,19 @@
 # SPDX-FileCopyrightText: The helm-charts Authors
 # SPDX-License-Identifier: 0BSD
 
+# The board plus a live IMAP --watch ingester (split mode). chart-testing
+# installs into a fresh random namespace and can't pre-create Secrets, so the
+# config is SELF-CONTAINED: a literal password (never a {:file …} spec, which
+# fails hard at startup when the Secret is absent) and an unreachable loopback
+# host — the watcher just reconnect-loops harmlessly and the pod stays Ready.
 mode: split
-
-# The board plus a live IMAP --watch ingester.
 ingest:
   enabled: true
   protocol: imap
   signingKeySecret:
     name: tik-signing-key
-  passwordSecret:
-    name: tik-mailbox-password
+  config: |
+    {:imap {:host "127.0.0.1" :port 11143 :tls false
+            :user "ci" :password "ci"
+            :mailbox "INBOX" :search "UNSEEN"}
+     :process :track :default-actor "inbound"}
