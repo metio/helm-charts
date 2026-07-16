@@ -53,21 +53,22 @@ tests:
             apiGroups: [""]
             resources: [events]
             verbs: [create, list, patch]
-  - it: grants the cached-client reads for postBuild/errorBudget/kubeConfig secrets and configmaps
+  - it: grants no secret or configmap access at all
     template: templates/clusterrole.yaml
     asserts:
-      # The controller reads Secrets/ConfigMaps through its cached client
-      # (postBuild.substituteFrom, errorBudget metric-source tokens,
-      # spec.kubeConfig secretRef/configMapRef); a cached Get lazily starts an
-      # informer, so list+watch are required, not just get. Mirrors
-      # config/rbac/role.yaml.
-      - contains:
+      # Every Secret/ConfigMap the controller reads is one a StageSet named in
+      # its own spec (postBuild.substituteFrom, the metric-source bearer token,
+      # decryption keys, action secretRefs, spec.kubeConfig), and each is read as
+      # that StageSet's serviceAccountName. A grant here would let any StageSet
+      # author reach any Secret in their namespace, since they pick the names —
+      # and would back the reads with cluster-wide informers. Mirrors
+      # config/rbac/role.yaml, which controller-gen renders without this rule.
+      - notContains:
           path: rules
           content:
             apiGroups: [""]
             resources: [configmaps, secrets]
             verbs: [get, list, watch]
-          count: 1
   - it: grants the serviceaccounts read for object-level KMS tenant credential lookup
     template: templates/clusterrole.yaml
     asserts:
@@ -104,8 +105,9 @@ tests:
   - it: does not grant secret or configmap writes
     template: templates/clusterrole.yaml
     asserts:
-      # The controller only reads config material; rendered-manifest writes run
-      # as the tenant SA, never through this role.
+      # Reads are refused outright by the test above; these pin that no write
+      # shape slips in either. Rendered-manifest writes run as the tenant SA,
+      # never through this role.
       - notContains:
           path: rules
           content:
@@ -127,20 +129,20 @@ tests:
             apiGroups: [events.k8s.io]
             resources: [events]
             verbs: [create, list, patch]
-  - it: tenant role keeps the cached-read and event grants under a scoped watch
+  - it: tenant role keeps its grants — and its secret refusal — under a scoped watch
     template: templates/clusterrole.yaml
     set:
       controller.watchNamespaces: [team-a, team-b]
     asserts:
       # The per-namespace RoleBinding pivot binds this same ClusterRole, so the
-      # rules must not change shape when the watch is scoped.
-      - contains:
+      # rules must not change shape when the watch is scoped — including the
+      # absence of a secrets/configmaps grant.
+      - notContains:
           path: rules
           content:
             apiGroups: [""]
             resources: [configmaps, secrets]
             verbs: [get, list, watch]
-          count: 1
       - contains:
           path: rules
           content:

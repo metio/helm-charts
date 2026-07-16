@@ -16,6 +16,17 @@
 # with the provided kubeconfig and is unaffected by this ClusterRole.) Events are
 # added on top of controller-gen's set so the EventRecorder can annotate
 # StageSets in any namespace.
+#
+# There is deliberately no secrets/configmaps rule. Every Secret and ConfigMap
+# the controller reads is one a StageSet named in its own spec — postBuild
+# substituteFrom, the metric-source bearer token, decryption keys, action
+# secretRefs, spec.kubeConfig — and each is read as that StageSet's
+# serviceAccountName, so the tenant's RBAC bounds it. A cluster-wide read here
+# would let any StageSet author reach any Secret in their namespace, because
+# they choose the names. It would also back those reads with cluster-wide Secret
+# and ConfigMap informers. Grant the tenant ServiceAccounts `get` on the objects
+# their StageSets reference instead; rbac.clusterAdmin covers the single-tenant
+# install.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -23,13 +34,6 @@ metadata:
   labels:
     {{- include "stageset.labels" . | nindent 4 }}
 rules:
-  # The controller reads Secrets and ConfigMaps through its cached client:
-  # postBuild.substituteFrom, the errorBudget metric-source bearer-token secret,
-  # and spec.kubeConfig secretRef/configMapRef. A cached Get lazily starts an
-  # informer, which needs list+watch — get alone fails Forbidden at cache sync.
-  - apiGroups: [""]
-    resources: [configmaps, secrets]
-    verbs: [get, list, watch]
   # --object-level-kms resolves the tenant ServiceAccount (cloud workload
   # identity annotations) through the same cached client, so the SA read needs
   # the informer verbs too.
