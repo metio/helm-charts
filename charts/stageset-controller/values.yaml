@@ -144,6 +144,14 @@ rbac:
   # serviceAccountName and the controller only impersonates those scoped SAs.
   clusterAdmin: false
 
+  # -- Aggregate read (get/list/watch) on StageLedgers into the built-in `view`
+  # ClusterRole, so a namespace user who can already view their StageSets can see
+  # why a scope: Lifetime action was skipped (which bootstrap already ran). Off by
+  # default: it widens what `view` exposes, a deliberate choice on a multi-tenant
+  # permission surface. Enabling it grants read only — never write; forgetting a
+  # completion stays an operator action via `stagesetctl reset-ledger`.
+  ledgerView: false
+
 # -- Pre-delete cleanup hook. StageSets carry a finalizer
 # (stages.metio.wtf/finalizer) that tears down the objects a StageSet applied.
 # A plain `helm uninstall` removes the controller while StageSets still hold

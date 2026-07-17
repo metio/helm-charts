@@ -4,6 +4,7 @@ suite: test stageset RBAC
 templates:
   - templates/clusterrole.yaml
   - templates/clusterrole-cluster.yaml
+  - templates/clusterrole-ledger-view.yaml
   - templates/clusterrolebinding.yaml
   - templates/clusterrolebinding-cluster.yaml
   - templates/clusterrolebinding-cluster-admin.yaml
@@ -11,6 +12,44 @@ templates:
   - templates/role-leader-election.yaml
   - templates/serviceaccount.yaml
 tests:
+  - it: grants the StageLedger and its status for scope Lifetime
+    template: templates/clusterrole.yaml
+    asserts:
+      # get/list/watch/create the ledger; write only its status (spec.baseline is
+      # operator-owned); no finalizers (not owner-referenced).
+      - contains:
+          path: rules
+          content:
+            apiGroups: [stages.metio.wtf]
+            resources: [stageledgers]
+            verbs: [create, get, list, watch]
+      - contains:
+          path: rules
+          content:
+            apiGroups: [stages.metio.wtf]
+            resources: [stageledgers/status]
+            verbs: [get, patch, update]
+  - it: renders no ledger-view ClusterRole by default
+    template: templates/clusterrole-ledger-view.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: aggregates StageLedger read into view when rbac.ledgerView is on
+    template: templates/clusterrole-ledger-view.yaml
+    set:
+      rbac.ledgerView: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: metadata.labels["rbac.authorization.k8s.io/aggregate-to-view"]
+          value: "true"
+      - contains:
+          path: rules
+          content:
+            apiGroups: [stages.metio.wtf]
+            resources: [stageledgers]
+            verbs: [get, list, watch]
   - it: grants token mint, events, stagesets, and externalartifacts
     template: templates/clusterrole.yaml
     asserts:
