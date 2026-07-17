@@ -82,6 +82,16 @@ rules:
   - apiGroups: [stages.metio.wtf]
     resources: [stageinventories]
     verbs: [create, delete, get, list, patch, update, watch]
+  # The scope: Lifetime action ledger. The controller get/list/watch/creates it
+  # and writes only its status; spec.baseline is author/operator-owned (via
+  # `stagesetctl baseline`), so no update on the object itself. Not owner-
+  # referenced, so no finalizers rule.
+  - apiGroups: [stages.metio.wtf]
+    resources: [stageledgers]
+    verbs: [create, get, list, watch]
+  - apiGroups: [stages.metio.wtf]
+    resources: [stageledgers/status]
+    verbs: [get, patch, update]
   - apiGroups: [stages.metio.wtf]
     resources: [stagesets]
     verbs: [get, list, patch, update, watch]

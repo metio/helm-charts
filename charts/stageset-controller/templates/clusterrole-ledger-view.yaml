@@ -1,0 +1,22 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+# Opt-in (rbac.ledgerView) read access to StageLedgers for namespace users,
+# delivered by aggregating into the built-in `view` ClusterRole rather than a
+# bespoke binding: anyone who can already `view` a namespace's StageSets then
+# also sees their StageLedgers — the "why didn't my bootstrap run" answer —
+# without the chart owning a per-namespace RoleBinding. Read only: forgetting a
+# completion stays an operator action (`stagesetctl reset-ledger`).
+{{- if .Values.rbac.ledgerView }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "stageset.name" . }}-ledger-view
+  labels:
+    rbac.authorization.k8s.io/aggregate-to-view: "true"
+    {{- include "stageset.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [stages.metio.wtf]
+    resources: [stageledgers]
+    verbs: [get, list, watch]
+{{- end }}
