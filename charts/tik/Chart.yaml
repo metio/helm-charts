@@ -36,4 +36,4 @@ version: 0.0.0
 # releases (not the ghcr image) so the bump only fires once the release/tag
 # exists — see renovate.json.
 # renovate: datasource=github-releases depName=metio/tik
-appVersion: "2026.7.18115134"
+appVersion: "2026.7.18213457"
