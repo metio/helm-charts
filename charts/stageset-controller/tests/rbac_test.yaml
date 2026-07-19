@@ -275,6 +275,15 @@ tests:
       - hasDocuments:
           count: 1
         template: templates/clusterrole-cluster.yaml
+      # The FleetRollout controller lists namespaces cluster-wide (cluster-scoped),
+      # so a per-namespace RoleBinding cannot convey it — it lives in the cluster role.
+      - contains:
+          path: rules
+          content:
+            apiGroups: [""]
+            resources: [namespaces]
+            verbs: [get, list, watch]
+        template: templates/clusterrole-cluster.yaml
       - contains:
           path: rules
           content:
