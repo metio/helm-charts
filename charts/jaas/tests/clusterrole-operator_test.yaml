@@ -168,6 +168,58 @@ tests:
             resources: [validatingwebhookconfigurations]
             verbs: [get, patch, update]
 
+  - it: grants no secret or configmap access at all
+    set:
+      operator:
+        enabled: true
+    asserts:
+      # Everything a snippet needs is resolved without the operator's own
+      # identity reading Secrets: inline spec.files, sourceRef artifacts fetched
+      # as the tenant SA (token mint + impersonation), and CR-spec variables. A
+      # grant here would let the operator read every Secret cluster-wide,
+      # defeating the tenant-SA boundary that impersonation exists to enforce.
+      # Mirrors config/rbac/role.yaml, which controller-gen renders without it.
+      - notContains:
+          path: rules
+          content:
+            apiGroups: [""]
+            resources: [configmaps, secrets]
+            verbs: [get, list, watch]
+
+  - it: does not grant secret or configmap writes
+    set:
+      operator:
+        enabled: true
+    asserts:
+      # Reads are refused above; these pin that no write shape slips in either.
+      - notContains:
+          path: rules
+          content:
+            apiGroups: [""]
+            resources: [configmaps, secrets]
+            verbs: [create, update, patch, delete]
+      - notContains:
+          path: rules
+          content:
+            apiGroups: [""]
+            resources: [secrets]
+            verbs: ["*"]
+
+  - it: does not grant blanket write access (output is published, never applied)
+    set:
+      operator:
+        enabled: true
+    asserts:
+      # The operator publishes an ExternalArtifact and writes its own CRD status;
+      # it never applies rendered manifests, so it needs no write to arbitrary
+      # kinds. Downstream Flux consumers apply the artifact under their own RBAC.
+      - notContains:
+          path: rules
+          content:
+            apiGroups: ["*"]
+            resources: ["*"]
+            verbs: ["*"]
+
   - it: carries the operator component label
     set:
       operator:
