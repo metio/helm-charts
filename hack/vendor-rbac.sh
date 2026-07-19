@@ -181,6 +181,9 @@ render_role() {
   emit_rules "$bucket"
   [ -n "$append_vwc" ] && vwc_block
   [ -n "$gate_close" ] && printf '%s\n' "$gate_close"
+  # A trailing `[ -n "" ]` (empty gate/vwc) returns 1; without this the function's
+  # non-zero return would trip `set -e` at the top-level `render_role > file` call.
+  return 0
 }
 
 render_role "$tenant_name" \
