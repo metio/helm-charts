@@ -1,12 +1,16 @@
 # SPDX-FileCopyrightText: The helm-charts Authors
 # SPDX-License-Identifier: 0BSD
 
-{{- if and .Values.webhook.enabled (eq .Values.webhook.certMode "self-signed") }}
-# Cluster-scope ClusterRole. The self-signed cert provisioner patches the
-# ValidatingWebhookConfiguration's caBundle in-pod — a cluster-scoped resource,
-# so this grant always binds cluster-wide (clusterrolebinding-cluster.yaml),
-# independent of controller.watchNamespaces. cert-manager mode injects the CA
-# itself and needs none of this.
+# Cluster-scope ClusterRole. FleetRollout and ImageVerificationPolicy are
+# cluster-scoped CRDs, so the controller's access to them must be bound
+# cluster-wide (clusterrolebinding-cluster.yaml) regardless of
+# controller.watchNamespaces — a per-namespace RoleBinding cannot grant a
+# cluster-scoped resource, and the controller watches both cluster-wide even when
+# its StageSet cache is namespace-scoped. This role therefore always renders.
+#
+# The self-signed cert provisioner's ValidatingWebhookConfiguration caBundle patch
+# is also cluster-scoped and lives here, but only that cert mode needs it, so that
+# one rule stays conditional.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -14,6 +18,22 @@ metadata:
   labels:
     {{- include "stageset.labels" . | nindent 4 }}
 rules:
+  # FleetRollout orchestrates StageSets across namespaces; the controller watches
+  # and reconciles it (finalizer lifecycle + status). Cluster-scoped.
+  - apiGroups: [stages.metio.wtf]
+    resources: [fleetrollouts]
+    verbs: [create, delete, get, list, patch, update, watch]
+  - apiGroups: [stages.metio.wtf]
+    resources: [fleetrollouts/status]
+    verbs: [get, patch, update]
+  # ImageVerificationPolicy is the cluster-scoped policy the image-verification
+  # gate reads before a stage applies its images.
+  - apiGroups: [stages.metio.wtf]
+    resources: [imageverificationpolicies]
+    verbs: [get, list, watch]
+{{- if and .Values.webhook.enabled (eq .Values.webhook.certMode "self-signed") }}
+  # The self-signed cert provisioner patches its named VWC's caBundle in-pod.
+  # cert-manager mode injects the CA itself and needs none of this.
   - apiGroups: [admissionregistration.k8s.io]
     resources: [validatingwebhookconfigurations]
     resourceNames:
