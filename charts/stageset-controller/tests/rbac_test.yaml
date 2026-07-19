@@ -270,13 +270,60 @@ tests:
     asserts:
       - hasDocuments:
           count: 0
-  - it: cluster-scope VWC role is bound cluster-wide in self-signed mode
-    set:
-      webhook.certMode: self-signed
+  - it: cluster-scope role always grants the FleetRollout and ImageVerificationPolicy CRDs
     asserts:
       - hasDocuments:
           count: 1
         template: templates/clusterrole-cluster.yaml
+      - contains:
+          path: rules
+          content:
+            apiGroups: [stages.metio.wtf]
+            resources: [fleetrollouts]
+            verbs: [create, delete, get, list, patch, update, watch]
+        template: templates/clusterrole-cluster.yaml
+      - contains:
+          path: rules
+          content:
+            apiGroups: [stages.metio.wtf]
+            resources: [fleetrollouts/status]
+            verbs: [get, patch, update]
+        template: templates/clusterrole-cluster.yaml
+      - contains:
+          path: rules
+          content:
+            apiGroups: [stages.metio.wtf]
+            resources: [imageverificationpolicies]
+            verbs: [get, list, watch]
+        template: templates/clusterrole-cluster.yaml
+      # Cluster-scoped CRDs can only be bound cluster-wide.
+      - hasDocuments:
+          count: 1
+        template: templates/clusterrolebinding-cluster.yaml
+  - it: cluster-scope role and binding render even with the webhook disabled
+    set:
+      webhook.enabled: false
+    asserts:
+      # Regression guard: the FleetRollout / ImageVerificationPolicy grants must
+      # not be gated on the webhook. When they were, the controller crash-looped
+      # ("cannot list fleetrollouts") on every install that turned the webhook off.
+      - hasDocuments:
+          count: 1
+        template: templates/clusterrole-cluster.yaml
+      - contains:
+          path: rules
+          content:
+            apiGroups: [stages.metio.wtf]
+            resources: [fleetrollouts]
+            verbs: [create, delete, get, list, patch, update, watch]
+        template: templates/clusterrole-cluster.yaml
+      - hasDocuments:
+          count: 1
+        template: templates/clusterrolebinding-cluster.yaml
+  - it: cluster-scope role includes the VWC caBundle patch in self-signed mode
+    set:
+      webhook.certMode: self-signed
+    asserts:
       - contains:
           path: rules
           content:
@@ -286,18 +333,31 @@ tests:
               - stageset-controller-NAMESPACE
             verbs: [get, update]
         template: templates/clusterrole-cluster.yaml
-      - hasDocuments:
-          count: 1
-        template: templates/clusterrolebinding-cluster.yaml
-  - it: cluster-scope VWC role is omitted in cert-manager mode
+  - it: cluster-scope role omits the VWC patch in cert-manager mode but keeps the CRD grants
     set:
       webhook.certMode: cert-manager
     asserts:
       - hasDocuments:
-          count: 0
+          count: 1
+        template: templates/clusterrole-cluster.yaml
+      - notContains:
+          path: rules
+          content:
+            apiGroups: [admissionregistration.k8s.io]
+            resources: [validatingwebhookconfigurations]
+            resourceNames:
+              - stageset-controller-NAMESPACE
+            verbs: [get, update]
+        template: templates/clusterrole-cluster.yaml
+      - contains:
+          path: rules
+          content:
+            apiGroups: [stages.metio.wtf]
+            resources: [fleetrollouts]
+            verbs: [create, delete, get, list, patch, update, watch]
         template: templates/clusterrole-cluster.yaml
       - hasDocuments:
-          count: 0
+          count: 1
         template: templates/clusterrolebinding-cluster.yaml
   - it: cluster-admin binding is omitted by default
     template: templates/clusterrolebinding-cluster-admin.yaml

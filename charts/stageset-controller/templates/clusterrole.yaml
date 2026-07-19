@@ -4,8 +4,9 @@
 # Tenant-scope ClusterRole. Every resource here is namespaced, so when
 # controller.watchNamespaces is set this role is bound per-namespace via
 # RoleBindings (rolebinding-tenants.yaml) instead of a cluster-wide
-# ClusterRoleBinding. The cluster-scoped grant (ValidatingWebhookConfiguration)
-# lives in clusterrole-cluster.yaml, which always binds cluster-wide.
+# ClusterRoleBinding. The cluster-scoped grants (the FleetRollout and
+# ImageVerificationPolicy CRDs, and the ValidatingWebhookConfiguration caBundle
+# patch) live in clusterrole-cluster.yaml, which always binds cluster-wide.
 #
 # Mirrors config/rbac/role.yaml (controller-gen) from the source repo. The
 # permissions to apply the manifests a StageSet renders are deliberately NOT

@@ -1,7 +1,10 @@
 # SPDX-FileCopyrightText: The helm-charts Authors
 # SPDX-License-Identifier: 0BSD
 
-{{- if and .Values.webhook.enabled (eq .Values.webhook.certMode "self-signed") }}
+# Always bound cluster-wide: the cluster-scoped ClusterRole grants access to the
+# cluster-scoped FleetRollout and ImageVerificationPolicy CRDs (and, in
+# self-signed cert mode, the VWC caBundle patch), none of which a per-namespace
+# RoleBinding can convey. Independent of controller.watchNamespaces.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -16,4 +19,3 @@ subjects:
   - kind: ServiceAccount
     name: {{ include "stageset.name" . }}
     namespace: {{ include "stageset.namespace" . }}
-{{- end }}
