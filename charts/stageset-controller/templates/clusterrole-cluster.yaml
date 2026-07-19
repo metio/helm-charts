@@ -18,6 +18,11 @@ metadata:
   labels:
     {{- include "stageset.labels" . | nindent 4 }}
 rules:
+  # The FleetRollout controller lists namespaces cluster-wide to resolve its
+  # namespace selectors into the StageSets a rollout targets. Cluster-scoped.
+  - apiGroups: [""]
+    resources: [namespaces]
+    verbs: [get, list, watch]
   # FleetRollout orchestrates StageSets across namespaces; the controller watches
   # and reconciles it (finalizer lifecycle + status). Cluster-scoped.
   - apiGroups: [stages.metio.wtf]
