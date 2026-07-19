@@ -148,6 +148,14 @@ jobs:
         # installs cleanly.
         run: |
           kubectl apply -f https://github.com/cert-manager/cert-manager/releases/latest/download/cert-manager.yaml
+          # A cert-manager.io resource is admitted by the cert-manager webhook, which
+          # the apiserver can only reach once the cainjector has stamped the webhook's
+          # caBundle AND the webhook serves a cert signed by that CA. Waiting only on
+          # the webhook deployment races that propagation (x509: signed by unknown
+          # authority), so wait for all three deployments — the cainjector is the one
+          # that injects the caBundle.
+          kubectl -n cert-manager rollout status deploy/cert-manager --timeout=300s
+          kubectl -n cert-manager rollout status deploy/cert-manager-cainjector --timeout=300s
           kubectl -n cert-manager rollout status deploy/cert-manager-webhook --timeout=300s
           # ServiceMonitor / PrometheusRule live in monitoring.coreos.com; charts
           # render them when metrics scraping is enabled (stageset's
@@ -160,7 +168,7 @@ jobs:
           # into a fresh random namespace each run, so a namespaced Issuer couldn't
           # be pre-created there. A self-signed ClusterIssuer is enough to sign the
           # webhook serving cert.
-          kubectl apply -f - <<'EOF'
+          cat > /tmp/stageset-clusterissuer.yaml <<'EOF'
           apiVersion: cert-manager.io/v1
           kind: ClusterIssuer
           metadata:
@@ -168,6 +176,16 @@ jobs:
           spec:
             selfSigned: {}
           EOF
+          # Even after the deployments report ready, the caBundle/serving-cert
+          # propagation to the apiserver lags a few seconds, so retry until the
+          # webhook actually admits the resource rather than failing the first call.
+          for i in $(seq 1 30); do
+            kubectl apply -f /tmp/stageset-clusterissuer.yaml && break
+            echo "cert-manager webhook not ready yet (attempt ${i}/30); retrying in 5s"
+            sleep 5
+          done
+          # Fail loud if it never came up, instead of racing on downstream steps.
+          kubectl get clusterissuer stageset-selfsigned
           kubectl apply -f https://github.com/fluxcd/source-controller/releases/latest/download/source-controller.crds.yaml
           # Charts install with crds.create=false in CI (their ci values), because
           # ct installs each chart once per ci values file and a kept, cluster-
