@@ -5,32 +5,92 @@
 # Generate a controller chart's ClusterRoles from its released config/rbac/role.yaml
 # (controller-gen output), so the chart's RBAC can never drift from what the binary
 # declares it needs — the same vendoring model as the CRDs: fetch at the chart's
-# appVersion, gitignore the result, regenerate per run. Only the stageset-controller
-# chart is generated; the jaas chart's operator RBAC stays hand-authored.
+# appVersion, gitignore the result, regenerate per run.
 #
 #   hack/vendor-rbac.sh ghcr.io/metio/stageset-controller <version>
+#   hack/vendor-rbac.sh ghcr.io/metio/jaas <version>
 #
 # The flat role.yaml is split by resource scope: namespaced resources go in the
-# tenant ClusterRole (bound per-namespace when controller.watchNamespaces is set),
+# tenant ClusterRole (bound per-namespace when the chart scopes its watches),
 # cluster-scoped ones in the cluster ClusterRole (always bound cluster-wide, since a
-# RoleBinding can't convey a cluster-scoped grant). Scope comes from the vendored
-# CRD templates for custom resources and a fixed map for built-in kinds, so a new
+# RoleBinding can't convey a cluster-scoped grant). Scope comes from the vendored CRD
+# templates for custom resources and a fixed map for built-in kinds, so a new
 # cluster-scoped CRD lands in the right role with no edit here.
 #
-# validatingwebhookconfigurations is excluded from the split and appended below
-# instead: the chart scopes it to the operator's own VWC by resourceNames and only
-# in self-signed cert mode, neither of which role.yaml can express.
+# validatingwebhookconfigurations is excluded from the split and appended by
+# vwc_block instead: the chart scopes it to the operator's own VWC by resourceNames
+# and only in self-signed cert mode, neither of which role.yaml can express. Each
+# chart's leader-election Role (coordination.k8s.io/leases) stays hand-authored —
+# controller-gen's flat ClusterRole cannot express a namespaced Role.
 set -euo pipefail
 
 image="${1:?usage: vendor-rbac.sh <image> <version>}"
 version="${2:?usage: vendor-rbac.sh <image> <version>}"
 
+root="$(cd "$(dirname "$0")/.." && pwd)"
+
+# Per-chart scaffolding: role names + files (which the bindings reference), the
+# labels block, any enclosing render gate, and the chart's VWC rule.
 case "$image" in
-  ghcr.io/metio/stageset-controller) chart="stageset-controller"; repo="metio/stageset-controller" ;;
-  *) exit 0 ;; # RBAC generation is stageset-only; the jaas chart's RBAC is hand-authored.
+  ghcr.io/metio/stageset-controller)
+    chart="stageset-controller"; repo="metio/stageset-controller"
+    tenant_file="clusterrole-controller.yaml"; cluster_file="clusterrole-controller-cluster.yaml"
+    tenant_name='{{ include "stageset.name" . }}'
+    cluster_name='{{ include "stageset.name" . }}-cluster'
+    gate_open=""; gate_close=""
+    labels() { printf '  labels:\n    {{- include "stageset.labels" . | nindent 4 }}\n'; }
+    vwc_block() {
+      cat <<'EOF'
+{{- if and .Values.webhook.enabled (eq .Values.webhook.certMode "self-signed") }}
+  # The self-signed cert provisioner patches its own ValidatingWebhookConfiguration's
+  # caBundle in-pod. Scoped to that named VWC by resourceNames (which role.yaml can't
+  # express) and needed only in this cert mode, so it is owned here, not generated.
+  - apiGroups: [admissionregistration.k8s.io]
+    resources: [validatingwebhookconfigurations]
+    resourceNames:
+      - {{ include "stageset.name" . }}-{{ include "stageset.namespace" . }}
+    verbs: [get, update]
+{{- end }}
+EOF
+    }
+    ;;
+  ghcr.io/metio/jaas)
+    chart="jaas"; repo="metio/jaas"
+    tenant_file="clusterrole-operator.yaml"; cluster_file="clusterrole-operator-cluster.yaml"
+    tenant_name='{{ .Release.Name }}-operator-tenants'
+    cluster_name='{{ .Release.Name }}-operator-cluster'
+    gate_open='{{- if and .Values.operator.enabled .Values.operator.rbac.create -}}'
+    gate_close='{{- end }}'
+    labels() {
+      cat <<'EOF'
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/component: operator
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+    app.kubernetes.io/part-of: {{ .Chart.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+EOF
+    }
+    vwc_block() {
+      cat <<'EOF'
+{{- if and .Values.operator.webhook.enabled (eq .Values.operator.webhook.certMode "self-signed") }}
+  # Self-signed webhook mode: the operator stamps its own VWC's caBundle. Scoped to
+  # that named VWC by resourceNames (which role.yaml can't express) and needed only
+  # in this cert mode, so it is owned here, not generated.
+  - apiGroups: [admissionregistration.k8s.io]
+    resources: [validatingwebhookconfigurations]
+    resourceNames:
+      - {{ .Release.Name }}-jsonnetsnippet
+    verbs: [get, update]
+{{- end }}
+EOF
+    }
+    ;;
+  *) exit 0 ;; # RBAC generation only for the controller charts above.
 esac
 
-root="$(cd "$(dirname "$0")/.." && pwd)"
 templates="$root/charts/$chart/templates"
 
 role="$(curl -fsSL "https://raw.githubusercontent.com/$repo/$version/config/rbac/role.yaml")"
@@ -40,9 +100,9 @@ role="$(curl -fsSL "https://raw.githubusercontent.com/$repo/$version/config/rbac
 # cluster-scoped. Subresources (foo/status) inherit their parent's scope. A custom
 # resource whose CRD this chart vendors reads its scope from the vendored
 # crd-<plural>.yaml (so vendor-crds must run first); every other kind — built-in
-# groups and externally-installed CRDs the controller only watches (Flux sources,
-# jaas snippets), all namespaced — falls through to the fixed cluster-scoped list,
-# defaulting to namespaced.
+# groups and externally-installed CRDs the controller only watches (Flux sources),
+# all namespaced — falls through to the fixed cluster-scoped list, defaulting to
+# namespaced.
 is_cluster_scoped() {
   local grp=$1 base=${2%%/*}
   local crd="$templates/crd-$base.yaml"
@@ -69,7 +129,7 @@ entries="$(printf '%s\n' "$role" | yq -r '.rules[] | .apiGroups[] as $g | .resou
 while IFS='|' read -r grp res verbs; do
   [ -n "$res" ] || continue
   if [ "$grp" = "admissionregistration.k8s.io" ] && [ "${res%%/*}" = "validatingwebhookconfigurations" ]; then
-    continue # owned + appended below, scoped and conditional
+    continue # owned + appended by vwc_block, scoped and conditional
   fi
   key="${grp}|${verbs}"
   if is_cluster_scoped "$grp" "$res"; then
@@ -87,8 +147,6 @@ emit_rules() {
   for key in $(printf '%s\n' "${!bucket[@]}" | sort); do
     grp="${key%%|*}"; verbs="${key#*|}"
     [ -n "$grp" ] || grp='""'
-    # sort + comma-join the resources, then space out every comma (paste's -d takes
-    # single-char delimiters that would cycle, so ", " must be applied afterwards).
     res="$(echo "${bucket[$key]}" | tr ' ' '\n' | sort | paste -sd, -)"
     printf '  - apiGroups: [%s]\n' "$grp"
     printf '    resources: [%s]\n' "${res//,/, }"
@@ -109,54 +167,28 @@ the release automatically, so the chart's RBAC can never drift from the binary's
 EOF
 }
 
-{
+# render_role <name> <comment> <bucket-array> [append-vwc] — one gitignored ClusterRole
+# template: header, optional render gate, metadata, labels, the generated rules, and
+# (for the cluster role) the chart's conditional VWC rule.
+render_role() {
+  local name=$1 comment=$2 bucket=$3 append_vwc=${4:-}
   header
-  cat <<'EOF'
-# Tenant-scope ClusterRole: every resource here is namespaced, so when
-# controller.watchNamespaces is set this role binds per-namespace via
-# rolebinding-tenants.yaml instead of a cluster-wide ClusterRoleBinding. The
-# permissions to apply a StageSet's rendered manifests are deliberately absent —
-# the controller mints a TokenRequest token for spec.serviceAccountName and writes
-# as that SA, so each tenant's own RBAC bounds the apply (no impersonate verb).
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: {{ include "stageset.name" . }}
-  labels:
-    {{- include "stageset.labels" . | nindent 4 }}
-rules:
-EOF
-  emit_rules tenant
-} > "$templates/clusterrole-controller.yaml"
+  [ -n "$gate_open" ] && printf '%s\n' "$gate_open"
+  printf '# %s\n' "$comment"
+  printf 'apiVersion: rbac.authorization.k8s.io/v1\nkind: ClusterRole\nmetadata:\n  name: %s\n' "$name"
+  labels
+  printf 'rules:\n'
+  emit_rules "$bucket"
+  [ -n "$append_vwc" ] && vwc_block
+  [ -n "$gate_close" ] && printf '%s\n' "$gate_close"
+}
 
-{
-  header
-  cat <<'EOF'
-# Cluster-scope ClusterRole: cluster-scoped resources (namespaces, the cluster-
-# scoped CRDs) the controller watches regardless of controller.watchNamespaces, so
-# it always binds cluster-wide (clusterrolebinding-cluster.yaml) — a RoleBinding
-# cannot convey a cluster-scoped grant.
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: {{ include "stageset.name" . }}-cluster
-  labels:
-    {{- include "stageset.labels" . | nindent 4 }}
-rules:
-EOF
-  emit_rules cluster
-  cat <<'EOF'
-{{- if and .Values.webhook.enabled (eq .Values.webhook.certMode "self-signed") }}
-  # The self-signed cert provisioner patches its own ValidatingWebhookConfiguration's
-  # caBundle in-pod. Scoped to that named VWC by resourceNames (which role.yaml can't
-  # express) and needed only in this cert mode, so it is owned here, not generated.
-  - apiGroups: [admissionregistration.k8s.io]
-    resources: [validatingwebhookconfigurations]
-    resourceNames:
-      - {{ include "stageset.name" . }}-{{ include "stageset.namespace" . }}
-    verbs: [get, update]
-{{- end }}
-EOF
-} > "$templates/clusterrole-controller-cluster.yaml"
+render_role "$tenant_name" \
+  "Tenant-scope ClusterRole: namespaced resources, bound per-namespace when the chart scopes its watches (else cluster-wide). Rendered-manifest/apply permissions are deliberately absent — writes run as each tenant's own ServiceAccount." \
+  tenant > "$templates/$tenant_file"
 
-echo "generated clusterrole-controller{,-cluster}.yaml for $chart from $repo/config/rbac/role.yaml@$version"
+render_role "$cluster_name" \
+  "Cluster-scope ClusterRole: cluster-scoped resources (CRDs, namespaces) the operator watches regardless of watch scope, so it always binds cluster-wide — a RoleBinding cannot convey a cluster-scoped grant." \
+  cluster append-vwc > "$templates/$cluster_file"
+
+echo "generated $tenant_file + $cluster_file for $chart from $repo/config/rbac/role.yaml@$version"

@@ -40,10 +40,12 @@ tests:
           path: rules
           content:
             apiGroups: ["jaas.metio.wtf"]
+            # Generated from role.yaml: resources + verbs are sorted, and the two
+            # CRDs sharing a verb set collapse into one rule.
             resources:
-              - jsonnetsnippets
               - jsonnetlibraries
-            verbs: [get, list, watch, update, patch]
+              - jsonnetsnippets
+            verbs: [get, list, patch, update, watch]
 
   - it: grants status-subresource access for every JaaS CRD
     set:
@@ -55,9 +57,9 @@ tests:
           content:
             apiGroups: ["jaas.metio.wtf"]
             resources:
-              - jsonnetsnippets/status
               - jsonnetlibraries/status
-            verbs: [get, update, patch]
+              - jsonnetsnippets/status
+            verbs: [get, patch, update]
 
   - it: grants finalizer updates so the reconciler can attach the finalizer
     set:
@@ -69,8 +71,8 @@ tests:
           content:
             apiGroups: ["jaas.metio.wtf"]
             resources:
-              - jsonnetsnippets/finalizers
               - jsonnetlibraries/finalizers
+              - jsonnetsnippets/finalizers
             verbs: [update]
 
   - it: can CRUD ExternalArtifact resources
@@ -83,7 +85,7 @@ tests:
           content:
             apiGroups: ["source.toolkit.fluxcd.io"]
             resources: [externalartifacts]
-            verbs: [get, list, watch, create, update, patch, delete]
+            verbs: [create, delete, get, list, patch, update, watch]
 
   - it: can read Flux source CRs
     set:
@@ -94,7 +96,7 @@ tests:
           path: rules
           content:
             apiGroups: ["source.toolkit.fluxcd.io"]
-            resources: [gitrepositories, ocirepositories, buckets]
+            resources: [buckets, gitrepositories, ocirepositories]
             verbs: [get, list, watch]
 
   - it: can mint ServiceAccount tokens for impersonation
@@ -193,7 +195,7 @@ tests:
           path: rules
           content:
             apiGroups: ["source.toolkit.fluxcd.io"]
-            resources: [gitrepositories, ocirepositories, buckets]
+            resources: [buckets, gitrepositories, ocirepositories]
             verbs: [get, list, watch]
       # ExternalArtifact lives on the CRUD rule (the operator publishes
       # AND reads it for chained-snippet sourceRefs). The verbs subset
@@ -204,4 +206,4 @@ tests:
           content:
             apiGroups: ["source.toolkit.fluxcd.io"]
             resources: [externalartifacts]
-            verbs: [get, list, watch, create, update, patch, delete]
+            verbs: [create, delete, get, list, patch, update, watch]
