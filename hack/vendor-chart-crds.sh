@@ -2,11 +2,13 @@
 # SPDX-FileCopyrightText: The helm-charts Authors
 # SPDX-License-Identifier: 0BSD
 #
-# Vendor one chart's CRDs from its controller release into templates/, reading
-# the image and version straight from the chart's Chart.yaml. CRDs are a build
-# artifact (gitignored, see .gitignore): packaging and every CI job that renders
-# or installs a chart regenerates them on the fly, so the chart's CRDs always
-# match the appVersion it deploys without a committed copy that can drift.
+# Vendor one chart's build artifacts from its controller release into templates/,
+# reading the image and version straight from the chart's Chart.yaml: the CRDs
+# (every controller chart) and, for stageset-controller, its controller ClusterRoles
+# generated from config/rbac/role.yaml. Both are gitignored (see .gitignore):
+# packaging and every CI job that renders or installs a chart regenerates them on the
+# fly, so the chart always matches the appVersion it deploys — no committed copy that
+# can drift from what the binary declares it needs.
 #
 #   hack/vendor-chart-crds.sh charts/jaas
 #
@@ -35,4 +37,8 @@ if [ "$appVersion" = "0.0.0" ]; then
 fi
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
-exec "$root/hack/vendor-crds.sh" "$image" "$appVersion"
+"$root/hack/vendor-crds.sh" "$image" "$appVersion"
+# The stageset chart's controller ClusterRoles are generated from the same release's
+# config/rbac/role.yaml (a no-op for charts without one). It reads the vendored CRD
+# scopes to split rules by tenant/cluster, so it must run after vendor-crds.
+"$root/hack/vendor-rbac.sh" "$image" "$appVersion"

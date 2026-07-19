@@ -2,8 +2,8 @@
 # SPDX-License-Identifier: 0BSD
 suite: test stageset RBAC
 templates:
-  - templates/clusterrole.yaml
-  - templates/clusterrole-cluster.yaml
+  - templates/clusterrole-controller.yaml
+  - templates/clusterrole-controller-cluster.yaml
   - templates/clusterrole-ledger-view.yaml
   - templates/clusterrolebinding.yaml
   - templates/clusterrolebinding-cluster.yaml
@@ -13,7 +13,7 @@ templates:
   - templates/serviceaccount.yaml
 tests:
   - it: grants the StageLedger and its status for scope Lifetime
-    template: templates/clusterrole.yaml
+    template: templates/clusterrole-controller.yaml
     asserts:
       # get/list/watch/create the ledger; write only its status (spec.baseline is
       # operator-owned); no finalizers (not owner-referenced).
@@ -27,7 +27,9 @@ tests:
           path: rules
           content:
             apiGroups: [stages.metio.wtf]
-            resources: [stageledgers/status]
+            # Generated from role.yaml: the status subresources sharing get/patch/update
+            # collapse into one rule.
+            resources: [stageledgers/status, stagesets/status]
             verbs: [get, patch, update]
   - it: renders no ledger-view ClusterRole by default
     template: templates/clusterrole-ledger-view.yaml
@@ -51,7 +53,7 @@ tests:
             resources: [stageledgers]
             verbs: [get, list, watch]
   - it: grants token mint, events, stagesets, and externalartifacts
-    template: templates/clusterrole.yaml
+    template: templates/clusterrole-controller.yaml
     asserts:
       # Local-cluster writes mint a TokenRequest token for the tenant SA and
       # authenticate as it — least privilege, no impersonate verb.
@@ -71,10 +73,12 @@ tests:
           path: rules
           content:
             apiGroups: [source.toolkit.fluxcd.io]
-            resources: [externalartifacts]
+            # Generated from role.yaml: the Flux source kinds share get/list/watch and
+            # collapse into one rule.
+            resources: [buckets, externalartifacts, gitrepositories, ocirepositories]
             verbs: [get, list, watch]
   - it: grants pod and event reads for the promotion restart/event gates
-    template: templates/clusterrole.yaml
+    template: templates/clusterrole-controller.yaml
     asserts:
       # Single-tenant StageSets (no spec.serviceAccountName) run the restart/event
       # gates under the controller's own identity, which reads pods and Warning
@@ -93,7 +97,7 @@ tests:
             resources: [events]
             verbs: [create, list, patch]
   - it: grants no secret or configmap access at all
-    template: templates/clusterrole.yaml
+    template: templates/clusterrole-controller.yaml
     asserts:
       # Every Secret/ConfigMap the controller reads is one a StageSet named in
       # its own spec (postBuild.substituteFrom, the metric-source bearer token,
@@ -109,7 +113,7 @@ tests:
             resources: [configmaps, secrets]
             verbs: [get, list, watch]
   - it: grants the serviceaccounts read for object-level KMS tenant credential lookup
-    template: templates/clusterrole.yaml
+    template: templates/clusterrole-controller.yaml
     asserts:
       # --object-level-kms resolves the tenant ServiceAccount through the cached
       # client (fluxcd/pkg/auth), so the read needs list+watch for the informer.
@@ -121,7 +125,7 @@ tests:
             verbs: [get, list, watch]
           count: 1
   - it: grants events.k8s.io writes for the events.v1 EventRecorder
-    template: templates/clusterrole.yaml
+    template: templates/clusterrole-controller.yaml
     asserts:
       # controller-runtime's mgr.GetEventRecorder emits through the events.k8s.io/v1
       # API; RBAC is authorized per request group, so the core-group events rule
@@ -142,7 +146,7 @@ tests:
             verbs: [create, list, patch]
           count: 1
   - it: does not grant secret or configmap writes
-    template: templates/clusterrole.yaml
+    template: templates/clusterrole-controller.yaml
     asserts:
       # Reads are refused outright by the test above; these pin that no write
       # shape slips in either. Rendered-manifest writes run as the tenant SA,
@@ -160,7 +164,7 @@ tests:
             resources: [secrets]
             verbs: ["*"]
   - it: does not grant events.k8s.io reads (the event gate lists core-group events)
-    template: templates/clusterrole.yaml
+    template: templates/clusterrole-controller.yaml
     asserts:
       - notContains:
           path: rules
@@ -169,7 +173,7 @@ tests:
             resources: [events]
             verbs: [create, list, patch]
   - it: tenant role keeps its grants — and its secret refusal — under a scoped watch
-    template: templates/clusterrole.yaml
+    template: templates/clusterrole-controller.yaml
     set:
       controller.watchNamespaces: [team-a, team-b]
     asserts:
@@ -197,7 +201,7 @@ tests:
             verbs: [create, patch]
           count: 1
   - it: does not grant the impersonate verb (token mint replaces it)
-    template: templates/clusterrole.yaml
+    template: templates/clusterrole-controller.yaml
     asserts:
       - notContains:
           path: rules
@@ -206,7 +210,7 @@ tests:
             resources: [serviceaccounts]
             verbs: [impersonate]
   - it: does not grant blanket write access (apply is performed as the tenant SA)
-    template: templates/clusterrole.yaml
+    template: templates/clusterrole-controller.yaml
     asserts:
       - notContains:
           path: rules
@@ -274,7 +278,7 @@ tests:
     asserts:
       - hasDocuments:
           count: 1
-        template: templates/clusterrole-cluster.yaml
+        template: templates/clusterrole-controller-cluster.yaml
       # The FleetRollout controller lists namespaces cluster-wide (cluster-scoped),
       # so a per-namespace RoleBinding cannot convey it — it lives in the cluster role.
       - contains:
@@ -283,28 +287,28 @@ tests:
             apiGroups: [""]
             resources: [namespaces]
             verbs: [get, list, watch]
-        template: templates/clusterrole-cluster.yaml
+        template: templates/clusterrole-controller-cluster.yaml
       - contains:
           path: rules
           content:
             apiGroups: [stages.metio.wtf]
             resources: [fleetrollouts]
             verbs: [create, delete, get, list, patch, update, watch]
-        template: templates/clusterrole-cluster.yaml
+        template: templates/clusterrole-controller-cluster.yaml
       - contains:
           path: rules
           content:
             apiGroups: [stages.metio.wtf]
             resources: [fleetrollouts/status]
             verbs: [get, patch, update]
-        template: templates/clusterrole-cluster.yaml
+        template: templates/clusterrole-controller-cluster.yaml
       - contains:
           path: rules
           content:
             apiGroups: [stages.metio.wtf]
             resources: [imageverificationpolicies]
             verbs: [get, list, watch]
-        template: templates/clusterrole-cluster.yaml
+        template: templates/clusterrole-controller-cluster.yaml
       # Cluster-scoped CRDs can only be bound cluster-wide.
       - hasDocuments:
           count: 1
@@ -318,14 +322,14 @@ tests:
       # ("cannot list fleetrollouts") on every install that turned the webhook off.
       - hasDocuments:
           count: 1
-        template: templates/clusterrole-cluster.yaml
+        template: templates/clusterrole-controller-cluster.yaml
       - contains:
           path: rules
           content:
             apiGroups: [stages.metio.wtf]
             resources: [fleetrollouts]
             verbs: [create, delete, get, list, patch, update, watch]
-        template: templates/clusterrole-cluster.yaml
+        template: templates/clusterrole-controller-cluster.yaml
       - hasDocuments:
           count: 1
         template: templates/clusterrolebinding-cluster.yaml
@@ -341,14 +345,14 @@ tests:
             resourceNames:
               - stageset-controller-NAMESPACE
             verbs: [get, update]
-        template: templates/clusterrole-cluster.yaml
+        template: templates/clusterrole-controller-cluster.yaml
   - it: cluster-scope role omits the VWC patch in cert-manager mode but keeps the CRD grants
     set:
       webhook.certMode: cert-manager
     asserts:
       - hasDocuments:
           count: 1
-        template: templates/clusterrole-cluster.yaml
+        template: templates/clusterrole-controller-cluster.yaml
       - notContains:
           path: rules
           content:
@@ -357,14 +361,14 @@ tests:
             resourceNames:
               - stageset-controller-NAMESPACE
             verbs: [get, update]
-        template: templates/clusterrole-cluster.yaml
+        template: templates/clusterrole-controller-cluster.yaml
       - contains:
           path: rules
           content:
             apiGroups: [stages.metio.wtf]
             resources: [fleetrollouts]
             verbs: [create, delete, get, list, patch, update, watch]
-        template: templates/clusterrole-cluster.yaml
+        template: templates/clusterrole-controller-cluster.yaml
       - hasDocuments:
           count: 1
         template: templates/clusterrolebinding-cluster.yaml
