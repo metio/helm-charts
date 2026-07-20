@@ -43,7 +43,7 @@ jobs:
       kind_latest: ${{ steps.versions.outputs.kind_latest }}
       relevant: ${{ steps.scope.outputs.relevant }}
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
       - id: scope
@@ -138,9 +138,9 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: Checkout helm-charts (dev chart)
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Checkout jaas at the released tag (shared smoke scripts)
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: metio/jaas
           ref: ${{ needs.discover.outputs.image_version }}
@@ -252,9 +252,9 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: Checkout helm-charts (dev chart)
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Checkout jaas at the released tag (shared smoke scripts)
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: metio/jaas
           ref: ${{ needs.discover.outputs.image_version }}
@@ -348,9 +348,9 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: Checkout helm-charts (dev chart)
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Checkout jaas at the released tag (shared smoke scripts)
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: metio/jaas
           ref: ${{ needs.discover.outputs.image_version }}
@@ -421,9 +421,9 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: Checkout helm-charts (dev chart)
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Checkout jaas at the released tag (shared smoke scripts)
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: metio/jaas
           ref: ${{ needs.discover.outputs.image_version }}
@@ -571,9 +571,9 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: Checkout helm-charts (dev chart)
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Checkout jaas at the released tag (shared smoke scripts)
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: metio/jaas
           ref: ${{ needs.discover.outputs.image_version }}
@@ -651,7 +651,7 @@ jobs:
         k8s_version: ${{ fromJSON(needs.discover.outputs.k8s_imagevolume) }}
     steps:
       - name: Checkout helm-charts (dev chart)
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Write kind config enabling the ImageVolume feature gate
         # kind does not enable ImageVolume by default; turn it on for apiserver
         # (so the volumes[].image field survives admission) and kubelet (so it
