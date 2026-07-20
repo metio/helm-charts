@@ -226,6 +226,14 @@ tests:
             apiGroups: [admissionregistration.k8s.io]
             resources: [validatingwebhookconfigurations]
             verbs: [get, update]
+      # customresourcedefinitions (the CRDWatcher's cluster-scoped watch) likewise
+      # lives on the cluster role, never the per-namespace-bindable tenant role.
+      - notContains:
+          path: rules
+          content:
+            apiGroups: [apiextensions.k8s.io]
+            resources: [customresourcedefinitions]
+            verbs: [get, list, watch]
   - it: cluster-wide tenant binding is rendered by default
     template: templates/clusterrolebinding.yaml
     asserts:
@@ -313,6 +321,21 @@ tests:
       - hasDocuments:
           count: 1
         template: templates/clusterrolebinding-cluster.yaml
+  - it: cluster-scope role grants customresourcedefinitions watch for the CRDWatcher
+    template: templates/clusterrole-controller-cluster.yaml
+    asserts:
+      # The controller's CRDWatcher subscribes to the CustomResourceDefinition
+      # stream so a producer watch engages the instant its CRD is installed,
+      # instead of at the next reconcile. customresourcedefinitions is
+      # cluster-scoped, so the grant lives on the cluster role — a per-namespace
+      # RoleBinding cannot convey it. Generated from role.yaml; without this grant
+      # the CRDWatcher's informer can't sync and degrades to a warning.
+      - contains:
+          path: rules
+          content:
+            apiGroups: [apiextensions.k8s.io]
+            resources: [customresourcedefinitions]
+            verbs: [get, list, watch]
   - it: cluster-scope role and binding render even with the webhook disabled
     set:
       webhook.enabled: false
