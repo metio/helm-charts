@@ -108,7 +108,7 @@ jobs:
         # version. Unlike a SemVer '+build' suffix — which SemVer ignores for
         # precedence, so two same-day releases would rank equal — the time lands
         # in the patch component, so a later release always sorts higher.
-        uses: metio/ci/calver@af736d94d3689a0b49c521fb9d096445cb9f1b84 # 2026.7.23184830
+        uses: metio/ci/calver@6f2922282e3f691fd293da000b6bd5edcdd694d7 # 2026.7.24201014
       - name: Package, push, sign, and release each chart
         if: steps.changed.outputs.charts != ''
         env:
