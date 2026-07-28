@@ -250,7 +250,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: metio/ci/policy-check@a221440cbc128a3736a2f950c8c8497d441384ed # 2026.7.26085035
+      - uses: metio/ci/policy-check@7b2e803d80b49a8cc03fd38bfde7466f2fd7a366 # 2026.7.28213002
 
   dco:
     # Developer Certificate of Origin: every commit carries a Signed-off-by
@@ -262,7 +262,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
-      - uses: metio/ci/dco@a221440cbc128a3736a2f950c8c8497d441384ed # main
+      - uses: metio/ci/dco@7b2e803d80b49a8cc03fd38bfde7466f2fd7a366 # main
 
   # Single, stably-named aggregate of every job above. Matrix jobs (install,
   # static) report one rolled-up result here — success only if every
