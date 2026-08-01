@@ -250,7 +250,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: metio/ci/policy-check@8470d3176f66a800c48c79697518042b66146450 # 2026.7.30140746
+      - uses: metio/ci/policy-check@d2ce47fb838ca7dd9cd6d3e896978bbc2ea58b87 # 2026.8.1094619
 
   dco:
     # Developer Certificate of Origin: every commit carries a Signed-off-by
