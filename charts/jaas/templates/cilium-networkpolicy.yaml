@@ -89,6 +89,13 @@ spec:
             dns:
               - matchPattern: "*"
     {{- end }}
+    {{- if and .Values.operator.enabled .Values.networkPolicy.egress.kubernetesAPI.enabled }}
+    # kube-apiserver — the dedicated entity, which Cilium keeps bound to the
+    # apiserver's current addresses whether the control plane runs in-cluster or
+    # outside it. Cilium's own guidance is to prefer it over a toServices rule.
+    - toEntities:
+        - kube-apiserver
+    {{- end }}
     {{- with .Values.networkPolicy.cilium.egress }}
     {{- toYaml . | nindent 4 }}
     {{- end }}

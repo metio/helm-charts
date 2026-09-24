@@ -121,6 +121,25 @@ spec:
             destinationPort:
               number: 53
     {{- end }}
+    {{- if and .Values.operator.enabled .Values.networkPolicy.egress.kubernetesAPI.enabled }}
+    # kube-apiserver. The `nodes` peer matches the IPs in node.Status.Addresses,
+    # which covers a control plane that runs on cluster nodes. A managed control
+    # plane sits outside that set, so those clusters name the endpoint CIDRs in
+    # networkPolicy.egress.kubernetesAPI.ipBlocks and get a `networks` peer.
+    - name: kube-apiserver
+      action: Accept
+      to:
+        {{- with .Values.networkPolicy.egress.kubernetesAPI.ipBlocks }}
+        - networks:
+            {{- toYaml . | nindent 12 }}
+        {{- else }}
+        - nodes: {}
+        {{- end }}
+      protocols:
+        - tcp:
+            destinationPort:
+              number: {{ .Values.networkPolicy.egress.kubernetesAPI.port }}
+    {{- end }}
     {{- with .Values.networkPolicy.clusterNetworkPolicy.egress }}
     {{- toYaml . | nindent 4 }}
     {{- end }}

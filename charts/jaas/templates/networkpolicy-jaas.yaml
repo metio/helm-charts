@@ -128,6 +128,20 @@ spec:
         - protocol: TCP
           port: 53
     {{- end }}
+    {{- if and .Values.operator.enabled .Values.networkPolicy.egress.kubernetesAPI.enabled }}
+    # kube-apiserver. networking.k8s.io has no service, node, or entity peer, so
+    # the endpoint addresses are named as CIDRs — render-time validation rejects
+    # an empty list rather than letting the operator boot into a denied cluster.
+    # The port is the endpoint's, not the 443 the Service publishes.
+    - to:
+        {{- range .Values.networkPolicy.egress.kubernetesAPI.ipBlocks }}
+        - ipBlock:
+            cidr: {{ . }}
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.networkPolicy.egress.kubernetesAPI.port }}
+    {{- end }}
     {{- with .Values.networkPolicy.egress.to }}
     {{- toYaml . | nindent 4 }}
     {{- end }}

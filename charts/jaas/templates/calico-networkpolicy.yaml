@@ -23,6 +23,12 @@ metadata:
     helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
 spec:
   selector: app.kubernetes.io/name == '{{ .Chart.Name }}' && app.kubernetes.io/component == 'jaas' && app.kubernetes.io/instance == '{{ .Release.Name }}'
+  {{- /* An explicit Deny in another policy is final, so an allowlist that sorts
+         after one never runs. kindIs guards the zero value, which is a legal
+         order that `with` would treat as unset. */}}
+  {{- if not (kindIs "invalid" .Values.networkPolicy.calico.order) }}
+  order: {{ .Values.networkPolicy.calico.order }}
+  {{- end }}
   types:
     - Ingress
     {{- if .Values.networkPolicy.egress.enabled }}
@@ -79,18 +85,32 @@ spec:
   {{- if .Values.networkPolicy.egress.enabled }}
   egress:
     {{- if .Values.networkPolicy.egress.dns }}
-    # Cluster DNS — UDP and TCP 53. Without these an egress policy denies name
-    # resolution, breaking every outbound connection.
+    # Cluster DNS — UDP and TCP 53 to the DNS namespace. Without these an egress
+    # policy denies name resolution, breaking every outbound connection.
     - action: Allow
       protocol: UDP
       destination:
+        namespaceSelector: kubernetes.io/metadata.name == '{{ .Values.networkPolicy.egress.dnsNamespace }}'
         ports:
           - 53
     - action: Allow
       protocol: TCP
       destination:
+        namespaceSelector: kubernetes.io/metadata.name == '{{ .Values.networkPolicy.egress.dnsNamespace }}'
         ports:
           - 53
+    {{- end }}
+    {{- if and .Values.operator.enabled .Values.networkPolicy.egress.kubernetesAPI.enabled }}
+    # kube-apiserver — Calico detects the endpoint addresses and ports from the
+    # `kubernetes` Service itself. That is what makes the rule work wherever the
+    # control plane lives: its endpoints are host addresses rather than workload
+    # endpoints, so no pod or namespace selector can match them. A service rule
+    # admits no other selection criteria, hence neither protocol nor ports here.
+    - action: Allow
+      destination:
+        services:
+          name: kubernetes
+          namespace: default
     {{- end }}
     {{- with .Values.networkPolicy.calico.egress }}
     {{- toYaml . | nindent 4 }}

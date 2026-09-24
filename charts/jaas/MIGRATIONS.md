@@ -8,6 +8,43 @@ SPDX-License-Identifier: 0BSD
 Breaking changes for the `jaas` chart, newest first. Each release links here;
 review the entries above your installed version before `helm upgrade`.
 
+## 2026.9.24
+
+Egress to the kube-apiserver is its own value now, and the chart renders it in
+the selected engine's own dialect. Two installs need an edit before
+`helm upgrade`, both only when `operator.enabled` and
+`networkPolicy.egress.enabled` are set.
+
+**`networkPolicy.engine: kubernetes`** now requires the apiserver addresses in
+`networkPolicy.egress.kubernetesAPI.ipBlocks`; a render with that list empty
+fails instead of producing a policy that denies the operator its apiserver.
+Move the CIDR out of `networkPolicy.egress.to`, where it used to be hand-written,
+and set the endpoint port alongside it:
+
+```yaml
+networkPolicy:
+  egress:
+    kubernetesAPI:
+      ipBlocks:
+        - 10.24.64.1/32
+      port: 6443
+```
+
+`kubectl --namespace default get endpoints kubernetes` reports both. An entry
+left behind in `networkPolicy.egress.to` renders a second, redundant rule rather
+than an error. Installs that admit the apiserver through some other policy set
+`networkPolicy.egress.kubernetesAPI.enabled: false` and keep their own list.
+
+**`networkPolicy.engine: calico`** scopes its DNS rule to
+`networkPolicy.egress.dnsNamespace` (default `kube-system`), matching the three
+other engines; it previously allowed port 53 to any destination. A cluster whose
+resolver lives elsewhere sets `dnsNamespace` to that namespace, and one that
+resolves through an off-cluster server adds a rule for it to
+`networkPolicy.calico.egress`.
+
+The `calico` and `cilium` engines need no CIDR at all: they select the apiserver
+by Kubernetes Service and by entity respectively.
+
 ## 2026.6.16
 
 Inline S3 credentials are no longer accepted. The

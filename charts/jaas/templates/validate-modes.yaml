@@ -52,16 +52,32 @@ collision at admission. They are the supported way to ship shared libraries
 {{- fail "operator.enabled with scaling (replicas.max > replicas.min, or replicas.min > 1) requires operator.leaderElection.enabled=true. Without leader election every replica reconciles every JsonnetSnippet independently, double-rendering and racing the ExternalArtifact write. Keep leader election on, or pin replicas.min=replicas.max=1." -}}
 {{- end -}}
 
-{{- /* Egress on in operator mode with no egress.to allow-list silently wedges
-       the operator. An Egress policy denies everything not allowed, and the
-       built-in rule only opens cluster DNS — but the operator MUST also reach
-       the kube-apiserver (informers, status writes, TokenRequest), and usually
-       source-controller and S3. With egress.to empty those are all denied and
-       the cache never syncs, so the operator never goes ready. Block it at
-       render time: the operator deployment can't recover from this at runtime.
-       The apiserver isn't label-selectable, so the allow must be an ipBlock. */ -}}
-{{- if and .Values.operator.enabled .Values.networkPolicy.enabled .Values.networkPolicy.egress.enabled (empty .Values.networkPolicy.egress.to) -}}
-{{- fail "operator.enabled with networkPolicy.egress.enabled but an empty networkPolicy.egress.to denies the operator's egress to the kube-apiserver (and source-controller / S3), so its cache never syncs and it never becomes ready — only cluster DNS is auto-allowed. Populate networkPolicy.egress.to with the kube-apiserver (an ipBlock CIDR — it can't be selected by label), the flux-system namespace, and any S3/OTLP endpoints; or set networkPolicy.egress.enabled=false." -}}
+{{- /* An Egress policy denies everything it does not allow, and in operator mode
+       the kube-apiserver is the one destination the pod cannot work without:
+       informers, status writes, TokenRequest minting, leader election and the
+       webhook caBundle patch all go there. Without an apiserver rule the cache
+       never syncs and the operator never goes ready, which the deployment
+       cannot recover from at runtime — so it is rejected at render time.
+
+       Each engine keeps its extra rules in its own list, and only the
+       kubernetes engine reads networkPolicy.egress.to, so the check follows
+       the selected engine rather than assuming that one. */ -}}
+{{- if and .Values.operator.enabled .Values.networkPolicy.enabled .Values.networkPolicy.egress.enabled -}}
+{{- $engine := .Values.networkPolicy.engine | default "kubernetes" -}}
+{{- $api := .Values.networkPolicy.egress.kubernetesAPI -}}
+{{- $listName := "networkPolicy.egress.to" -}}
+{{- $list := .Values.networkPolicy.egress.to -}}
+{{- if ne $engine "kubernetes" -}}
+{{- $listName = printf "networkPolicy.%s.egress" $engine -}}
+{{- $list = (index .Values.networkPolicy $engine).egress -}}
+{{- end -}}
+{{- if $api.enabled -}}
+{{- if and (eq $engine "kubernetes") (empty $api.ipBlocks) -}}
+{{- fail "networkPolicy.engine=kubernetes with operator.enabled and networkPolicy.egress.enabled requires networkPolicy.egress.kubernetesAPI.ipBlocks: networking.k8s.io/v1 can select the kube-apiserver neither by label nor by entity, so its endpoint addresses have to be named as CIDRs. Read them — and the endpoint port for networkPolicy.egress.kubernetesAPI.port, which is usually 6443 rather than the 443 the Service publishes — from `kubectl --namespace default get endpoints kubernetes`. The calico and cilium engines resolve the apiserver themselves and need no CIDR." -}}
+{{- end -}}
+{{- else if empty $list -}}
+{{- fail (printf "operator.enabled with networkPolicy.egress.enabled, networkPolicy.egress.kubernetesAPI.enabled=false and an empty %s denies the operator's egress to the kube-apiserver, so its cache never syncs and it never becomes ready — only cluster DNS is auto-allowed. Re-enable networkPolicy.egress.kubernetesAPI.enabled, or admit the apiserver (plus source-controller and any S3/OTLP endpoints) through %s, or set networkPolicy.egress.enabled=false." $listName $listName) -}}
+{{- end -}}
 {{- end -}}
 
 {{- /* terminationGracePeriodSeconds is derived from arguments.shutdownDelay by

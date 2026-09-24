@@ -228,3 +228,55 @@ tests:
           content:
             toFQDNs:
               - matchName: example.com
+
+  - it: allows egress to the kube-apiserver entity when operator and egress are on
+    set:
+      operator:
+        enabled: true
+      networkPolicy:
+        enabled: true
+        engine: cilium
+        egress:
+          enabled: true
+    asserts:
+      - contains:
+          path: spec.egress
+          content:
+            toEntities:
+              - kube-apiserver
+
+  - it: omits the apiserver rule outside operator mode
+    set:
+      networkPolicy:
+        enabled: true
+        engine: cilium
+        egress:
+          enabled: true
+    asserts:
+      - notContains:
+          path: spec.egress
+          content:
+            toEntities:
+              - kube-apiserver
+
+  - it: omits the apiserver rule when kubernetesAPI is disabled
+    set:
+      operator:
+        enabled: true
+      networkPolicy:
+        enabled: true
+        engine: cilium
+        egress:
+          enabled: true
+          kubernetesAPI:
+            enabled: false
+        cilium:
+          egress:
+            - toCIDR:
+                - 10.24.64.1/32
+    asserts:
+      - notContains:
+          path: spec.egress
+          content:
+            toEntities:
+              - kube-apiserver

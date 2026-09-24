@@ -195,6 +195,7 @@ tests:
             action: Allow
             protocol: UDP
             destination:
+              namespaceSelector: kubernetes.io/metadata.name == 'kube-system'
               ports:
                 - 53
       - contains:
@@ -203,6 +204,26 @@ tests:
             action: Allow
             protocol: TCP
             destination:
+              namespaceSelector: kubernetes.io/metadata.name == 'kube-system'
+              ports:
+                - 53
+
+  - it: scopes the DNS rule to the configured DNS namespace
+    set:
+      networkPolicy:
+        enabled: true
+        engine: calico
+        egress:
+          enabled: true
+          dnsNamespace: openshift-dns
+    asserts:
+      - contains:
+          path: spec.egress
+          content:
+            action: Allow
+            protocol: UDP
+            destination:
+              namespaceSelector: kubernetes.io/metadata.name == 'openshift-dns'
               ports:
                 - 53
 
@@ -239,3 +260,99 @@ tests:
             destination:
               nets:
                 - 10.0.0.0/8
+
+  - it: allows egress to the kubernetes service when operator and egress are on
+    set:
+      operator:
+        enabled: true
+      networkPolicy:
+        enabled: true
+        engine: calico
+        egress:
+          enabled: true
+    asserts:
+      - contains:
+          path: spec.egress
+          content:
+            action: Allow
+            destination:
+              services:
+                name: kubernetes
+                namespace: default
+
+  - it: omits the apiserver rule outside operator mode
+    set:
+      networkPolicy:
+        enabled: true
+        engine: calico
+        egress:
+          enabled: true
+    asserts:
+      - notContains:
+          path: spec.egress
+          content:
+            action: Allow
+            destination:
+              services:
+                name: kubernetes
+                namespace: default
+
+  - it: omits the apiserver rule when kubernetesAPI is disabled
+    set:
+      operator:
+        enabled: true
+      networkPolicy:
+        enabled: true
+        engine: calico
+        egress:
+          enabled: true
+          kubernetesAPI:
+            enabled: false
+        calico:
+          egress:
+            - action: Allow
+              destination:
+                nets:
+                  - 10.0.0.0/8
+    asserts:
+      - notContains:
+          path: spec.egress
+          content:
+            action: Allow
+            destination:
+              services:
+                name: kubernetes
+                namespace: default
+
+  - it: carries no order by default
+    set:
+      networkPolicy:
+        enabled: true
+        engine: calico
+    asserts:
+      - notExists:
+          path: spec.order
+
+  - it: sets the order when one is configured
+    set:
+      networkPolicy:
+        enabled: true
+        engine: calico
+        calico:
+          order: 500
+    asserts:
+      - equal:
+          path: spec.order
+          value: 500
+
+  - it: keeps an order of zero
+    set:
+      networkPolicy:
+        enabled: true
+        engine: calico
+        calico:
+          order: 0
+    asserts:
+      - equal:
+          path: spec.order
+          value: 0

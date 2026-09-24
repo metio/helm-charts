@@ -982,6 +982,17 @@ networkPolicy:
   # -- Calico engine (engine=calico) raw passthrough. Entries are merged verbatim
   # into the projectcalico.org NetworkPolicy's spec.ingress / spec.egress.
   calico:
+    # @schema
+    # type: [number, "null"]
+    # @schema
+    # -- spec.order on the rendered policy; Calico evaluates the lowest value
+    # first. Null omits the field, which Calico processes last in the tier —
+    # after every policy that carries an order, and before the implicit deny.
+    # That is fine against a rule-less deny-all, which contributes only that
+    # implicit deny. Set an order below a cluster-wide policy that carries an
+    # explicit `action: Deny` rule, because such a rule is final and would
+    # otherwise shadow these allows.
+    order: null
     # -- Extra spec.ingress rules merged verbatim (Calico NetworkPolicy schema).
     ingress: []
     # -- Extra spec.egress rules merged verbatim (Calico NetworkPolicy schema).
@@ -1018,8 +1029,9 @@ networkPolicy:
     # -- Render egress rules. Adds Egress to policyTypes, so everything not
     # explicitly allowed is denied. Off by default: enable only after allowing
     # everything the pod needs (DNS, the kube-apiserver, source-controller, S3,
-    # the OTLP collector) via egress.to — otherwise the operator loses cluster
-    # access.
+    # the OTLP collector) — otherwise the operator loses cluster access. In a
+    # cluster that already runs its own default-deny egress baseline the pod is
+    # denied either way, and turning this on is what re-admits the flows below.
     enabled: false
     # -- When egress is enabled, allow DNS (UDP+TCP 53) to the cluster DNS
     # namespace.
@@ -1027,10 +1039,32 @@ networkPolicy:
     # -- Namespace of the cluster DNS service (matched by
     # kubernetes.io/metadata.name).
     dnsNamespace: kube-system
-    # -- Additional egress peers merged verbatim into spec.egress. This is where
-    # you allow the kube-apiserver (an ipBlock CIDR), the flux-system namespace
-    # (source-controller), and external endpoints (S3, OTLP). NetworkPolicy
-    # cannot select the apiserver by label, so it must be an ipBlock here.
+    # -- Egress to the kube-apiserver, in the selected engine's native dialect.
+    # Rendered only when operator.enabled and egress.enabled are both true: in
+    # operator mode informers, status writes, TokenRequest minting, leader
+    # election, and the webhook caBundle patch all go to the apiserver, so an
+    # egress policy without this rule leaves the operator unable to reconcile.
+    kubernetesAPI:
+      enabled: true
+      # -- Apiserver endpoint CIDRs. Required for the `kubernetes` engine,
+      # which can select the apiserver neither by label nor by entity; optional
+      # for `clusterNetworkPolicy`, where an empty list selects the node IPs
+      # instead. The `calico` and `cilium` engines resolve the apiserver
+      # themselves and ignore this. Read the addresses off the cluster:
+      #   kubectl --namespace default get endpoints kubernetes
+      ipBlocks: []
+      # -- Apiserver endpoint port, for the engines that name one (`kubernetes`,
+      # `clusterNetworkPolicy`). This is the endpoint port that
+      # `kubectl --namespace default get endpoints kubernetes` reports, which is
+      # usually 6443 rather than the 443 the Service publishes — Calico
+      # evaluates egress policy after kube-proxy has rewritten the destination,
+      # and the upstream API leaves that ordering to the CNI.
+      port: 6443
+    # -- Additional egress peers merged verbatim into spec.egress
+    # (networking.k8s.io schema). Consulted by the `kubernetes` engine only; the
+    # other engines take their extra rules from networkPolicy.<engine>.egress.
+    # This is where you allow the flux-system namespace (source-controller) and
+    # external endpoints (S3, OTLP).
     to: []
 
 # -- Opt-in service-mesh L7 authorization + mTLS for the jaas pod. Complementary

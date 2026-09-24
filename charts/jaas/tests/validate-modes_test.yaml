@@ -144,8 +144,8 @@ tests:
     asserts:
       - hasDocuments:
           count: 0
-  # Egress guard — operator egress with no allow-list wedges the operator
-  - it: rejects operator egress with an empty egress.to allow-list
+  # Egress guard — operator egress that cannot reach the apiserver wedges the operator
+  - it: rejects operator egress on the kubernetes engine with no apiserver CIDRs
     set:
       operator.enabled: true
       operator.defaultServiceAccount: default
@@ -153,16 +153,53 @@ tests:
       networkPolicy.egress.enabled: true
     asserts:
       - failedTemplate:
-          errorMessage: "operator.enabled with networkPolicy.egress.enabled but an empty networkPolicy.egress.to denies the operator's egress to the kube-apiserver (and source-controller / S3), so its cache never syncs and it never becomes ready — only cluster DNS is auto-allowed. Populate networkPolicy.egress.to with the kube-apiserver (an ipBlock CIDR — it can't be selected by label), the flux-system namespace, and any S3/OTLP endpoints; or set networkPolicy.egress.enabled=false."
-  - it: allows operator egress when egress.to is populated
+          errorMessage: "networkPolicy.engine=kubernetes with operator.enabled and networkPolicy.egress.enabled requires networkPolicy.egress.kubernetesAPI.ipBlocks: networking.k8s.io/v1 can select the kube-apiserver neither by label nor by entity, so its endpoint addresses have to be named as CIDRs. Read them — and the endpoint port for networkPolicy.egress.kubernetesAPI.port, which is usually 6443 rather than the 443 the Service publishes — from `kubectl --namespace default get endpoints kubernetes`. The calico and cilium engines resolve the apiserver themselves and need no CIDR."
+  - it: allows operator egress on the kubernetes engine once the apiserver CIDRs are set
     set:
       operator.enabled: true
       operator.defaultServiceAccount: default
       networkPolicy.enabled: true
       networkPolicy.egress.enabled: true
-      networkPolicy.egress.to:
-        - ipBlock:
-            cidr: 10.0.0.1/32
+      networkPolicy.egress.kubernetesAPI.ipBlocks:
+        - 10.0.0.1/32
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: allows operator egress on the calico engine with no CIDRs at all
+    set:
+      operator.enabled: true
+      operator.defaultServiceAccount: default
+      networkPolicy.enabled: true
+      networkPolicy.engine: calico
+      networkPolicy.egress.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: names the engine's own list when the apiserver rule is switched off
+    set:
+      operator.enabled: true
+      operator.defaultServiceAccount: default
+      networkPolicy.enabled: true
+      networkPolicy.engine: calico
+      networkPolicy.egress.enabled: true
+      networkPolicy.egress.kubernetesAPI.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: "operator.enabled with networkPolicy.egress.enabled, networkPolicy.egress.kubernetesAPI.enabled=false and an empty networkPolicy.calico.egress denies the operator's egress to the kube-apiserver, so its cache never syncs and it never becomes ready — only cluster DNS is auto-allowed. Re-enable networkPolicy.egress.kubernetesAPI.enabled, or admit the apiserver (plus source-controller and any S3/OTLP endpoints) through networkPolicy.calico.egress, or set networkPolicy.egress.enabled=false."
+  - it: accepts a hand-written apiserver rule in the engine's own list
+    set:
+      operator.enabled: true
+      operator.defaultServiceAccount: default
+      networkPolicy.enabled: true
+      networkPolicy.engine: calico
+      networkPolicy.egress.enabled: true
+      networkPolicy.egress.kubernetesAPI.enabled: false
+      networkPolicy.calico.egress:
+        - action: Allow
+          destination:
+            services:
+              name: kubernetes
+              namespace: default
     asserts:
       - hasDocuments:
           count: 0

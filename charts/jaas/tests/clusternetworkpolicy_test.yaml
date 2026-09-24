@@ -276,3 +276,103 @@ tests:
             to:
               - networks:
                   - 10.0.0.0/8
+
+  - it: allows egress to the node IPs when operator and egress are on
+    set:
+      operator:
+        enabled: true
+      networkPolicy:
+        enabled: true
+        engine: clusterNetworkPolicy
+        egress:
+          enabled: true
+    asserts:
+      - contains:
+          path: spec.egress
+          content:
+            name: kube-apiserver
+            action: Accept
+            to:
+              - nodes: {}
+            protocols:
+              - tcp:
+                  destinationPort:
+                    number: 6443
+
+  - it: names the apiserver CIDRs as networks when they are configured
+    set:
+      operator:
+        enabled: true
+      networkPolicy:
+        enabled: true
+        engine: clusterNetworkPolicy
+        egress:
+          enabled: true
+          kubernetesAPI:
+            ipBlocks:
+              - 10.24.64.1/32
+            port: 8443
+    asserts:
+      - contains:
+          path: spec.egress
+          content:
+            name: kube-apiserver
+            action: Accept
+            to:
+              - networks:
+                  - 10.24.64.1/32
+            protocols:
+              - tcp:
+                  destinationPort:
+                    number: 8443
+
+  - it: omits the apiserver rule outside operator mode
+    set:
+      networkPolicy:
+        enabled: true
+        engine: clusterNetworkPolicy
+        egress:
+          enabled: true
+    asserts:
+      - notContains:
+          path: spec.egress
+          content:
+            name: kube-apiserver
+            action: Accept
+            to:
+              - nodes: {}
+            protocols:
+              - tcp:
+                  destinationPort:
+                    number: 6443
+
+  - it: omits the apiserver rule when kubernetesAPI is disabled
+    set:
+      operator:
+        enabled: true
+      networkPolicy:
+        enabled: true
+        engine: clusterNetworkPolicy
+        egress:
+          enabled: true
+          kubernetesAPI:
+            enabled: false
+        clusterNetworkPolicy:
+          egress:
+            - name: apiserver
+              action: Accept
+              to:
+                - networks:
+                    - 10.24.64.1/32
+    asserts:
+      - notContains:
+          path: spec.egress
+          content:
+            name: kube-apiserver
+            action: Accept
+            to:
+              - nodes: {}
+            protocols:
+              - tcp:
+                  destinationPort:
+                    number: 6443
