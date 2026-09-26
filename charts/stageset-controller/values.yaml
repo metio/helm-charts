@@ -409,6 +409,18 @@ metrics:
       # StageSetControllerPodDown: NotReady duration before paging. Below 5m it
       # fires during normal pod rolls.
       podDownDuration: 5m
+      # StageSetManagerUnavailable: how long the controller manager can be
+      # unable to start before paging. Matches podDownDuration so a normal pod
+      # roll does not page: both alerts describe the same window, one by
+      # readiness and one by the cause.
+      managerUnavailableDuration: 5m
+      # StageSetManagerFlapping: the fraction of a 30-minute window the manager
+      # has to be reconciling to stay quiet. 0.9 tolerates a single restart of
+      # up to three minutes — a lease handover or a rolling update — while
+      # catching a manager that comes up and dies repeatedly, which the == 0
+      # alert can miss because the gauge reads 1 at some scrapes.
+      managerAvailabilityRatio: 0.9
+      managerFlappingDuration: 10m
       # StageSetWebhookCertRenewalFailing: self-signed cert renewal failures per
       # hour before paging.
       webhookCertRenewalFailuresPerHour: 1

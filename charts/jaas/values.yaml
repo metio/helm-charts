@@ -724,6 +724,19 @@ operator:
         # NotReady before paging. Below 5m the alert tends to fire
         # during normal pod rolls.
         podDownDuration: 5m
+        # JaaSOperatorUnavailable: how long the operator's manager can be
+        # unable to start before paging. Matches podDownDuration so a normal
+        # pod roll does not page: both alerts describe the same window, one
+        # by readiness and one by the cause.
+        operatorUnavailableDuration: 5m
+        # JaaSOperatorFlapping: the fraction of a 30-minute window the
+        # operator has to be reconciling to stay quiet. 0.9 tolerates a
+        # single restart of up to three minutes — a lease handover or a
+        # rolling update — while catching a manager that comes up and dies
+        # repeatedly, which the == 0 alert can miss because the gauge reads 1
+        # at some scrapes.
+        operatorAvailabilityRatio: 0.9
+        operatorFlappingDuration: 10m
         # JaaSStorageSweepFailures: per-hour count of failing
         # background sweep passes before alerting. Default 3 absorbs
         # the occasional flake without paging while catching a

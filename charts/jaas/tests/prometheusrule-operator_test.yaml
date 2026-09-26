@@ -143,6 +143,16 @@ tests:
       - contains:
           path: spec.groups[1].rules
           content:
+            alert: JaaSOperatorUnavailable
+          any: true
+      - contains:
+          path: spec.groups[1].rules
+          content:
+            alert: JaaSOperatorFlapping
+          any: true
+      - contains:
+          path: spec.groups[1].rules
+          content:
             alert: JaaSStorageSweepFailures
           any: true
       - contains:
@@ -205,11 +215,74 @@ tests:
             enabled: true
     asserts:
       - equal:
-          path: spec.groups[1].rules[8].annotations.runbook_url
+          path: spec.groups[1].rules[10].annotations.runbook_url
           value: https://jaas.projects.metio.wtf/runbooks/eval-saturation/
       - equal:
-          path: spec.groups[1].rules[9].annotations.runbook_url
+          path: spec.groups[1].rules[11].annotations.runbook_url
           value: https://jaas.projects.metio.wtf/runbooks/eval-saturation/
+
+  - it: the availability alerts replace the crash-loop signal
+    set:
+      operator:
+        enabled: true
+        metrics:
+          prometheusRule:
+            enabled: true
+    asserts:
+      # A manager that cannot start no longer restarts the pod, so the gauge is
+      # the signal an operator alerts on instead. Critical: nothing reconciles.
+      - equal:
+          path: spec.groups[1].rules[3].alert
+          value: JaaSOperatorUnavailable
+      - matchRegex:
+          path: spec.groups[1].rules[3].expr
+          pattern: '^jaas_operator_available == 0'
+      - equal:
+          path: spec.groups[1].rules[3].labels.severity
+          value: critical
+      - equal:
+          path: spec.groups[1].rules[3].for
+          value: 5m
+      - equal:
+          path: spec.groups[1].rules[3].annotations.runbook_url
+          value: https://jaas.projects.metio.wtf/runbooks/operator-unavailable/
+      # A manager that comes up and dies repeatedly can read 1 at enough
+      # scrapes to keep the == 0 alert quiet, so the second alert averages the
+      # gauge over a window instead of sampling it.
+      - equal:
+          path: spec.groups[1].rules[4].alert
+          value: JaaSOperatorFlapping
+      - matchRegex:
+          path: spec.groups[1].rules[4].expr
+          pattern: 'avg_over_time\(jaas_operator_available\[30m\]\) < 0\.9'
+      - equal:
+          path: spec.groups[1].rules[4].labels.severity
+          value: warning
+      - equal:
+          path: spec.groups[1].rules[4].annotations.runbook_url
+          value: https://jaas.projects.metio.wtf/runbooks/operator-unavailable/
+
+  - it: availability thresholds are configurable
+    set:
+      operator:
+        enabled: true
+        metrics:
+          prometheusRule:
+            enabled: true
+            thresholds:
+              operatorUnavailableDuration: 2m
+              operatorAvailabilityRatio: 0.99
+              operatorFlappingDuration: 20m
+    asserts:
+      - equal:
+          path: spec.groups[1].rules[3].for
+          value: 2m
+      - matchRegex:
+          path: spec.groups[1].rules[4].expr
+          pattern: '< 0\.99'
+      - equal:
+          path: spec.groups[1].rules[4].for
+          value: 20m
 
   - it: applies extra labels and annotations to the PrometheusRule object
     set:

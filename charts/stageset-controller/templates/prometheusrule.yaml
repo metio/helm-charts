@@ -112,6 +112,61 @@ spec:
               replica recovers.
             {{ $rbKey }}: {{ printf "%s/controller-pod-down/" $rbBase | quote }}
 
+        - alert: StageSetManagerUnavailable
+          # The controller manager is supervised and retried in place, so the
+          # failures that used to restart the pod — egress denied to the
+          # apiserver, an incomplete ClusterRole, a CRD not installed, a webhook
+          # certificate not issued — no longer produce a container-restart
+          # signal. This gauge is what replaces it.
+          #
+          # It reads 0 only while the process is up and its manager is not: a pod
+          # that is gone stops exporting the series altogether, which is
+          # StageSetControllerPodDown's job. Both fire together in the common
+          # case, because readiness tracks the manager; this one names the cause.
+          expr: |
+            stageset_manager_available == 0
+          for: {{ .Values.metrics.prometheusRule.thresholds.managerUnavailableDuration }}
+          labels:
+            severity: critical
+            {{- with .Values.metrics.prometheusRule.extraAlertLabels }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          annotations:
+            summary: 'StageSet controller is not reconciling'
+            description: |
+              stageset_manager_available has read 0 for the alert window. The
+              process is up and its probe and metrics endpoints answer, but its
+              manager cannot start, so no StageSet is being reconciled and no
+              stage is applying. GET /manager on the probe port names the reason
+              and how many times the manager has been started.
+            {{ $rbKey }}: {{ printf "%s/manager-unavailable/" $rbBase | quote }}
+
+        - alert: StageSetManagerFlapping
+          # A manager that syncs its cache and then dies, over and over, can read
+          # 1 at enough scrapes that StageSetManagerUnavailable never sees a full
+          # window of 0 — yet reconciliation is not happening reliably. A webhook
+          # server whose certificate has not been issued produces exactly that
+          # shape. Averaging the gauge over a long window catches it, and the
+          # ratio floor keeps a single brief restart (a lease handover during a
+          # rolling update) from paging.
+          expr: |
+            avg_over_time(stageset_manager_available[30m]) < {{ .Values.metrics.prometheusRule.thresholds.managerAvailabilityRatio }}
+          for: {{ .Values.metrics.prometheusRule.thresholds.managerFlappingDuration }}
+          labels:
+            severity: warning
+            {{- with .Values.metrics.prometheusRule.extraAlertLabels }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          annotations:
+            summary: 'StageSet controller manager keeps restarting'
+            description: |
+              The manager has been reconciling for less than
+              {{ .Values.metrics.prometheusRule.thresholds.managerAvailabilityRatio }}
+              of the last 30 minutes, so StageSets are reconciled only in bursts.
+              Check increase(stageset_manager_start_failures_total[30m]) and the
+              reason on GET /manager.
+            {{ $rbKey }}: {{ printf "%s/manager-unavailable/" $rbBase | quote }}
+
         - alert: StageSetWebhookCertRenewalFailing
           # Only meaningful in self-signed webhook mode. The current cert keeps
           # working until natural expiry, so the signal must fire well before that

@@ -150,6 +150,65 @@ spec:
               reconciled until a replica recovers.
             {{ $rbKey }}: {{ printf "%soperator-pod-down/" $rbBase | quote }}
 
+        - alert: JaaSOperatorUnavailable
+          # The operator's manager is supervised and retried in place, so the
+          # failures that used to restart the pod — egress denied to the
+          # apiserver, an incomplete ClusterRole, a CRD not installed — no longer
+          # produce a container-restart signal. This gauge is what replaces it.
+          #
+          # It reads 0 only while the process is up and its manager is not: a pod
+          # that is gone stops exporting the series altogether, which is
+          # JaaSOperatorPodDown's job. Both fire together in the common case,
+          # because readiness tracks the manager on a pod that has never synced;
+          # this one is the alert that names the cause.
+          expr: |
+            jaas_operator_available == 0
+          for: {{ .Values.operator.metrics.prometheusRule.thresholds.operatorUnavailableDuration }}
+          labels:
+            severity: critical
+            {{- with .Values.operator.metrics.prometheusRule.extraAlertLabels }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          annotations:
+            summary: 'JaaS operator is not reconciling'
+            description: |
+              jaas_operator_available has read 0 for the alert window. The
+              process is serving — the Jsonnet renderer and the artifact server
+              need no cluster — but its manager cannot start, so no
+              JsonnetSnippet is being reconciled. GET /operator on the
+              management port names the reason and how many times the manager
+              has been started.
+            {{ $rbKey }}: {{ printf "%soperator-unavailable/" $rbBase | quote }}
+
+        - alert: JaaSOperatorFlapping
+          # A manager that syncs its cache and then dies, over and over, can read
+          # 1 at enough scrapes that JaaSOperatorUnavailable never sees a full
+          # window of 0 — yet reconciliation is not happening reliably. Averaging
+          # the gauge over a long window catches that shape, and the ratio floor
+          # keeps a single brief restart (a lease handover during a rolling
+          # update) from paging. jaas_operator_start_failures_total is the
+          # counter that confirms it.
+          expr: |
+            avg_over_time(jaas_operator_available[30m]) < {{ .Values.operator.metrics.prometheusRule.thresholds.operatorAvailabilityRatio }}
+          for: {{ .Values.operator.metrics.prometheusRule.thresholds.operatorFlappingDuration }}
+          labels:
+            severity: warning
+            {{- with .Values.operator.metrics.prometheusRule.extraAlertLabels }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          annotations:
+            summary: 'JaaS operator manager keeps restarting'
+            description: |
+              The operator has been reconciling for less than
+              {{ .Values.operator.metrics.prometheusRule.thresholds.operatorAvailabilityRatio }}
+              of the last 30 minutes. A manager that comes up and then dies
+              leaves snippets reconciled only in bursts; the usual cause is a
+              step that runs after the cache syncs, such as a webhook server
+              whose certificate has not been issued. Check
+              increase(jaas_operator_start_failures_total[30m]) and the reason
+              on GET /operator.
+            {{ $rbKey }}: {{ printf "%soperator-unavailable/" $rbBase | quote }}
+
         - alert: JaaSStorageSweepFailures
           expr: |
             increase(jaas_storage_sweep_failures_total[1h]) > {{ .Values.operator.metrics.prometheusRule.thresholds.sweepFailuresPerHour }}

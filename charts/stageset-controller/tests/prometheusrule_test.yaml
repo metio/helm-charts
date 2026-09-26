@@ -47,9 +47,15 @@ tests:
           value: StageSetControllerPodDown
       - equal:
           path: spec.groups[1].rules[3].alert
-          value: StageSetWebhookCertRenewalFailing
+          value: StageSetManagerUnavailable
       - equal:
           path: spec.groups[1].rules[4].alert
+          value: StageSetManagerFlapping
+      - equal:
+          path: spec.groups[1].rules[5].alert
+          value: StageSetWebhookCertRenewalFailing
+      - equal:
+          path: spec.groups[1].rules[6].alert
           value: StageSetWatchEngagementFailing
 
   - it: PodDown alert selects pods by release labels, not a name prefix
@@ -74,13 +80,13 @@ tests:
       metrics.prometheusRule.enabled: true
     asserts:
       - equal:
-          path: spec.groups[1].rules[4].alert
+          path: spec.groups[1].rules[6].alert
           value: StageSetWatchEngagementFailing
       - matchRegex:
-          path: spec.groups[1].rules[4].expr
+          path: spec.groups[1].rules[6].expr
           pattern: "increase\\(stageset_watch_engagement_failures_total\\[1h\\]\\)"
       - equal:
-          path: spec.groups[1].rules[4].annotations.runbook_url
+          path: spec.groups[1].rules[6].annotations.runbook_url
           value: "https://stageset.projects.metio.wtf/runbooks/watch-engagement/"
 
   - it: templates the per-reason runbook URL on the documentation site
@@ -99,7 +105,7 @@ tests:
           path: spec.groups[1].rules[0].annotations.runbook_url
           value: "https://stageset.projects.metio.wtf/runbooks/workqueue-saturation/"
       - equal:
-          path: spec.groups[1].rules[3].annotations.runbook_url
+          path: spec.groups[1].rules[5].annotations.runbook_url
           value: "https://stageset.projects.metio.wtf/runbooks/webhook-cert-renewal/"
 
   - it: honors a custom runbook annotation key
@@ -124,6 +130,54 @@ tests:
           path: spec.groups[1].rules[0].expr
           pattern: "workqueue_depth\\{controller=\"stageset\"\\} > 99"
 
+  - it: the availability alerts replace the crash-loop signal
+    set:
+      metrics.prometheusRule.enabled: true
+    asserts:
+      # A manager that cannot start no longer restarts the pod, so the gauge is
+      # the signal an operator alerts on instead. Critical: nothing reconciles.
+      - matchRegex:
+          path: spec.groups[1].rules[3].expr
+          pattern: "^stageset_manager_available == 0"
+      - equal:
+          path: spec.groups[1].rules[3].labels.severity
+          value: critical
+      - equal:
+          path: spec.groups[1].rules[3].for
+          value: 5m
+      - equal:
+          path: spec.groups[1].rules[3].annotations.runbook_url
+          value: "https://stageset.projects.metio.wtf/runbooks/manager-unavailable/"
+      # A manager that comes up and dies repeatedly can read 1 at enough scrapes
+      # to keep the == 0 alert quiet, so the second alert averages the gauge over
+      # a window instead of sampling it.
+      - matchRegex:
+          path: spec.groups[1].rules[4].expr
+          pattern: "avg_over_time\\(stageset_manager_available\\[30m\\]\\) < 0.9"
+      - equal:
+          path: spec.groups[1].rules[4].labels.severity
+          value: warning
+      - equal:
+          path: spec.groups[1].rules[4].annotations.runbook_url
+          value: "https://stageset.projects.metio.wtf/runbooks/manager-unavailable/"
+
+  - it: substitutes availability thresholds into the expressions and durations
+    set:
+      metrics.prometheusRule.enabled: true
+      metrics.prometheusRule.thresholds.managerUnavailableDuration: 2m
+      metrics.prometheusRule.thresholds.managerAvailabilityRatio: 0.99
+      metrics.prometheusRule.thresholds.managerFlappingDuration: 20m
+    asserts:
+      - equal:
+          path: spec.groups[1].rules[3].for
+          value: 2m
+      - matchRegex:
+          path: spec.groups[1].rules[4].expr
+          pattern: "< 0.99"
+      - equal:
+          path: spec.groups[1].rules[4].for
+          value: 20m
+
   - it: merges extraAlertLabels onto every alert
     set:
       metrics.prometheusRule.enabled: true
@@ -134,7 +188,7 @@ tests:
           path: spec.groups[0].rules[0].labels.team
           value: platform
       - equal:
-          path: spec.groups[1].rules[3].labels.team
+          path: spec.groups[1].rules[5].labels.team
           value: platform
 
   - it: ships the rollout-gate group with the gate alerts
