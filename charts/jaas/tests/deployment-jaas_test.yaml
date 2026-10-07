@@ -159,6 +159,16 @@ tests:
       - equal:
           path: metadata.labels.tier
           value: prod
+  - it: merges deployment.additionalAnnotations into the deployment metadata
+    set:
+      deployment:
+        additionalAnnotations:
+          scraper: prometheus
+    asserts:
+      - equal:
+          path: metadata.annotations.scraper
+          value: prometheus
+
   - it: respects deployment.revisionHistoryLimit
     set:
       deployment:
@@ -234,6 +244,78 @@ tests:
           path: spec.template.metadata.labels.monitoring
           value: enabled
 
+  - it: merges pod.additionalAnnotations into the pod template metadata
+    set:
+      pod:
+        additionalAnnotations:
+          imageregistry: https://hub.docker.com
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations.imageregistry
+          value: https://hub.docker.com
+
+  # ------------------------------------------------------------------
+  # Pod specs
+  # ------------------------------------------------------------------
+  - it: adds pod.additionalContainers into the pod template spec
+    set:
+      pod:
+        additionalContainers:
+          - name: sidecar
+            image: sidecar:latest
+    asserts:
+      - contains:
+          path: spec.template.spec.containers
+          content:
+            name: sidecar
+            image: sidecar:latest
+
+  - it: omits initContainers by default
+    asserts:
+      - notExists:
+          path: spec.template.spec.initContainers
+
+  - it: adds pod.additionalInitContainers into the pod template spec
+    set:
+      pod:
+        additionalInitContainers:
+          - name: init
+            image: init:latest
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers
+          content:
+            name: init
+            image: init:latest
+
+  - it: adds pod.additionalVolumes into the pod template spec
+    set:
+      pod:
+        additionalVolumes:
+          - name: shared-volume
+            emptyDir: {}
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: shared-volume
+            emptyDir: {}
+
+  - it: uses top-level service account if operator is disabled
+    set:
+      operator:
+        enabled: false
+      serviceAccount:
+        enabled: true
+        name: my-sa
+    asserts:
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: my-sa
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: true
+
   # ------------------------------------------------------------------
   # Image
   # ------------------------------------------------------------------
@@ -279,6 +361,22 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].ports[1].name
           value: management
+
+  # ------------------------------------------------------------------
+  # Container volume mounts
+  # ------------------------------------------------------------------
+  - it: mounts custom volume
+    set:
+      container:
+        additionalVolumeMounts:
+        - name: config-volume
+          mountPath: /etc/jaas/config.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content: 
+            name: config-volume
+            mountPath: /etc/jaas/config.yaml
 
   # ------------------------------------------------------------------
   # Container args
@@ -461,6 +559,15 @@ tests:
       - contains:
           path: spec.template.spec.containers[0].args
           content: --shutdown-delay=0s
+  - it: accepts custom arguments
+    set:
+      arguments:
+        additionalArgs:
+        - --verbose=debug
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --verbose=debug
 
   # ------------------------------------------------------------------
   # Scheduling selectors must NOT include managed-by, but must still carry
@@ -798,6 +905,20 @@ tests:
             name: storage
             protocol: TCP
 
+  - it: uses operator service account if both, top-level and operator, are enabled
+    set:
+      operator:
+        enabled: true
+        serviceAccount:
+          name: my-operator-sa
+      serviceAccount:
+        enabled: true
+        name: my-sa
+    asserts:
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: my-operator-sa
+          
   - it: keeps automountServiceAccountToken=false when operator.enabled is false
     asserts:
       - equal:

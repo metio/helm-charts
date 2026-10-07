@@ -1,0 +1,12 @@
+{{- /*
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+*/ -}}
+{{- range .Values.extraObjects }}
+---
+{{- if typeIs "string" . }}
+{{- tpl . $ }}
+{{- else }}
+{{- tpl (toYaml .) $ }}
+{{- end }}
+{{- end }}
