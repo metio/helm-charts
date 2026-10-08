@@ -1,6 +1,7 @@
+{{- /*
 # SPDX-FileCopyrightText: The helm-charts Authors
 # SPDX-License-Identifier: 0BSD
-
+*/ -}}
 {{- /* Render whenever more than one replica can run — either the HPA can
        scale above one (max > min) OR a fixed count is pinned above one
        (min > 1). Gating strictly on `max > min` would skip the PDB for a

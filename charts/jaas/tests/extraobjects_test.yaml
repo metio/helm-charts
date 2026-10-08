@@ -1,0 +1,77 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+suite: test jaas extra objects
+templates:
+  - extraobjects.yaml
+tests:
+  - it: is empty by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders structured objects with templating
+    set:
+      extraObjects:
+        - apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: "{{ .Release.Name }}-extra"
+          data:
+            key: value
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-extra
+      - equal:
+          path: data.key
+          value: value
+
+  - it: renders raw string objects with templating
+    set:
+      extraObjects:
+        - |
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: {{ .Release.Name }}-secret
+          stringData:
+            token: secret-value
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Secret
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-secret
+      - equal:
+          path: stringData.token
+          value: secret-value
+
+  - it: renders multiple extra objects
+    set:
+      extraObjects:
+        - apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: cm-1
+        - apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: cm-2
+    asserts:
+      - hasDocuments:
+          count: 2
+      - equal:
+          path: metadata.name
+          value: cm-1
+        documentIndex: 0
+      - equal:
+          path: metadata.name
+          value: cm-2
+        documentIndex: 1

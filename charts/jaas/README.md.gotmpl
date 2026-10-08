@@ -221,6 +221,103 @@ No JaaS-side configuration is needed — the chart ships the `RBAC` the operator
 - `spec.interval` (optional `<duration>`, e.g. `10m`) re-renders the snippet on a cadence even when no watch event fires. Picks up env-var drift, OCI library refreshes, and any other state outside the watched object graph.
 - `spec.entryFile` (default `main.jsonnet`) names the file go-jsonnet evaluates. Lets a snippet point at a specific file inside a multi-snippet source tree.
 
+## Workload customization and extra resources
+
+The chart provides extension points to customize the Deployment and Pod specifications, configure a standalone ServiceAccount, and deploy arbitrary Kubernetes resources.
+
+### Custom containers and volumes
+
+Inject custom init containers or sidecar containers, define additional volumes, and mount them into the primary JaaS container:
+
+```yaml
+pod:
+  additionalInitContainers:
+    - name: init-setup
+      image: busybox:latest
+      command: ["sh", "-c", "echo initializing..."]
+  additionalContainers:
+    - name: sidecar-proxy
+      image: envoyproxy/envoy:v1.30.0
+  additionalVolumes:
+    - name: custom-data
+      emptyDir: {}
+
+container:
+  additionalVolumeMounts:
+    - name: custom-data
+      mountPath: /var/data/custom
+```
+
+### Additional command-line arguments
+
+Pass custom flags and arguments directly to the JaaS binary:
+
+```yaml
+arguments:
+  additionalArgs:
+    - --verbose
+    - --custom-arg=value
+```
+
+### Custom labels and annotations
+
+Additional metadata can be attached to both the `Deployment` and the `Pod` template:
+
+```yaml
+deployment:
+  additionalLabels:
+    team: platform
+  additionalAnnotations:
+    customDeploymentAnnotation: customValue
+
+pod:
+  additionalLabels:
+    role: worker
+  additionalAnnotations:
+    customPodAnnotation: customValue
+```
+
+### Standalone ServiceAccount
+
+When running with operator mode disabled (`operator.enabled: false`, the default), JaaS does not mount a ServiceAccount token. If your workload requires cluster permissions or integrates with cloud provider IAM via Workload Identity / IRSA, configure the standalone `serviceAccount`:
+
+```yaml
+serviceAccount:
+  enabled: true
+  create: true
+  name: jaas
+  labels:
+    customLabel: value
+  annotations:
+    azure.workload.identity/client-id: "00000000-0000-0000-0000-000000000000"
+    # eks.amazonaws.com/role-arn: "arn:aws:iam::123456789012:role/jaas-role"
+```
+
+When `serviceAccount.enabled: true` and `operator.enabled: false`, the chart mounts the token (`automountServiceAccountToken: true`) and references the specified ServiceAccount. If `operator.enabled: true`, the operator's ServiceAccount (`operator.serviceAccount`) takes precedence.
+
+### Extra Kubernetes objects
+
+Deploy arbitrary extra Kubernetes resources (such as `ClusterRole`, `ClusterRoleBinding`, `ConfigMap`, or CRDs) directly with the chart via `extraObjects`. Entries are evaluated using Helm's `tpl` function, allowing dynamic templating:
+
+```yaml
+extraObjects:
+  - apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: {{ "{{" }} .Release.Name {{ "}}" }}-custom-config
+    data:
+      custom.yaml: |
+        key: value
+  - apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRole
+    metadata:
+      name: {{ "{{" }} .Release.Name {{ "}}" }}-custom-role
+    rules:
+      - apiGroups: [""]
+        resources: ["configmaps"]
+        verbs: ["get", "list", "watch"]
+```
+
 ## Pod Security Standards
 
 Both pods the chart renders — the jaas Deployment and the pre-delete cleanup Job — are configured for **Pod Security Standards "restricted"**:

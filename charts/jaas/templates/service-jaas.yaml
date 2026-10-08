@@ -1,6 +1,7 @@
+{{- /*
 # SPDX-FileCopyrightText: The helm-charts Authors
 # SPDX-License-Identifier: 0BSD
-
+*/ -}}
 apiVersion: v1
 kind: Service
 metadata:

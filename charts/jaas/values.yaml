@@ -165,6 +165,8 @@ arguments:
   # -- Bind address for the management (probes) HTTP server. Same dual-stack
   # semantics as listenAddress.
   managementListenAddress: "::"
+  # -- Additional custom arguments
+  additionalArgs: []
 
 # -- Fine tune the Deployment resource.
 deployment:
@@ -172,11 +174,33 @@ deployment:
   revisionHistoryLimit: 1
   # -- Extra labels merged onto the Deployment metadata.
   additionalLabels: {}
+  # -- Extra annotations merged onto the Deployment metadata.
+  additionalAnnotations: {}
 
 # -- Fine tune the managed Pod resources.
 pod:
   # -- Extra labels merged onto the pod template.
   additionalLabels: {}
+  # -- Extra annotations merged onto the pod template.
+  additionalAnnotations: {}
+  # -- Extra containers added onto the pod template.
+  additionalContainers: []
+  # -- Extra init containers added onto the pod template.
+  additionalInitContainers: []
+  # -- Extra volumes added onto the pod template.
+  additionalVolumes: []
+
+# -- Fine tune the managed container resources.
+container:
+  additionalVolumeMounts: []
+
+# -- Service account settings when operator is not enabled.
+serviceAccount:
+  enabled: false
+  create: true
+  name: jaas
+  labels: {}
+  annotations: {}
 
 # -- Fine tune the Service resource.
 service:
@@ -1216,3 +1240,12 @@ serviceMesh:
   # only when jaas owns its namespace; it also denies co-located workloads.
   defaultDeny:
     enabled: false
+
+# -- Allow any extra Kubernetes resources and CRDs (CustomResourceDefinitions)
+extraObjects: []
+#  - apiVersion: v1
+#    kind: ConfigMap
+#    metadata:
+#      name: {{ .Release.Name }}-custom-config
+#    data:
+#      key: value

@@ -1,6 +1,7 @@
+{{- /*
 # SPDX-FileCopyrightText: The helm-charts Authors
 # SPDX-License-Identifier: 0BSD
-
+*/ -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -14,9 +15,9 @@ metadata:
     app.kubernetes.io/part-of: {{ .Chart.Name }}
     app.kubernetes.io/managed-by: {{ .Release.Service }}
     helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
-    {{ with .Values.deployment.additionalLabels }}
-    {{ toYaml . | nindent 4 }}
-    {{ end }}
+    {{- with .Values.deployment.additionalLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
   annotations:
     # kube-score ignores for design-deliberate findings:
     #   container-image-pull-policy — IfNotPresent is correct for
@@ -35,6 +36,9 @@ metadata:
     #     replicas.max > replicas.min (single-replica installs would
     #     have a PDB that blocks drains).
     kube-score/ignore: container-image-pull-policy,pod-networkpolicy,deployment-has-host-podantiaffinity,deployment-replicas,deployment-has-poddisruptionbudget
+    {{- with .Values.deployment.additionalAnnotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
 spec:
   {{- /* When autoscaling (replicas.max > replicas.min) the HPA owns the replica
          count starting at replicas.min, so spec.replicas is omitted to avoid
@@ -61,9 +65,13 @@ spec:
         app.kubernetes.io/part-of: {{ .Chart.Name }}
         app.kubernetes.io/managed-by: {{ .Release.Service }}
         helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
-        {{ with .Values.pod.additionalLabels }}
-        {{ toYaml . | nindent 8 }}
-        {{ end }}
+        {{- with .Values.pod.additionalLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.pod.additionalAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
     spec:
       # the binary's shutdown budget is `shutdownDelay` (readiness
       # drain) + 30s HTTP graceful Shutdown + 30s operator-manager wait.
@@ -103,6 +111,9 @@ spec:
               helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
       {{- if .Values.operator.enabled }}
       serviceAccountName: {{ .Values.operator.serviceAccount.name }}
+      automountServiceAccountToken: true
+      {{- else if .Values.serviceAccount.enabled}}
+      serviceAccountName: {{ .Values.serviceAccount.name }}
       automountServiceAccountToken: true
       {{- else }}
       automountServiceAccountToken: false
@@ -225,32 +236,35 @@ spec:
             {{- end }}
             {{- end }}
           {{- end }}
-          {{ if .Values.libraries.grafonnet.enabled }}
+          {{- if .Values.libraries.grafonnet.enabled }}
             - --library-path={{ .Values.paths.libraries }}/grafonnet
-          {{ end }}
-          {{ if .Values.libraries.docsonnet.enabled }}
+          {{- end }}
+          {{- if .Values.libraries.docsonnet.enabled }}
             - --library-path={{ .Values.paths.libraries }}/docsonnet
-          {{ end }}
-          {{ if .Values.libraries.xtd.enabled }}
+          {{- end }}
+          {{- if .Values.libraries.xtd.enabled }}
             - --library-path={{ .Values.paths.libraries }}/xtd
-          {{ end }}
-          {{ range $name, $image := .Values.additionalLibraries }}
+          {{- end }}
+          {{- range $name, $image := .Values.additionalLibraries }}
             - --library-path={{ $.Values.paths.libraries }}/{{ $name }}
-          {{ end }}
+          {{- end }}
+          {{- with .Values.arguments.additionalArgs }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           env:
-          {{ range $name, $value := .Values.externalVariables }}
+          {{- range $name, $value := .Values.externalVariables }}
             - name: JAAS_EXT_VAR_{{ $name }}
               value: {{ $value | quote }}
-          {{ end }}
+          {{- end }}
           envFrom:
-          {{ range $name := .Values.externalVariablesFrom.configMaps }}
+          {{- range $name := .Values.externalVariablesFrom.configMaps }}
             - configMapRef:
                 name: {{ $name }}
-          {{ end }}
-          {{ range $name := .Values.externalVariablesFrom.secrets }}
+          {{- end }}
+          {{- range $name := .Values.externalVariablesFrom.secrets }}
             - secretRef:
                 name: {{ $name }}
-          {{ end }}
+          {{- end }}
           {{- if and .Values.operator.enabled (eq .Values.operator.storage.backend "s3") .Values.operator.storage.s3.credentialsSecret.name }}
             - secretRef:
                 name: {{ .Values.operator.storage.s3.credentialsSecret.name }}
@@ -263,31 +277,31 @@ spec:
             # "create tempfile: … read-only file system".
             - name: tmp
               mountPath: /tmp
-          {{ if .Values.libraries.grafonnet.enabled }}
+          {{- if .Values.libraries.grafonnet.enabled }}
             - name: library-grafonnet
               mountPath: {{ .Values.paths.libraries }}/grafonnet
               readOnly: true
-          {{ end }}
-          {{ if .Values.libraries.docsonnet.enabled }}
+          {{- end }}
+          {{- if .Values.libraries.docsonnet.enabled }}
             - name: library-docsonnet
               mountPath: {{ .Values.paths.libraries }}/docsonnet
               readOnly: true
-          {{ end }}
-          {{ if .Values.libraries.xtd.enabled }}
+          {{- end }}
+          {{- if .Values.libraries.xtd.enabled }}
             - name: library-xtd
               mountPath: {{ .Values.paths.libraries }}/xtd
               readOnly: true
-          {{ end }}
-          {{ range $name, $image := .Values.additionalLibraries }}
+          {{- end }}
+          {{- range $name, $image := .Values.additionalLibraries }}
             - name: library-{{ $name | replace "_" "-" }}
               mountPath: {{ $.Values.paths.libraries }}/{{ $name }}
               readOnly: true
-          {{ end }}
-          {{ range $name, $image := .Values.snippets }}
+          {{- end }}
+          {{- range $name, $image := .Values.snippets }}
             - name: snippet-{{ $name | replace "_" "-" }}
               mountPath: {{ $.Values.paths.snippets }}/{{ $name }}
               readOnly: true
-          {{ end }}
+          {{- end }}
           {{- if and .Values.operator.enabled (eq .Values.operator.storage.backend "local") }}
             - name: storage
               mountPath: {{ .Values.operator.storage.path }}
@@ -298,6 +312,9 @@ spec:
               {{- if eq .Values.operator.webhook.certMode "cert-manager" }}
               readOnly: true
               {{- end }}
+          {{- end }}
+          {{- with .Values.container.additionalVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
           {{- end }}
           ports:
             - containerPort: {{ .Values.ports.http }}
@@ -362,42 +379,49 @@ spec:
                 - ALL
             seccompProfile:
               type: RuntimeDefault
+      {{- with .Values.pod.additionalContainers }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.pod.additionalInitContainers }}
+      initContainers:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       volumes:
         - name: tmp
           emptyDir:
             # Holds one compressed source tarball at a time (the fetcher caps
             # downloads well below this); decompression happens in memory.
             sizeLimit: 256Mi
-        {{ if .Values.libraries.grafonnet.enabled }}
+        {{- if .Values.libraries.grafonnet.enabled }}
         - name: library-grafonnet
           image:
             reference: "{{ include "jaas.registry" (dict "root" $ "registry" .Values.libraries.grafonnet.registry) }}/{{ .Values.libraries.grafonnet.repository }}:{{ .Values.libraries.grafonnet.version }}"
             pullPolicy: IfNotPresent
-        {{ end }}
-        {{ if .Values.libraries.docsonnet.enabled }}
+        {{- end }}
+        {{- if .Values.libraries.docsonnet.enabled }}
         - name: library-docsonnet
           image:
             reference: "{{ include "jaas.registry" (dict "root" $ "registry" .Values.libraries.docsonnet.registry) }}/{{ .Values.libraries.docsonnet.repository }}:{{ .Values.libraries.docsonnet.version }}"
             pullPolicy: IfNotPresent
-        {{ end }}
-        {{ if .Values.libraries.xtd.enabled }}
+        {{- end }}
+        {{- if .Values.libraries.xtd.enabled }}
         - name: library-xtd
           image:
             reference: "{{ include "jaas.registry" (dict "root" $ "registry" .Values.libraries.xtd.registry) }}/{{ .Values.libraries.xtd.repository }}:{{ .Values.libraries.xtd.version }}"
             pullPolicy: IfNotPresent
-        {{ end }}
-        {{ range $name, $image := .Values.additionalLibraries }}
+        {{- end }}
+        {{- range $name, $image := .Values.additionalLibraries }}
         - name: library-{{ $name | replace "_" "-" }}
           image:
             reference: {{ $image }}
             pullPolicy: IfNotPresent
-        {{ end }}
-        {{ range $name, $image := .Values.snippets }}
+        {{- end }}
+        {{- range $name, $image := .Values.snippets }}
         - name: snippet-{{ $name | replace "_" "-" }}
           image:
             reference: {{ $image }}
             pullPolicy: IfNotPresent
-        {{ end }}
+        {{- end }}
         {{- if and .Values.operator.enabled (eq .Values.operator.storage.backend "local") }}
         - name: storage
           {{- if .Values.operator.storage.persistence.enabled }}
@@ -420,4 +444,7 @@ spec:
             secretName: {{ .Values.operator.webhook.secretName }}
             defaultMode: 0444
           {{- end }}
+        {{- end }}
+        {{- with .Values.pod.additionalVolumes }}
+          {{- toYaml . | nindent 8 }}
         {{- end }}
