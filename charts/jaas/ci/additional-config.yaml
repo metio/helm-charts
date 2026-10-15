@@ -1,0 +1,96 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+# Use custom additional configurations
+deployment:
+  additionalLabels:
+    customDeploymentLabel: customValue
+  additionalAnnotations:
+    customDeploymentAnnotation: customValue
+pod:
+  additionalLabels:
+    customPodLabel: customValue
+  additionalAnnotations:
+    customPodAnnotation: customValue
+  additionalContainers:
+    - name: custom-container
+      image: custom/container:latest
+      command: ["custom-command"]
+      args: ["--custom-sidecar-arg"]
+  additionalInitContainers:
+    - name: custom-init-container
+      image: custom/init-container:latest
+      command: ["custom-command"]
+      args: ["--custom-init-arg"]
+  additionalVolumes:
+    - emptyDir: {}
+      name: custom
+arguments:
+  additionalArgs:
+    - --custom-arg
+container:
+  additionalVolumeMounts:
+    - mountPath: /custom-volume
+      name: custom
+serviceAccount:
+  enabled: true
+  name: jaas
+  labels:
+    customSALabel: customValue
+  annotations:
+    customSAAnnotation: customValue
+
+extraObjects:
+  - apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRole
+    metadata:
+      labels:
+        app.kubernetes.io/name: '{{ .Chart.Name }}'
+        app.kubernetes.io/component: jaas
+        app.kubernetes.io/instance: '{{ .Release.Name }}'
+        app.kubernetes.io/version: '{{ .Chart.AppVersion }}'
+        app.kubernetes.io/part-of: '{{ .Chart.Name }}'
+        app.kubernetes.io/managed-by: '{{ .Release.Service }}'
+        helm.sh/chart: '{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}'
+      name: jaas
+    rules:
+      - apiGroups:
+          - ""
+        resources:
+          - configmaps
+        verbs:
+          - get
+          - list
+          - watch
+
+  - apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRoleBinding
+    metadata:
+      annotations:
+        argocd.argoproj.io/tracking-id: >-
+          sepd-domain-lidl-gcc-devops_jaas-sepddev:rbac.authorization.k8s.io/ClusterRoleBinding:jaas/jaas
+        kubectl.kubernetes.io/last-applied-configuration: >
+          {"apiVersion":"rbac.authorization.k8s.io/v1","kind":"ClusterRoleBinding","metadata":{"annotations":{"argocd.argoproj.io/tracking-id":"sepd-domain-lidl-gcc-devops_jaas-sepddev:rbac.authorization.k8s.io/ClusterRoleBinding:jaas/jaas"},"labels":{"app.kubernetes.io/component":"jaas","app.kubernetes.io/instance":"jaas","app.kubernetes.io/managed-by":"Helm","app.kubernetes.io/name":"jaas","app.kubernetes.io/part-of":"jaas","app.kubernetes.io/version":"2026.8.10054406","helm.sh/chart":"jaas-1.0"},"name":"jaas"},"roleRef":{"apiGroup":"rbac.authorization.k8s.io","kind":"ClusterRole","name":"jaas"},"subjects":[{"kind":"ServiceAccount","name":"jaas","namespace":"jaas"}]}
+      creationTimestamp: "2026-08-19T06:59:41Z"
+      labels:
+        app.kubernetes.io/name: '{{ .Chart.Name }}'
+        app.kubernetes.io/component: jaas
+        app.kubernetes.io/instance: '{{ .Release.Name }}'
+        app.kubernetes.io/version: '{{ .Chart.AppVersion }}'
+        app.kubernetes.io/part-of: '{{ .Chart.Name }}'
+        app.kubernetes.io/managed-by: '{{ .Release.Service }}'
+        helm.sh/chart: '{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}'
+      name: jaas
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: ClusterRole
+      name: jaas
+    subjects:
+      - kind: ServiceAccount
+        name: jaas
+        namespace: jaas
+
+# CI installs the chart once per values file; the CRDs are provisioned
+# out-of-band (see verify.yml) so a kept cluster-scoped CRD owned by one
+# release does not block re-adoption by the next.
+crds:
+  create: false
