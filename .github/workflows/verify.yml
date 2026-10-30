@@ -294,7 +294,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - uses: metio/ci/policy-check@fafdce8a81c933131048b4c97d20f7011fcf6d3f # 2026.10.30081152
+      - uses: metio/ci/policy-check@c5d6aa7eac14393fa0d61ebe41460f8f4d2d9365 # 2026.10.30162913
 
   dco:
     # Developer Certificate of Origin: every commit carries a Signed-off-by
@@ -307,7 +307,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: metio/ci/dco@fafdce8a81c933131048b4c97d20f7011fcf6d3f # 2026.10.30081152
+      - uses: metio/ci/dco@c5d6aa7eac14393fa0d61ebe41460f8f4d2d9365 # 2026.10.30162913
 
   # Single, stably-named aggregate of every job above. Matrix jobs (install,
   # static) report one rolled-up result here — success only if every
