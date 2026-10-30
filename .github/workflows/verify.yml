@@ -21,6 +21,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
+          persist-credentials: false
       - uses: helm/chart-testing-action@6ec842c01de15ebb84c8627d2744a0c2f2755c9f # v2
       - id: list
         name: List changed charts
@@ -73,6 +74,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
+          persist-credentials: false
       - uses: metio/nix-devshell@d0c25fdb0d2c08f23bc62c867317a266b6f1a5c1 # 2026.9.12204255
       - name: Vendor CRDs (build artifact, regenerated per run)
         # CRDs aren't committed; the chart's CRDs are vendored from its
@@ -80,11 +82,14 @@ jobs:
         # CRDs the package ships.
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: nix develop --command hack/vendor-chart-crds.sh "charts/${{ matrix.chart }}"
+          MATRIX_CHART: ${{ matrix.chart }}
+        run: nix develop --command hack/vendor-chart-crds.sh "charts/${MATRIX_CHART}"
       - name: Static gates (ct lint, helm-unittest, helm-docs, kube-score, kubeconform)
         # helm is wrapped with the unittest plugin in the flake, so no plugin
         # install; all gate tools resolve from flake.lock.
-        run: nix develop --command chart-static "${{ matrix.chart }}"
+        run: nix develop --command chart-static "${MATRIX_CHART}"
+        env:
+          MATRIX_CHART: ${{ matrix.chart }}
 
   k8s-matrix:
     name: Compute Kubernetes matrix
@@ -151,6 +156,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
+          persist-credentials: false
       - name: Vendor CRDs for all charts (build artifact)
         # The prerequisite step below provisions every chart's CRDs from disk,
         # and ct install needs each chart's CRDs present, so regenerate them all
@@ -235,18 +241,22 @@ jobs:
         run: |
           # Skip charts whose appVersion is the 0.0.0 placeholder (image not
           # released yet); the changed job computed the exclude list.
-          excluded="${{ needs.changed.outputs.excluded }}"
+          excluded="${NEEDS_CHANGED_OUTPUTS_EXCLUDED}"
           if [ -n "$excluded" ]; then
             ct install --config ct.yaml --excluded-charts "$excluded"
           else
             ct install --config ct.yaml
           fi
+        env:
+          NEEDS_CHANGED_OUTPUTS_EXCLUDED: ${{ needs.changed.outputs.excluded }}
 
   yaml:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
       - uses: metio/nix-devshell@d0c25fdb0d2c08f23bc62c867317a266b6f1a5c1 # 2026.9.12204255
       - run: nix develop --command yamllint .
   github-actions:
@@ -254,6 +264,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
       - uses: metio/nix-devshell@d0c25fdb0d2c08f23bc62c867317a266b6f1a5c1 # 2026.9.12204255
       # shellcheck rides in the devShell, so actionlint lints run: blocks too.
       - run: nix develop --command actionlint
@@ -262,6 +274,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
       - uses: metio/nix-devshell@d0c25fdb0d2c08f23bc62c867317a266b6f1a5c1 # 2026.9.12204255
       - run: nix develop --command markdownlint-cli2 "**/*.md"
   typos:
@@ -269,6 +283,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
       - uses: metio/nix-devshell@d0c25fdb0d2c08f23bc62c867317a266b6f1a5c1 # 2026.9.12204255
       - run: nix develop --command typos
   policy:
@@ -276,6 +292,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
       - uses: metio/ci/policy-check@14ad475c5f5c4c0df727df1a22345298604e66ba # 2026.10.26174650
 
   dco:
@@ -288,7 +306,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
-      - uses: metio/ci/dco@14ad475c5f5c4c0df727df1a22345298604e66ba # main
+          persist-credentials: false
+      - uses: metio/ci/dco@14ad475c5f5c4c0df727df1a22345298604e66ba # 2026.10.26174650
 
   # Single, stably-named aggregate of every job above. Matrix jobs (install,
   # static) report one rolled-up result here — success only if every

@@ -46,6 +46,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
+          persist-credentials: false
       - id: scope
         name: Did this PR touch the jaas chart or this workflow?
         env:
@@ -145,12 +146,15 @@ jobs:
     steps:
       - name: Checkout helm-charts (dev chart)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
       - name: Checkout jaas at the released tag (shared smoke scripts)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: metio/jaas
           ref: ${{ needs.discover.outputs.image_version }}
           path: jaas-src
+          persist-credentials: false
       - name: Create kind cluster
         uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1
         with:
@@ -161,8 +165,10 @@ jobs:
       - name: Cluster prereqs (cert-manager + Flux + issuer)
         run: |
           jaas-src/hack/smoke/setup-cert-manager.sh
-          jaas-src/hack/smoke/setup-flux.sh ${{ needs.discover.outputs.flux_latest }}
+          jaas-src/hack/smoke/setup-flux.sh "${NEEDS_DISCOVER_OUTPUTS_FLUX_LATEST}"
           jaas-src/hack/smoke/setup-selfsigned-issuer.sh
+        env:
+          NEEDS_DISCOVER_OUTPUTS_FLUX_LATEST: ${{ needs.discover.outputs.flux_latest }}
       - name: Install the dev chart with the released image
         run: |
           # CRDs aren't committed; vendor them from the chart's released jaas
@@ -259,12 +265,15 @@ jobs:
     steps:
       - name: Checkout helm-charts (dev chart)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
       - name: Checkout jaas at the released tag (shared smoke scripts)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: metio/jaas
           ref: ${{ needs.discover.outputs.image_version }}
           path: jaas-src
+          persist-credentials: false
       - name: Create kind cluster
         uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1
         with:
@@ -273,7 +282,9 @@ jobs:
           node_image: kindest/node:${{ needs.discover.outputs.k8s_latest }}
           wait: 180s
       - name: Cluster prereqs (Flux)
-        run: jaas-src/hack/smoke/setup-flux.sh ${{ needs.discover.outputs.flux_latest }}
+        run: jaas-src/hack/smoke/setup-flux.sh "${NEEDS_DISCOVER_OUTPUTS_FLUX_LATEST}"
+        env:
+          NEEDS_DISCOVER_OUTPUTS_FLUX_LATEST: ${{ needs.discover.outputs.flux_latest }}
       - name: Install the dev chart (self-signed cert mode) with the released image
         run: |
           kubectl create namespace jaas-system
@@ -355,12 +366,15 @@ jobs:
     steps:
       - name: Checkout helm-charts (dev chart)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
       - name: Checkout jaas at the released tag (shared smoke scripts)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: metio/jaas
           ref: ${{ needs.discover.outputs.image_version }}
           path: jaas-src
+          persist-credentials: false
       - name: Create kind cluster
         uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1
         with:
@@ -369,7 +383,9 @@ jobs:
           node_image: kindest/node:${{ needs.discover.outputs.k8s_latest }}
           wait: 180s
       - name: Cluster prereqs (Flux)
-        run: jaas-src/hack/smoke/setup-flux.sh ${{ needs.discover.outputs.flux_latest }}
+        run: jaas-src/hack/smoke/setup-flux.sh "${NEEDS_DISCOVER_OUTPUTS_FLUX_LATEST}"
+        env:
+          NEEDS_DISCOVER_OUTPUTS_FLUX_LATEST: ${{ needs.discover.outputs.flux_latest }}
       - name: Install the dev chart (no webhook) with the released image
         run: |
           kubectl create namespace jaas-system
@@ -428,12 +444,15 @@ jobs:
     steps:
       - name: Checkout helm-charts (dev chart)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
       - name: Checkout jaas at the released tag (shared smoke scripts)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: metio/jaas
           ref: ${{ needs.discover.outputs.image_version }}
           path: jaas-src
+          persist-credentials: false
       - name: Create kind cluster
         uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1
         with:
@@ -443,8 +462,10 @@ jobs:
           wait: 180s
       - name: Cluster prereqs (Flux + SeaweedFS bucket)
         run: |
-          jaas-src/hack/smoke/setup-flux.sh ${{ needs.discover.outputs.flux_latest }}
+          jaas-src/hack/smoke/setup-flux.sh "${NEEDS_DISCOVER_OUTPUTS_FLUX_LATEST}"
           jaas-src/hack/smoke/setup-seaweedfs.sh
+        env:
+          NEEDS_DISCOVER_OUTPUTS_FLUX_LATEST: ${{ needs.discover.outputs.flux_latest }}
       - name: Open source-controller artifact port across namespaces
         # Release-lag bridge: the released setup-flux.sh predates this policy.
         # Flux's default NetworkPolicies admit ingress to source-controller only
@@ -578,12 +599,15 @@ jobs:
     steps:
       - name: Checkout helm-charts (dev chart)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
       - name: Checkout jaas at the released tag (shared smoke scripts)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: metio/jaas
           ref: ${{ needs.discover.outputs.image_version }}
           path: jaas-src
+          persist-credentials: false
       - name: Create kind cluster
         uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1
         with:
@@ -592,7 +616,9 @@ jobs:
           node_image: kindest/node:${{ needs.discover.outputs.k8s_latest }}
           wait: 180s
       - name: Cluster prereqs (Flux)
-        run: jaas-src/hack/smoke/setup-flux.sh ${{ needs.discover.outputs.flux_latest }}
+        run: jaas-src/hack/smoke/setup-flux.sh "${NEEDS_DISCOVER_OUTPUTS_FLUX_LATEST}"
+        env:
+          NEEDS_DISCOVER_OUTPUTS_FLUX_LATEST: ${{ needs.discover.outputs.flux_latest }}
       - name: Install the dev chart (no webhook) with the released image
         run: |
           kubectl create namespace jaas-system
@@ -658,6 +684,8 @@ jobs:
     steps:
       - name: Checkout helm-charts (dev chart)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
       - name: Write kind config enabling the ImageVolume feature gate
         # kind does not enable ImageVolume by default; turn it on for apiserver
         # (so the volumes[].image field survives admission) and kubelet (so it
@@ -670,9 +698,11 @@ jobs:
             ImageVolume: true
           nodes:
             - role: control-plane
-              image: kindest/node:${{ matrix.k8s_version }}
+              image: kindest/node:${MATRIX_K8S_VERSION}
           EOF
           cat /tmp/kind-imagevolume.yaml
+        env:
+          MATRIX_K8S_VERSION: ${{ matrix.k8s_version }}
       - name: Create kind cluster
         uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1
         with:
