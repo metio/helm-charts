@@ -22,7 +22,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: metio/breto@3d35cbfa61e9b8e98fe3d92113390a6db219b66c # 2026.10.30182439
+      - uses: metio/breto@9fa67afc6a21b59600180acd0cee7d5eb26125ef # 2026.10.31164824
         with:
           registries: github:metio/toolchains
       - id: list
@@ -77,7 +77,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: metio/breto@3d35cbfa61e9b8e98fe3d92113390a6db219b66c # 2026.10.30182439
+      - uses: metio/breto@9fa67afc6a21b59600180acd0cee7d5eb26125ef # 2026.10.31164824
         with:
           registries: github:metio/toolchains
       - name: Vendor CRDs (build artifact, regenerated per run)
@@ -169,7 +169,7 @@ jobs:
           for c in charts/*/; do
             hack/vendor-chart-crds.sh "${c%/}"
           done
-      - uses: metio/breto@3d35cbfa61e9b8e98fe3d92113390a6db219b66c # 2026.10.30182439
+      - uses: metio/breto@9fa67afc6a21b59600180acd0cee7d5eb26125ef # 2026.10.31164824
         with:
           registries: github:metio/toolchains
       - uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1
@@ -261,7 +261,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - uses: metio/breto@3d35cbfa61e9b8e98fe3d92113390a6db219b66c # 2026.10.30182439
+      - uses: metio/breto@9fa67afc6a21b59600180acd0cee7d5eb26125ef # 2026.10.31164824
         with:
           registries: github:metio/toolchains
       - run: yamllint .
@@ -272,7 +272,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - uses: metio/breto@3d35cbfa61e9b8e98fe3d92113390a6db219b66c # 2026.10.30182439
+      - uses: metio/breto@9fa67afc6a21b59600180acd0cee7d5eb26125ef # 2026.10.31164824
         with:
           registries: github:metio/toolchains
       # shellcheck comes with @lint, so actionlint lints run: blocks too.
@@ -284,7 +284,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - uses: metio/breto@3d35cbfa61e9b8e98fe3d92113390a6db219b66c # 2026.10.30182439
+      - uses: metio/breto@9fa67afc6a21b59600180acd0cee7d5eb26125ef # 2026.10.31164824
         with:
           registries: github:metio/toolchains
       - run: markdownlint-cli2 "**/*.md"
@@ -295,7 +295,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - uses: metio/breto@3d35cbfa61e9b8e98fe3d92113390a6db219b66c # 2026.10.30182439
+      - uses: metio/breto@9fa67afc6a21b59600180acd0cee7d5eb26125ef # 2026.10.31164824
         with:
           registries: github:metio/toolchains
       - run: typos
