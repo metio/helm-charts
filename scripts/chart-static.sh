@@ -42,6 +42,8 @@ if [ -f "${c}README.md.gotmpl" ]; then
 fi
 
 # kube-score on the default render and each ci/ values variant; CRITICAL fails.
+# ci/additional-*-values.yaml adds containers the chart consumer supplies, which
+# neither kube-score nor the registry sweep can hold to the chart's standards.
 render() {
   label="$1"
   shift
@@ -52,6 +54,7 @@ render() {
 render default
 for vf in "$c"ci/*-values.yaml; do
   [ -e "$vf" ] || continue
+  case "$(basename "$vf")" in additional-*) continue ;; esac
   render "$(basename "$vf")" -f "$vf"
 done
 
@@ -74,6 +77,7 @@ if grep -qE '^[[:space:]]+imageRegistry:' "${c}values.yaml"; then
   # that no ci/ values file enables, so the sweep sees those too.
   for vf in "" "${c}tests/sweep-values.yaml" "$c"ci/*-values.yaml; do
     [ -z "$vf" ] || [ -e "$vf" ] || continue
+    case "$(basename "$vf")" in additional-*) continue ;; esac
     if [ -z "$vf" ]; then refs="$(sweep_render)"; else refs="$(sweep_render -f "$vf")"; fi
     for ref in $refs; do
       case "$ref" in
