@@ -22,7 +22,9 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: helm/chart-testing-action@6ec842c01de15ebb84c8627d2744a0c2f2755c9f # v2
+      - uses: metio/breto@3d35cbfa61e9b8e98fe3d92113390a6db219b66c # 2026.10.30182439
+        with:
+          registries: github:metio/toolchains
       - id: list
         name: List changed charts
         run: |
@@ -75,7 +77,9 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: metio/nix-devshell@d0c25fdb0d2c08f23bc62c867317a266b6f1a5c1 # 2026.9.12204255
+      - uses: metio/breto@3d35cbfa61e9b8e98fe3d92113390a6db219b66c # 2026.10.30182439
+        with:
+          registries: github:metio/toolchains
       - name: Vendor CRDs (build artifact, regenerated per run)
         # CRDs aren't committed; the chart's CRDs are vendored from its
         # controller release on the fly so every gate renders against the same
@@ -83,11 +87,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           MATRIX_CHART: ${{ matrix.chart }}
-        run: nix develop --command hack/vendor-chart-crds.sh "charts/${MATRIX_CHART}"
+        run: hack/vendor-chart-crds.sh "charts/${MATRIX_CHART}"
       - name: Static gates (ct lint, helm-unittest, helm-docs, kube-score, kubeconform)
-        # helm is wrapped with the unittest plugin in the flake, so no plugin
-        # install; all gate tools resolve from flake.lock.
-        run: nix develop --command chart-static "${MATRIX_CHART}"
+        run: breto run chart-static "${MATRIX_CHART}"
         env:
           MATRIX_CHART: ${{ matrix.chart }}
 
@@ -167,7 +169,9 @@ jobs:
           for c in charts/*/; do
             hack/vendor-chart-crds.sh "${c%/}"
           done
-      - uses: helm/chart-testing-action@6ec842c01de15ebb84c8627d2744a0c2f2755c9f # v2
+      - uses: metio/breto@3d35cbfa61e9b8e98fe3d92113390a6db219b66c # 2026.10.30182439
+        with:
+          registries: github:metio/toolchains
       - uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1
         with:
           version: ${{ needs.k8s-matrix.outputs.kind }}
@@ -257,8 +261,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - uses: metio/nix-devshell@d0c25fdb0d2c08f23bc62c867317a266b6f1a5c1 # 2026.9.12204255
-      - run: nix develop --command yamllint .
+      - uses: metio/breto@3d35cbfa61e9b8e98fe3d92113390a6db219b66c # 2026.10.30182439
+        with:
+          registries: github:metio/toolchains
+      - run: yamllint .
   github-actions:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -266,9 +272,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - uses: metio/nix-devshell@d0c25fdb0d2c08f23bc62c867317a266b6f1a5c1 # 2026.9.12204255
-      # shellcheck rides in the devShell, so actionlint lints run: blocks too.
-      - run: nix develop --command actionlint
+      - uses: metio/breto@3d35cbfa61e9b8e98fe3d92113390a6db219b66c # 2026.10.30182439
+        with:
+          registries: github:metio/toolchains
+      # shellcheck comes with @lint, so actionlint lints run: blocks too.
+      - run: actionlint
   markdown:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -276,8 +284,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - uses: metio/nix-devshell@d0c25fdb0d2c08f23bc62c867317a266b6f1a5c1 # 2026.9.12204255
-      - run: nix develop --command markdownlint-cli2 "**/*.md"
+      - uses: metio/breto@3d35cbfa61e9b8e98fe3d92113390a6db219b66c # 2026.10.30182439
+        with:
+          registries: github:metio/toolchains
+      - run: markdownlint-cli2 "**/*.md"
   typos:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -285,8 +295,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - uses: metio/nix-devshell@d0c25fdb0d2c08f23bc62c867317a266b6f1a5c1 # 2026.9.12204255
-      - run: nix develop --command typos
+      - uses: metio/breto@3d35cbfa61e9b8e98fe3d92113390a6db219b66c # 2026.10.30182439
+        with:
+          registries: github:metio/toolchains
+      - run: typos
   policy:
     runs-on: ubuntu-latest
     timeout-minutes: 10
