@@ -245,6 +245,9 @@ jobs:
         run: |
           # Skip charts whose appVersion is the 0.0.0 placeholder (image not
           # released yet); the changed job computed the exclude list.
+          # ci/additional-*-values.yaml adds consumer-supplied containers whose
+          # images do not exist, so those variants are linted but not installed.
+          rm -f charts/*/ci/additional-*-values.yaml
           excluded="${NEEDS_CHANGED_OUTPUTS_EXCLUDED}"
           if [ -n "$excluded" ]; then
             ct install --config ct.yaml --excluded-charts "$excluded"
