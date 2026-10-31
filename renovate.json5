@@ -1,0 +1,63 @@
+// SPDX-FileCopyrightText: The helm-charts Authors
+// SPDX-License-Identifier: 0BSD
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Bump each controller chart's committed appVersion from the source repo's GitHub releases. A `# renovate: datasource=github-releases depName=metio/<repo>` comment sits directly above the appVersion key (depName must match a packageRule matchPackageNames entry). Tracking the GitHub release rather than the ghcr image is deliberate: the controller release pipeline pushes the image before it creates the git tag/release, so an image tag can briefly exist with no matching git tag — and vendor-crds.sh plus the dev-chart smoke both resolve that tag, not the image. The release job needs the container job, so a release implies its image exists too, making the bump consistent (tag => image => CRDs). The appVersion bump is the only change in the PR: CRDs are not committed but vendored from the release at package time (hack/vendor-chart-crds.sh, run by the release pipeline and every CI job that renders or installs a chart), so a bump needs no companion commit and Renovate can automerge it cleanly. NOTE: the joi chart is deliberately NOT managed here — its per-library JOI image tags default to `latest` (the version is selected in the import path), refreshed by the jsonnet-oci-images pipeline + the OCIRepository re-pull interval + sync-joi.yml, so Renovate has no role for it.",
+      "managerFilePatterns": [
+        "/^charts/[^/]+/Chart\\.yaml$/"
+      ],
+      "matchStrings": [
+        "#\\s*renovate:\\s*datasource=(?<datasource>\\S+)\\s+depName=(?<depName>\\S+)\\s*\\n\\s*appVersion:\\s*\"?(?<currentValue>[^\"\\n]+)\"?"
+      ]
+    },
+    {
+      "customType": "regex",
+      "description": "Bump auxiliary image tags pinned in a chart's values.yaml that carry an explicit `# renovate: datasource=... depName=...` comment directly above the `tag:` key. The built-in helm-values manager is disabled (controller images are tracked via Chart.yaml appVersion, not values), so this opt-in comment-driven manager keeps the handful of non-controller images pinned in values — e.g. the jaas cleanup Job's registry.k8s.io/kubectl image — from rotting.",
+      "managerFilePatterns": [
+        "/^charts/[^/]+/values\\.yaml$/"
+      ],
+      "matchStrings": [
+        "#\\s*renovate:\\s*datasource=(?<datasource>\\S+)\\s+depName=(?<depName>\\S+)\\s*\\n\\s*tag:\\s*\"?(?<currentValue>[^\"\\n]+)\"?"
+      ]
+    },
+    {
+      "currentValueTemplate": "main",
+      "customType": "regex",
+      "datasourceTemplate": "git-refs",
+      "depNameTemplate": "metio/git-cliff-config",
+      "description": "Bump the pinned commit SHA of the shared metio/git-cliff-config repo whose cliff.toml / cliff-artifacthub.toml the release workflow loads via --config-url. Both URLs embed the same SHA, so one matcher capturing the digest updates every occurrence.",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/release\\.yml$/"
+      ],
+      "matchStrings": [
+        "git-cliff-config/(?<currentDigest>[0-9a-f]{40})/"
+      ],
+      "packageNameTemplate": "https://github.com/metio/git-cliff-config"
+    }
+  ],
+  "extends": [
+    "github>metio/renovate-config"
+  ],
+  "helm-values": {
+    "enabled": false
+  },
+  "packageRules": [
+    {
+      "commitMessageTopic": "{{depName}} release (chart appVersion)",
+      "description": "Group each controller release bump with its CRD re-vendor. semver versioning so the metio calendar tags (YYYY.M.D = three integers) order correctly; the default versioning does not. maxMajorIncrement: 0 disables Renovate's default 500-major cap — under semver the calendar tag's year reads as the major (e.g. 2026), so the first bump from the 0.0.0 bootstrap is a +2026 major jump that the cap would otherwise silently skip.",
+      "groupName": "{{depName}} appVersion",
+      "matchDatasources": [
+        "github-releases"
+      ],
+      "matchPackageNames": [
+        "metio/jaas",
+        "metio/stageset-controller"
+      ],
+      "maxMajorIncrement": 0,
+      "versioning": "semver"
+    }
+  ]
+}

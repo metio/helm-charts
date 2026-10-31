@@ -1,10 +1,14 @@
 # SPDX-FileCopyrightText: The helm-charts Authors
 # SPDX-License-Identifier: 0BSD
-[files]
-extend-exclude = ["LICENSES/", "charts/*/tests/__snapshot__/"]
+
+[default]
+extend-ignore-re = []
 
 [default.extend-words]
-# EDN (Extensible Data Notation) and the `.edn` file extension — tik's config
-# format — are real words, not misspellings of "end".
 edn = "edn"
 EDN = "EDN"
+
+[default.extend-identifiers]
+
+[files]
+extend-exclude = ["LICENSES/", "charts/*/tests/__snapshot__/"]
