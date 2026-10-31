@@ -57,5 +57,4 @@ loaded the environment.
 
 ## License
 
-[0BSD](LICENSES/0BSD.txt) — the repository is [REUSE](https://reuse.software)
-compliant; see [`REUSE.toml`](REUSE.toml) for per-path metadata.
+[0BSD](LICENSES/0BSD.txt).
