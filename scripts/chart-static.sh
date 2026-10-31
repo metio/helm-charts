@@ -25,8 +25,8 @@ echo "::group::ct lint ${chart}"
 ct lint --config ct.yaml --charts "charts/${chart}"
 echo "::endgroup::"
 
-# helm is wrapped with the unittest plugin in the flake, so there is no plugin
-# to install — `helm unittest` just works.
+# breto puts the helm-unittest plugin on HELM_PLUGINS, so `helm unittest` needs
+# no plugin install.
 if [ -d "${c}tests" ]; then
   echo "::group::helm-unittest ${chart}"
   helm unittest "$c"

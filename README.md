@@ -40,18 +40,20 @@ change or its `appVersion` advances.
 
 ## Development
 
-The toolchain is a [nix flake](flake.nix) — no host tools required beyond nix.
-Run any gate through the devShell:
+The toolchain is a [breto](https://github.com/metio/breto) environment
+([`.breto.edn`](.breto.edn)) built from the shared groups of
+[metio/toolchains](https://github.com/metio/toolchains), so a local run and CI
+resolve the same versions. Run any gate through it:
 
 ```sh
-nix develop --command chart-static jaas   # ct lint + unittest + helm-docs + kube-score + kubeconform
-nix develop --command helm unittest charts/jaas             # template assertions + snapshots
-nix develop --command helm-schema -c charts/jaas -k additionalProperties  # regenerate values.schema.json
-nix develop --command helm template release-x charts/jaas   # render a chart with defaults
+breto run chart-static jaas   # ct lint + unittest + helm-docs + kube-score + kubeconform
+helm unittest charts/jaas     # template assertions + snapshots
+helm-schema -c charts/jaas -k additionalProperties  # regenerate values.schema.json
+helm template release-x charts/jaas                 # render a chart with defaults
 ```
 
-Or `nix develop` to drop into the shell (it prints the command menu) and run
-tools bare.
+The tools are on `PATH` once `breto env` (or the `breto hook` prompt hook) has
+loaded the environment.
 
 ## License
 

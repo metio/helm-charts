@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: 0BSD
 
 # Package, push, sign, and release each changed chart. Driven by env so it runs
-# identically under `nix develop --command`:
+# identically under `breto run release-charts`:
 #   VERSION  the shared CalVer for this run
 #   CHARTS   space-separated chart names to consider
 #   REPO     github.com/<owner>/<repo> (for cosign + footer)

@@ -38,17 +38,16 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: metio/nix-devshell@d0c25fdb0d2c08f23bc62c867317a266b6f1a5c1 # 2026.9.12204255
+      - uses: metio/breto@3d35cbfa61e9b8e98fe3d92113390a6db219b66c # 2026.10.30182439
+        with:
+          registries: github:metio/toolchains
       - name: Log in to GHCR (Helm OCI)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ACTOR: ${{ github.actor }}
-        # helm resolves from the flake; the token and actor ride env so they are
-        # never interpolated into the shell of a write-scoped job.
-        run: |
-          # The $vars expand inside the devShell's bash, not in this script.
-          # shellcheck disable=SC2016
-          nix develop --command bash -c 'echo "$GH_TOKEN" | helm registry login ghcr.io -u "$ACTOR" --password-stdin'
+        # The token and actor ride env so they are never interpolated into the
+        # shell of a write-scoped job.
+        run: echo "$GH_TOKEN" | helm registry login ghcr.io -u "$ACTOR" --password-stdin
       # cosign reads registry credentials from ~/.docker/config.json, which
       # `helm registry login` does not populate (it writes its own config).
       # Authenticate via docker so cosign can push signature layers to ghcr.io.
@@ -118,11 +117,11 @@ jobs:
           # without it the calls are unauthenticated (60/hr) and rate-limit out,
           # so release notes render without their PR/contributor enrichment.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # The release loop is scripts/release-charts.sh (a flake command); its
+          # The release loop is scripts/release-charts.sh (a breto command); its
           # GHA inputs ride env so nothing untrusted is interpolated into the
           # shell of this write-scoped job.
           VERSION: ${{ steps.version.outputs.version }}
           CHARTS: ${{ steps.changed.outputs.charts }}
           REPO: ${{ github.repository }}
           SHA: ${{ github.sha }}
-        run: nix develop --command release-charts
+        run: breto run release-charts

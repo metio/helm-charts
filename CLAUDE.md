@@ -28,34 +28,29 @@ deliberate namespace choice, not a requirement.)
 
 ## Common commands
 
-The toolchain is a **nix flake** (`flake.nix` + `flake.lock`, Renovate-maintained):
-CI runs every gate through the flake's devShell, so a local run and CI resolve
-the same versions. Multi-step gates are `writeShellApplication` commands in
-`scripts/` — on `$PATH` inside `nix develop`, callable one-shot:
+The toolchain is a **breto environment** (`.breto.edn`): it names the shared
+groups of metio/toolchains (`@helm`, `@charts`, `@lint`, `@containers`) plus a
+few single packages, and carries no versions of its own, so a local run and CI
+resolve the same versions. CI loads it with `metio/breto`. Multi-step gates are
+scripts in `scripts/`, exposed as breto commands:
 
 ```shell
-nix develop --command chart-static jaas   # ct lint + helm-unittest + helm-docs + kube-score + kubeconform for a chart
-nix develop --command reuse lint          # the single-tool gates call the tool directly:
-nix develop --command yamllint .
-nix develop --command actionlint
-nix develop --command markdownlint-cli2 '**/*.md'
-nix develop --command typos
-nix develop --command helm-schema -c charts/jaas -k additionalProperties  # regenerate a chart's values.schema.json
-nix develop --command helm template release-x charts/jaas                 # render a chart with defaults
+breto run chart-static jaas   # ct lint + helm-unittest + helm-docs + kube-score + kubeconform for a chart
+reuse lint                    # the single-tool gates call the tool directly:
+yamllint .
+actionlint
+markdownlint-cli2 '**/*.md'
+typos
+helm-schema -c charts/jaas -k additionalProperties  # regenerate a chart's values.schema.json
+helm template release-x charts/jaas                 # render a chart with defaults
 ```
 
-Or drop into the shell (`nix develop` prints the command menu) and run tools
-bare. The devShell provides **helm v4 wrapped with `helm-unittest`** (via
-`wrapHelm`, so `helm unittest` works with no plugin install), `ct`
-(chart-testing), `kube-score`, `kubeconform`, `helm-docs`, `cosign`,
-`git-cliff`, `yq`, `yamllint`, `yamale`, and the shared lint gate. dadav's
-`helm-schema` is not in nixpkgs, so the flake builds it from source
-(`packages.helm-schema`). The `ct install` / kind-cluster smoke gates keep
-`chart-testing-action` + `kind-action` — building real clusters is a runner
-operation, not a devShell one. On this host `nix` is nix-portable (see the
-root `CLAUDE.md`'s nix section); a system install is not possible.
-golangci-lint is irrelevant here (there is no Go), but the project-wide ban
-still applies if any tooling ever tempts it.
+The environment provides **helm v4 with the `helm-unittest` plugin** (breto sets
+`HELM_PLUGINS`, so `helm unittest` works with no plugin install), `ct`
+(chart-testing) with `yamale` and `yamllint`, `kube-score`, `kubeconform`,
+`helm-docs`, `helm-schema`, `cosign`, `git-cliff`, `yq`, and the shared lint
+tools. The `ct install` / kind-cluster smoke gates keep `kind-action`, because
+building real clusters is a runner operation.
 
 ## Versioning (two decoupled fields)
 
@@ -183,10 +178,10 @@ its own `reuse.yml`). They mirror the configs the source repos use so charts lin
 the same way the code does.
 
 `actionlint` is a **failing gate** — the `github-actions` job runs
-`nix develop --command actionlint`, so findings block the merge across the whole
-tree, not just changed lines. actionlint shells out to `shellcheck` to lint
-`run:` blocks, so the flake devShell includes `shellcheck`; without it
-`actionlint` silently skips shell linting and the local gate diverges from CI.
+`actionlint`, so findings block the merge across the whole tree, not just
+changed lines. actionlint shells out to `shellcheck` to lint `run:` blocks, so
+`@lint` includes `shellcheck`; without it `actionlint` silently skips shell
+linting and the local gate diverges from CI.
 shellcheck findings are fixed at
 the source (quote expansions, `find` over `ls`, grouped redirects), not suppressed.
 Kept identical across jaas / stageset-controller / helm-charts.

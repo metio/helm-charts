@@ -1,0 +1,10 @@
+;; SPDX-FileCopyrightText: The helm-charts Authors
+;; SPDX-License-Identifier: 0BSD
+
+{:packages ["@helm" "@charts" "@lint" "@containers" "yq" "git-cliff" "gh" "jq"]
+ :commands {"chart-static" {:run ["bash" "-euo" "pipefail" "scripts/chart-static.sh"]
+                            :description "The static gates of one chart: helm-schema, ct lint, helm-unittest, helm-docs, kube-score and kubeconform"}
+            "release-charts" {:run ["bash" "-euo" "pipefail" "scripts/release-charts.sh"]
+                              :description "Package, push, sign and release the changed charts"}
+            "sync-joi" {:run ["bash" "-euo" "pipefail" "scripts/sync-joi.sh"]
+                        :description "Regenerate charts/joi from the JOI library manifest"}}}
