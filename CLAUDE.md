@@ -151,6 +151,9 @@ A chart's verification has these distinct layers, in roughly increasing cost:
   `ci/` value files double as the `ct install` install variants, so one set of
   representative value combinations (operator / webhook-self-signed / persistence /
   networkpolicy / watch-namespaces / HA / rollback-store …) feeds both gates.
+  `ci/additional-*-values.yaml` files are the exception: they add containers and
+  resources the chart consumer supplies, so ct lint reads them while kube-score,
+  the registry sweep and `ct install` skip them.
 - **kubeconform** — validate the rendered manifests (including the chart's CRDs)
   against Kubernetes + the CRD catalog.
 - **CRD-sync gate** — vendored CRDs match the source repo's tag for `appVersion`
