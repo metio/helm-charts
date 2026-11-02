@@ -276,7 +276,7 @@ jobs:
   # protection. It replaces having to enumerate matrix legs whose names change
   # with the discovered k8s versions / chart set.
   all-green:
-    name: Verify — all checks passed
+    name: Verify
     needs:
       - changed
       - static

@@ -124,7 +124,7 @@ so it's added to an `--excluded-charts` list (and the whole install job skips if
 nothing installable is left).
 
 Every `verify.yml` leg (incl. the chart and k8s matrices) rolls up into a single
-stably-named **`Verify — all checks passed`** aggregate job. That aggregate is the
+stably-named **`Verify`** aggregate job. That aggregate is the
 *only* check to mark required in branch protection — matrix leg names change with
 the discovered chart set / k8s versions, so they can't be enumerated as required
 checks individually. The aggregate passes only if every dependency succeeded or
