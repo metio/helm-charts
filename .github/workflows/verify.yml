@@ -3,6 +3,7 @@
 
 name: Verify Charts
 on:
+  merge_group:
   pull_request:
     branches: [main]
 permissions:
