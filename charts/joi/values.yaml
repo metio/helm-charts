@@ -159,6 +159,20 @@ libraries:
     path: ""
     # libraries this one imports; auto-enabled with it
     closure: []
+  cluster-api-bootstrap-provider-talos-libsonnet:
+    enabled: false
+    image: ghcr.io/metio/joi-jsonnet-libs-cluster-api-bootstrap-provider-talos-libsonnet
+    tag: latest
+    path: ""
+    # libraries this one imports; auto-enabled with it
+    closure: []
+  cluster-api-control-plane-provider-talos-libsonnet:
+    enabled: false
+    image: ghcr.io/metio/joi-jsonnet-libs-cluster-api-control-plane-provider-talos-libsonnet
+    tag: latest
+    path: ""
+    # libraries this one imports; auto-enabled with it
+    closure: []
   cluster-api-libsonnet:
     enabled: false
     image: ghcr.io/metio/joi-jsonnet-libs-cluster-api-libsonnet

@@ -641,6 +641,76 @@ tests:
           path: spec.sourceRef.name
           value: cloudnative-pg-libsonnet
         template: templates/jsonnetlibrary.yaml
+  - it: renders the OCIRepository and JsonnetLibrary for cluster-api-bootstrap-provider-talos-libsonnet
+    set:
+      libraries.cluster-api-bootstrap-provider-talos-libsonnet.enabled: true
+    documentSelector:
+      path: metadata.name
+      value: cluster-api-bootstrap-provider-talos-libsonnet
+    asserts:
+      - equal:
+          path: kind
+          value: OCIRepository
+        template: templates/ocirepository.yaml
+      - equal:
+          path: spec.url
+          value: oci://ghcr.io/metio/joi-jsonnet-libs-cluster-api-bootstrap-provider-talos-libsonnet
+        template: templates/ocirepository.yaml
+      - equal:
+          path: spec.ref.tag
+          value: latest
+        template: templates/ocirepository.yaml
+      - equal:
+          path: kind
+          value: JsonnetLibrary
+        template: templates/jsonnetlibrary.yaml
+      - equal:
+          path: metadata.name
+          value: cluster-api-bootstrap-provider-talos-libsonnet
+        template: templates/jsonnetlibrary.yaml
+      - equal:
+          path: spec.sourceRef.kind
+          value: OCIRepository
+        template: templates/jsonnetlibrary.yaml
+      - equal:
+          path: spec.sourceRef.name
+          value: cluster-api-bootstrap-provider-talos-libsonnet
+        template: templates/jsonnetlibrary.yaml
+  - it: renders the OCIRepository and JsonnetLibrary for cluster-api-control-plane-provider-talos-libsonnet
+    set:
+      libraries.cluster-api-control-plane-provider-talos-libsonnet.enabled: true
+    documentSelector:
+      path: metadata.name
+      value: cluster-api-control-plane-provider-talos-libsonnet
+    asserts:
+      - equal:
+          path: kind
+          value: OCIRepository
+        template: templates/ocirepository.yaml
+      - equal:
+          path: spec.url
+          value: oci://ghcr.io/metio/joi-jsonnet-libs-cluster-api-control-plane-provider-talos-libsonnet
+        template: templates/ocirepository.yaml
+      - equal:
+          path: spec.ref.tag
+          value: latest
+        template: templates/ocirepository.yaml
+      - equal:
+          path: kind
+          value: JsonnetLibrary
+        template: templates/jsonnetlibrary.yaml
+      - equal:
+          path: metadata.name
+          value: cluster-api-control-plane-provider-talos-libsonnet
+        template: templates/jsonnetlibrary.yaml
+      - equal:
+          path: spec.sourceRef.kind
+          value: OCIRepository
+        template: templates/jsonnetlibrary.yaml
+      - equal:
+          path: spec.sourceRef.name
+          value: cluster-api-control-plane-provider-talos-libsonnet
+        template: templates/jsonnetlibrary.yaml
   - it: renders the OCIRepository and JsonnetLibrary for cluster-api-libsonnet
     set:
       libraries.cluster-api-libsonnet.enabled: true
