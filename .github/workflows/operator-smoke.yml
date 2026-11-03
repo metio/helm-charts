@@ -9,6 +9,7 @@ on:
   # chart or this workflow?), so cost stays the same as the old paths filter.
   pull_request:
     branches: [main]
+  merge_group:
   workflow_dispatch:
 
 # Angle 2 of the two-angle e2e strategy: the DEV jaas chart (this PR's
@@ -52,11 +53,11 @@ jobs:
         env:
           # Via env, never inlined into the script: event payload fields are
           # attacker-influenced text and must not expand directly into the shell.
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
         run: |
           # Replaces the old `paths:` trigger: the heavy kind jobs run only when
           # something they exercise changed. workflow_dispatch always counts.
-          if [ "${{ github.event_name }}" != "pull_request" ]; then
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "relevant=true" >> "$GITHUB_OUTPUT"; exit 0
           fi
           base="$BASE_SHA"
