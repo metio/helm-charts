@@ -17,7 +17,6 @@ charts/*/Chart.lock
 *.tgz
 charts/*/README.md
 charts/*/values.schema.json
-.cache/
 charts/*/templates/crd-*.yaml
 charts/*/templates/clusterrole-controller*.yaml
 charts/jaas/templates/clusterrole-operator.yaml
