@@ -23,7 +23,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: metio/ci/breto@6e8776dc59abdfffa793903f100e89f1aacb9c2e # 2026.11.2023135
+      - uses: metio/ci/breto@00adafd0fe1924f57325d9dd264d5d731fb099ad # 2026.11.4082509
         with:
           registries: github:metio/toolchains
       - id: list
@@ -78,7 +78,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: metio/ci/breto@6e8776dc59abdfffa793903f100e89f1aacb9c2e # 2026.11.2023135
+      - uses: metio/ci/breto@00adafd0fe1924f57325d9dd264d5d731fb099ad # 2026.11.4082509
         with:
           registries: github:metio/toolchains
       - name: Vendor CRDs (build artifact, regenerated per run)
@@ -170,7 +170,7 @@ jobs:
           for c in charts/*/; do
             hack/vendor-chart-crds.sh "${c%/}"
           done
-      - uses: metio/ci/breto@6e8776dc59abdfffa793903f100e89f1aacb9c2e # 2026.11.2023135
+      - uses: metio/ci/breto@00adafd0fe1924f57325d9dd264d5d731fb099ad # 2026.11.4082509
         with:
           registries: github:metio/toolchains
       - uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1
@@ -265,7 +265,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - uses: metio/ci/breto@6e8776dc59abdfffa793903f100e89f1aacb9c2e # 2026.11.2023135
+      - uses: metio/ci/breto@00adafd0fe1924f57325d9dd264d5d731fb099ad # 2026.11.4082509
         with:
           registries: github:metio/toolchains
       - env:
