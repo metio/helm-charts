@@ -89,10 +89,10 @@ for name in $CHARTS; do
   # Static footer: cosign verification + migration notes link.
   hack/release-footer.sh "$name" "$version" "${REPO}" >>notes.md
 
+  # The release API creates the tag at SHA with GH_TOKEN. The checkout keeps no
+  # git credentials, so a `git push` of the tag has nothing to authenticate with.
   tag="${name}-${version}"
-  git tag "$tag" "${SHA}"
-  git push origin "$tag"
-  gh release create "$tag" --title "$tag" --notes-file notes.md
+  gh release create "$tag" --target "${SHA}" --title "$tag" --notes-file notes.md
   rm -f "$pkg" notes.md
   echo "::endgroup::"
 done
