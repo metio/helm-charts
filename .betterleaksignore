@@ -1,0 +1,8 @@
+# SPDX-FileCopyrightText: The helm-charts Authors
+# SPDX-License-Identifier: 0BSD
+
+# The tik chart's README in 3f27e51 showed `kubectl create secret ...
+# --from-file=password=/path/to/file` as an example; the value is a placeholder
+# path, not a password. The entry names that commit, so the same text added
+# anywhere else is still reported.
+3f27e5191ff7a2fee26029e9b50763019c4fbec2:charts/tik/README.md.gotmpl:generic-password:84
